@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── 引擎回归（Node，无需浏览器）─────────────────────────────
+  # README「回归验证清单」：抽取引擎 → 单元测试 → 无头仿真 → 清混碰 AI 对局
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm install
+
+      - name: Extract engine (must exit 0)
+        run: node proto/tools/extract.js
+
+      - name: Unit tests (62 项)
+        run: node tests/unit.js
+
+      - name: Headless simulation (200 局)
+        run: node proto/server/simulate.js 200
+
+      - name: 清混碰 AI 回归 (24 局)
+        run: node tests/m37_qhp_game.js
+
+  # ── 端到端（Playwright，需起服务 + 浏览器）─────────────────
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install node deps
+        run: npm install
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Start server (background)
+        run: node server/server.js &
+        env:
+          PORT: 8080
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/ >/dev/null; then
+              echo "server up"; break
+            fi
+            sleep 1
+          done
+
+      - name: Run Playwright e2e (tests/m*.py)
+        run: |
+          fail=0
+          for f in tests/m*.py; do
+            echo "== $f =="
+            python "$f" http://localhost:8080/ || fail=1
+          done
+          exit $fail
