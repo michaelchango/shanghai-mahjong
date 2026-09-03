@@ -1,0 +1,19 @@
+{
+  "name": "shanghai-knock-mahjong",
+  "version": "1.0.0",
+  "description": "一个**单文件 HTML** 的上海敲麻麻将游戏，手机上用浏览器直接打开就能玩。",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

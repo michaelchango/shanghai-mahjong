@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#08241b">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>上海敲麻 · 单人练习</title>
+<title>一道来麻将 · 敲麻 / 清混碰</title>
 <style>
 :root{
   --felt:#135440; --felt2:#082a1f; --felt3:#0b3a2b;
@@ -58,9 +58,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .metric.fan .v{color:var(--gold)}
 .metric.sc .v{color:var(--green)}
 .metric.cap .v{color:var(--dim);font-size:14px;padding-top:3px}
-.fandetail{font-size:10px;color:var(--dim);margin-top:4px;line-height:1.45;min-height:14px}
-.fandetail b{color:var(--gold);font-weight:700}
-.fandetail .w{color:var(--blue)}
+/* v1.2.3：fandetail 两行已挪到底部边框下方的 tingLine，此处不再保留 */
 
 /* ---------- 麻将桌 ---------- */
 .board{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:3px;
@@ -76,8 +74,8 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .seat{display:flex;align-items:center;justify-content:center;min-height:0;min-width:0}
 .seatN{flex-direction:column;gap:2px;flex:0 0 auto}
 .seatS{flex-direction:column;gap:2px;flex:0 0 auto}
-.seatW{flex-direction:row;gap:2px;flex:0 0 auto;width:auto;min-width:0;justify-content:flex-start}
-.seatE{flex-direction:row-reverse;gap:2px;flex:0 0 auto;width:auto;min-width:0;justify-content:flex-start}
+.seatW{flex-direction:row;gap:2px;flex:0 0 auto;width:auto;min-width:0;justify-content:flex-start;max-width:58px}
+.seatE{flex-direction:row-reverse;gap:2px;flex:0 0 auto;width:auto;min-width:0;justify-content:flex-start;max-width:58px}
 .boardMid{flex:1 1 auto;display:flex;gap:3px;min-height:0;min-width:0}
 
 /* 名牌（谁坐在哪） */
@@ -175,56 +173,72 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* ---------- 中央：牌河 + 桌心 ---------- */
 .mid{flex:1 1 auto;display:flex;flex-direction:column;gap:3px;min-height:0;min-width:0}
 .river{background:rgba(0,0,0,.26);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:2px;
-  display:flex;gap:1px;flex-wrap:wrap;align-content:flex-start;overflow:hidden;min-height:0}
-.rh{flex:0 0 auto;height:52px}
+  display:flex;gap:1px;flex-wrap:wrap;align-content:flex-start;overflow:hidden;min-height:0;position:relative}
+/* 局间「准备下一局」：自己牌河上的大「准备」字样 */
+.readyBadge{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:min(20px,4vw);font-weight:900;color:var(--gold);letter-spacing:2px;text-indent:2px;
+  background:rgba(0,0,0,.55);z-index:5;text-shadow:0 0 8px rgba(255,207,92,.6);line-height:1;padding:2px}
+.rh{flex:0 0 auto;height:56px}
+/* v1.2.6：牌河牌恢复统一大小（与上下两家一致，撤销 v1.2.5 的缩小）；
+   左右牌河（rv）加宽到 48px 放下两列占位槽（23×2+gap），高度定高 13 张并居中，
+   两排均衡排布（对应左右家视角的 13×2），桌心圆两侧留白由牌河居中消化 */
 .rv{flex:0 0 48px;width:48px;flex-direction:column;flex-wrap:wrap;justify-content:flex-start;
-  align-content:flex-start;height:100%;padding:1px 0;overflow:hidden}
+  align-content:flex-start;height:calc(13 * 17px + 12px + 4px);align-self:center;padding:1px 0;overflow:hidden}
+/* v1.2.13：rv 实际高度由 fitRivers() 按可用空间实时设置（页面高→加高、矮→缩短），
+   行数钳制在 10~17 行；此条是 JS 未运行时的兜底 */
+.rv{height:clamp(170px, calc((100dvh - 430px) * .55), 288px)}
 /* 牌河排列方向 = 每个人自己视角的「从左到右」；牌面朝向：
    东西家牌顶朝桌心（横躺朝他们），北家牌面朝上（对着我看清，排列顺序仍按北家视角） */
 #rvN{flex-direction:row-reverse}
 #rvE{flex-direction:column-reverse}
-.river .tile{margin:0 0 1px 0}
-#rvN > .tile{margin:0 1px 0 0}
-.rv > .tile{margin:0 0 3px 0}
 .rowmid2{flex:1 1 auto;display:flex;gap:3px;min-height:0}
-.core{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
-  min-height:0;padding:3px;overflow:hidden}
-.turnnow{font-size:11px;color:var(--dim2);white-space:nowrap;flex:0 0 auto}
-.turnnow b{color:var(--gold);font-weight:700}
+.core{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;gap:3px;
+  min-height:0;padding:6px 3px;overflow:visible;justify-content:center}
+/* v1.2.15：桌心上方改为「骰子 + 剩余牌数」——固定高度，防桌心圆上下漂移；
+   豹子/开宝时只高亮骰子（.kb），不再写「豹子 ×2」文字；荒番只显示在右上角 */
+.diceline{flex:0 0 auto;max-width:100%;height:26px;display:flex;align-items:center;justify-content:center;
+  gap:7px;white-space:nowrap;overflow:hidden;line-height:1}
+.diceline .wl{font-size:17px;font-weight:800;color:#eaf5ef;font-variant-numeric:tabular-nums;
+  text-shadow:0 2px 6px rgba(0,0,0,.6)}
+/* 圆心倒计时（v1.2.15）：纯数字黄色高亮，无决策时显示「——」占位（高度稳定不漂移） */
+.dial .ctr .cd{font-size:min(30px,5.4vw);font-weight:800;color:var(--gold);line-height:1;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(255,207,92,.55),0 2px 6px rgba(0,0,0,.6)}
+.dial .ctr .cd.warn{color:#ff8a6a;text-shadow:0 0 12px rgba(255,90,60,.75);animation:cdWarn .7s ease-in-out infinite}
+@keyframes cdWarn{0%,100%{opacity:1}50%{opacity:.45}}
 
-/* 桌心罗盘 */
-.dial{position:relative;width:150px;max-width:100%;aspect-ratio:1;height:auto;border-radius:50%;flex:0 0 auto;
+/* 桌心罗盘（v1.2.3：圆略缩、方位块略大、东四字略大、指针底边缩到比方位块窄） */
+.dial{position:relative;width:min(130px,22vw);max-width:100%;aspect-ratio:1;height:auto;border-radius:50%;flex:0 0 auto;
   background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.11),rgba(0,0,0,.34) 70%);
   border:1px solid rgba(255,255,255,.15);box-shadow:inset 0 2px 10px rgba(0,0,0,.5)}
-.dial .dw{position:absolute;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;
-  justify-content:center;font-size:15px;font-weight:800;color:#b9cfc5;background:rgba(0,0,0,.34);
+.dial .dw{position:absolute;width:min(30px,5.4vw);height:min(30px,5.4vw);border-radius:7px;display:flex;align-items:center;
+  justify-content:center;font-size:min(15px,3.8vw);font-weight:800;color:#b9cfc5;background:rgba(0,0,0,.34);
   border:1px solid rgba(255,255,255,.12)}
 .dial .dw.cur{background:linear-gradient(180deg,#ffe6a3,#e8a927);color:#3a2a00;border-color:#ffe9b0;
   box-shadow:0 0 9px rgba(255,207,92,.65)}
-.dial .dw.n{left:50%;top:5px;transform:translateX(-50%)}
-.dial .dw.s{left:50%;bottom:5px;transform:translateX(-50%)}
-.dial .dw.w{left:5px;top:50%;transform:translateY(-50%)}
-.dial .dw.e{right:5px;top:50%;transform:translateY(-50%)}
+/* 方位块贴近圆边：指针从方位块外侧伸出后正好穿过圆的边框「戳」出去（指针在圆之上，遮住一点圆边） */
+.dial .dw.n{left:50%;top:1px;transform:translateX(-50%)}
+.dial .dw.s{left:50%;bottom:1px;transform:translateX(-50%)}
+.dial .dw.w{left:1px;top:50%;transform:translateY(-50%)}
+.dial .dw.e{right:1px;top:50%;transform:translateY(-50%)}
+/* 轮到谁：在方位块外侧挂一枚向外指的三角指针（转盘指针的感觉），比只换个底色醒目得多 */
+.dial .dw.cur::after{content:'';position:absolute;width:0;height:0;
+  filter:drop-shadow(0 0 6px rgba(255,207,92,.95));animation:dialPtr 1.1s ease-in-out infinite;z-index:6}
+@keyframes dialPtr{0%,100%{opacity:.85;transform:scale(1)}50%{opacity:1;transform:scale(1.12)}}
+/* 指针：半宽 8px（总底 16，< 方位块宽 30，更协调），伸出 12px（穿过圆边向外戳） */
+.dial .dw.n.cur::after{bottom:100%;left:50%;margin-left:-8px;border-width:0 8px 12px;border-style:solid;border-color:transparent transparent var(--gold) transparent;transform-origin:50% 100%}
+.dial .dw.s.cur::after{top:100%;left:50%;margin-left:-8px;border-width:12px 8px 0;border-style:solid;border-color:var(--gold) transparent transparent transparent;transform-origin:50% 0}
+.dial .dw.w.cur::after{right:100%;top:50%;margin-top:-8px;border-width:8px 12px 8px 0;border-style:solid;border-color:transparent var(--gold) transparent transparent;transform-origin:100% 50%}
+.dial .dw.e.cur::after{left:100%;top:50%;margin-top:-8px;border-width:8px 0 8px 12px;border-style:solid;border-color:transparent transparent transparent var(--gold);transform-origin:0 50%}
 .dial .ctr{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}
-.dial .ctr .num{font-size:38px;font-weight:800;color:#eaf5ef;line-height:1;font-variant-numeric:tabular-nums;
-  text-shadow:0 2px 6px rgba(0,0,0,.6)}
-.dial .ctr .lab{font-size:9px;color:var(--dim2);margin-top:3px;letter-spacing:1px}
-.wallbar{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--dim2);width:100%;max-width:168px}
-.wallbar .bar{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.45);overflow:hidden}
-.wallbar .bar i{display:block;height:100%;background:linear-gradient(90deg,#4ec98a,#2fa06a);border-radius:2px;
-  transition:width .3s}
-.tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
-.tg{font-size:9px;padding:1px 6px;border-radius:6px;background:rgba(255,207,92,.16);color:var(--gold);
-  border:1px solid rgba(255,207,92,.3);font-weight:700}
-.tg.b{background:rgba(99,179,255,.16);color:var(--blue);border-color:rgba(99,179,255,.3)}
-/* 桌心骰子 */
-.diceC{display:inline-flex;gap:5px;align-items:center;padding:3px 7px;border-radius:8px;
+/* v1.2.15：圆心旧「剩余牌数字+标签」（.num/.lab）与桌心 tags（.tags/.tg）已移除——
+   剩余牌数挪到桌心上方骰子后，倒计时放圆心（.cd），荒番只在右上角 */
+/* 桌心骰子（v1.2.3：缩小骰子，更紧凑；v1.2.15 移到桌心上方 diceline，豹子/开宝高亮不写文字） */
+.diceC{display:inline-flex;gap:4px;align-items:center;padding:2px 6px;border-radius:7px;
   background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14)}
-.die{width:21px;height:21px;border-radius:5px;position:relative;
+.die{width:17px;height:17px;border-radius:4px;position:relative;
   background:linear-gradient(180deg,#fffdf6,#ece3c8);box-shadow:0 1px 3px rgba(0,0,0,.5),inset 0 1px 0 #fff}
-.die i{position:absolute;width:4.5px;height:4.5px;border-radius:50%;background:#1a1a1a;
+.die i{position:absolute;width:3.6px;height:3.6px;border-radius:50%;background:#1a1a1a;
   transform:translate(-50%,-50%);box-shadow:inset 0 -1px 1px rgba(0,0,0,.4)}
-.diceC em{font-style:normal;font-size:10px;font-weight:800;color:var(--gold);letter-spacing:.5px}
 .diceC.kb{background:rgba(122,68,0,.5);border-color:var(--gold);box-shadow:0 0 8px rgba(255,207,92,.35)}
 .diceC.kb .die i{background:#b5321f}
 
@@ -240,11 +254,17 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .hand .drawgap{width:7px;flex:0 0 7px}
 .hint{text-align:center;font-size:11px;color:var(--dim);height:15px;line-height:15px;margin-top:2px;flex:0 0 auto}
 .hint b{color:var(--gold)}
+/* v1.2.7：听牌行固定占位（17px），通过 opacity 切换显示/隐藏，避免高度变化挤压中间牌桌区域 */
+.tingline{text-align:center;font-size:11px;color:var(--gold);line-height:15px;min-height:17px;max-height:17px;
+  overflow:hidden;flex:0 0 auto;padding:1px 0 2px;opacity:0;transition:opacity .15s ease}
+.tingline.show{opacity:1}
+.tingline b{color:var(--gold);font-weight:800}
+.tingline .w{color:var(--blue);font-weight:700}
 
 /* ---------- 操作按钮 ---------- */
-.acts{flex:0 0 auto;display:flex;gap:6px;justify-content:center;height:46px;margin-top:3px}
-.acts button{flex:0 1 84px;height:46px;border-radius:12px;font-size:16px;font-weight:800;
-  background:var(--card2);border:1px solid var(--line);letter-spacing:2px;
+.acts{flex:0 0 auto;display:flex;gap:6px;justify-content:center;height:46px;margin-top:3px;padding:0 4px}
+.acts button{flex:1 1 0;min-width:0;height:46px;padding:0 10px;border-radius:12px;font-size:16px;font-weight:800;
+  background:var(--card2);border:1px solid var(--line);letter-spacing:1px;white-space:nowrap;overflow:hidden;
   box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .acts button:active{transform:scale(.96)}
 .acts button.none{background:rgba(255,255,255,.07);color:var(--dim);font-size:14px;letter-spacing:1px}
@@ -272,19 +292,24 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .tile.dimmed{opacity:.5}
 .tile.hl{box-shadow:0 0 0 2px var(--gold),0 3px 8px rgba(0,0,0,.5)}
 .tile.last{box-shadow:0 0 0 2px var(--red),0 3px 8px rgba(0,0,0,.5)}
+/* v1.2.13：出牌点选时，台面相同牌高亮（蓝色框，区别于上张打出的红框） */
+/* v1.2.18：加宽到 3px 并叠一圈光晕，牌河/副露里的同牌一眼能扫到 */
+.tile.hl{box-shadow:0 0 0 3px #39c0ff,0 0 0 6px rgba(57,192,255,.28),0 0 12px 2px rgba(57,192,255,.65),0 3px 8px rgba(0,0,0,.5);z-index:2}
 .tile.back{background:linear-gradient(158deg,#33a07c 0%,#1d7460 50%,#11513f 100%);border-color:#0b3c2d}
 .tile.back:after{content:"";position:absolute;inset:2.5px;border-radius:2px;border:1px solid rgba(255,255,255,.20)}
 .tile .badge{position:absolute;top:-1px;right:0;font-size:8px;background:var(--red);color:#fff;
   border-radius:0 0 0 4px;padding:0 2px;line-height:9px;font-weight:700;z-index:2}
 .meld{display:flex;gap:1px;align-items:center}
 .meld .tile{--tw:18px;--th:25px}
+/* v1.2.6：暗杠四张全部可见（整组米色牌背），不再把中间两张 visibility:hidden——
+   之前只看到边上两张、中间像缺牌，被当成显示 bug */
 .meld .tile.concealed{background:linear-gradient(178deg,#e6dfcd,#cfc6b0);border-color:#b3aa94}
-.meld.concealedKong > *:nth-child(2),.meld.concealedKong > *:nth-child(3){visibility:hidden}
 
 /* ---------- 弹层 ---------- */
-.mask{position:fixed;inset:0;background:rgba(3,14,10,.78);backdrop-filter:blur(3px);z-index:50;
+.mask{position:fixed;inset:0;background:rgba(3,14,10,.78);backdrop-filter:blur(3px);z-index:70;
   display:flex;align-items:center;justify-content:center;padding:16px}
-.mask.hide{display:none}
+/* hide：统一的隐藏类（首页面板切换、弹层、开始按钮都用它） */
+.hide{display:none !important}
 .sheet{background:linear-gradient(180deg,#123a2c,#0b291f);border:1px solid var(--line);border-radius:16px;
   width:100%;max-width:420px;max-height:86dvh;overflow:auto;padding:14px}
 .sheet h2{margin:0 0 10px;font-size:17px;display:flex;align-items:center;gap:6px}
@@ -334,6 +359,15 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .seg{display:flex;background:rgba(0,0,0,.28);border-radius:8px;padding:2px;gap:2px}
 .seg button{padding:5px 9px;font-size:12px;border-radius:6px;color:var(--dim)}
 .seg button.on{background:var(--gold);color:#3d2a00;font-weight:700}
+/* 只读态（联机非房主 / 已开局）：显示同样的分段，但不可点 */
+.seg.ro{gap:0}
+.seg span{padding:5px 9px;font-size:12px;border-radius:6px;color:var(--dim2)}
+.seg span.on{background:var(--gold);color:#3d2a00;font-weight:700}
+/* 敲听选择面板：列出「打X → 听Y」的每个听法 */
+.knockList{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.knockList .knockOpt{width:100%;padding:11px 12px;border-radius:10px;font-size:14px;font-weight:700;
+  background:var(--card2);border:1px solid var(--line);color:var(--txt);text-align:left}
+.knockList .knockOpt:active{transform:scale(.98);filter:brightness(1.15)}
 
 /* 规则 */
 .ru h3{margin:14px 0 6px;font-size:13px;color:var(--gold)}
@@ -345,24 +379,38 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .ru td.f{color:var(--gold);text-align:center;font-weight:700;white-space:nowrap}
 .ru ul{margin:3px 0;padding-left:18px}
 
-/* 结算里的牌展示 */
-.tlist .tile{--tw:30px;--th:41px}
+/* 结算里的牌展示（v1.2.4：缩小一档，弹窗里能多显示几排也不挤） */
+.tlist .tile{--tw:25px;--th:34px;border-radius:3.5px}
+.tlist .tile.sm{--tw:21px;--th:28px}
+.tlist{gap:2px}
 
 /* Toast */
+/* 牌河区域内的浮窗（吃/碰/杠/敲）：fixed 贴到牌河中心，z-index 低于弹层(70)，弹窗时不会盖上来 */
+.seatTst{position:fixed;z-index:65;padding:7px 13px;border-radius:10px;font-size:15px;font-weight:800;
+  letter-spacing:1px;white-space:nowrap;pointer-events:none;
+  background:linear-gradient(180deg,#ffd473,#e8a927);color:#3d2a00;border:1px solid #ffe0a3;
+  box-shadow:0 6px 18px rgba(0,0,0,.55);animation:seatTstPop 2s ease forwards}
+@keyframes seatTstPop{0%{opacity:0;transform:scale(.6)}12%{opacity:1;transform:scale(1)}
+  78%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.94)}}
 #toast{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:80;pointer-events:none;
   display:flex;flex-direction:column;gap:6px;align-items:center}
 .tst{background:rgba(0,0,0,.72);border:1px solid var(--line);padding:7px 14px;border-radius:20px;
-  font-size:14px;font-weight:700;animation:pop 1.1s ease forwards;white-space:nowrap}
+  font-size:14px;font-weight:700;animation:pop 2s ease forwards;white-space:nowrap}
 .tst.big{font-size:20px;padding:10px 20px;background:rgba(232,67,44,.9);border-color:#ff9d86}
 .tst.gold{background:rgba(232,169,39,.92);color:#3d2a00;border-color:#ffe0a3}
 @keyframes pop{0%{opacity:0;transform:scale(.7)}18%{opacity:1;transform:scale(1.06)}
   70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.95) translateY(-14px)}}
 
-/* 日志 */
+/* 日志（v1.2.3：单行省略，绝不超 max-height；行数自适应从 3 条起逐减） */
 .logbar{display:flex;flex-direction:column;align-items:center;gap:1px;width:100%;flex:0 0 auto}
-.log{font-size:9.5px;color:var(--dim2);overflow:hidden;line-height:12px;height:36px;width:100%;
-  padding:0 2px;display:flex;flex-direction:column-reverse}
-.log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.log{font-size:9px;color:var(--dim2);line-height:13px;width:100%;flex:0 0 auto;
+  padding:0 2px;display:flex;flex-direction:column-reverse;min-height:13px;max-height:39px;overflow:hidden}
+/* v1.2.14：log 模块窗口级自适应——fitLog() 按可用空间算行数（0~3）并固定高度；
+   同一窗口内行数不变（内容多少不挤占空间），窗口矮时压缩行数甚至只留「查看」按钮 */
+/* v1.2.15：flex:0 0 13px 禁止收缩——空间不够时由 fitLog() 减行，
+   绝不让 flex 把行高压扁导致两行字叠在一起（旧版此处会被挤成 0 高/重叠） */
+.log div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;
+  flex:0 0 13px;height:13px;line-height:13px}
 .logmore{font-size:9.5px;color:var(--gold);opacity:.9;cursor:pointer;text-align:center;
   padding:0 6px 1px;line-height:1.2;border-bottom:1px solid rgba(255,207,92,.5);
   -webkit-tap-highlight-color:transparent}
@@ -372,42 +420,182 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .lgrow{display:flex;gap:7px;padding:5px 2px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.07)}
 .lgi{flex:0 0 20px;color:var(--dim2);font-size:10px;text-align:right;font-variant-numeric:tabular-nums}
 
+/* 断点里的罗盘尺寸同样带 vw 上限：矮屏缩小的同时，窄屏也不会被撑大（各尺寸比例一致） */
 @media (max-height:700px){
   :root{--tw:22px;--th:30px;--bkSlotW:20px}
-  .dial{width:132px}
-  .dial .ctr .num{font-size:33px}
-  .rh{height:40px}
+  .dial{width:min(104px,22vw)}
+  .dial .ctr .cd{font-size:min(26px,4.8vw)}
+  .rh{height:50px}
 }
 @media (max-height:620px){
   :root{--tw:20px;--th:28px;--bkSlotW:18px}
-  .dial{width:116px}
-  .dial .ctr .num{font-size:29px}
-  .rh{height:48px}
+  .dial{width:min(94px,22vw)}
+  .dial .ctr .cd{font-size:min(23px,4.8vw)}
+  .rh{height:52px}
   .nm{font-size:9px;padding:1px 5px}
   .hud .v{font-size:17px}
 }
 @media (max-width:340px){
   :root{--tw:21px;--th:29px;--bkSlotW:19px}
-  .dial{width:124px}
+  .dial{width:min(100px,22vw)}
   .fx .tile{--tw:16px;--th:22px}
   .fslot{width:23px;height:17px}
 }
 @media (max-height:600px){
-  .dial{width:98px}
-  .dial .ctr .num{font-size:24px}
-  .dial .dw{width:23px;height:23px;font-size:12px}
+  .dial{width:min(84px,22vw)}
+  .dial .ctr .cd{font-size:min(20px,4.8vw)}
+  .dial .dw{width:min(24px,5.4vw);height:min(24px,5.4vw);font-size:min(13px,3.8vw)}
+  .diceline{height:22px}
+  .diceline .die{width:14px;height:14px}
+  .diceline .wl{font-size:15px}
   .logbar{display:none}
-  .rh{height:48px}
+  .rh{height:52px}
 }
 @media (max-width:330px){
   :root{--tw:19px;--th:26px}
-  .dial{width:100px}
+  .dial{width:min(88px,22vw)}
   .fx .tile{--tw:15px;--th:21px}
   .fslot{width:22px;height:16px}
 }
+
+/* ---------- 首页 / 多人大厅 / 房间 ---------- */
+#home{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(130% 90% at 50% 18%,#0e4030 0%,#061a13 72%);
+  overflow:hidden;touch-action:pan-y}
+.homeBox{width:min(360px,90vw);text-align:center;animation:hIn .28s ease}
+@keyframes hIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.hTitle{font-size:36px;font-weight:900;color:var(--gold);letter-spacing:8px;margin:6px 0 2px;
+  text-shadow:0 3px 16px rgba(0,0,0,.55),0 0 1px rgba(255,207,92,.8)}
+.hTitle .sub{display:block;font-size:12px;letter-spacing:4px;color:var(--dim);font-weight:500;margin-top:6px}
+.hDeco{display:flex;justify-content:center;gap:7px;margin-bottom:14px}
+.hDeco .tile{--tw:26px;--th:36px}
+/* 按钮文案一律居中：图标与标题同一行居中，副标题另起一行 */
+.hBtn{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0 9px;width:100%;
+  margin:13px 0 0;padding:13px 16px;border-radius:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
+  border:1px solid var(--line);color:var(--txt);font-size:17px;font-weight:800;letter-spacing:2px;text-align:center}
+.hBtn small{flex:0 0 100%;font-size:11px;font-weight:400;letter-spacing:0;color:var(--dim);margin-top:3px;text-align:center}
+.hBtn.solo{border-color:rgba(255,207,92,.35)}
+.hBtn.solo::before{content:'🀄';font-size:19px}
+.hBtn.multi{border-color:rgba(99,179,255,.35)}
+.hBtn.multi::before{content:'👥';font-size:16px}
+.hBtn.pri{background:linear-gradient(180deg,#2f8f68,#1d6b4c);border-color:rgba(120,220,170,.5)}
+.hBtn.danger{background:linear-gradient(180deg,#9e3a3a,#6e2222);border-color:rgba(255,120,120,.5)}
+.hBtn:active{transform:scale(.985);filter:brightness(1.12)}
+.hBtn:disabled{opacity:.5;filter:grayscale(.75);pointer-events:none}
+.hVer{margin-top:18px;font-size:10.5px;color:var(--dim2);letter-spacing:1px}
+.hBack{display:inline-block;margin-top:16px;color:var(--dim);font-size:13px;padding:8px 14px;
+  background:none;border:0;letter-spacing:1px}
+.hBack:active{color:var(--txt)}
+/* 表单 */
+.lRow{display:flex;gap:8px;margin-top:12px;align-items:stretch}
+.lLab{flex:0 0 auto;align-self:center;font-size:12px;color:var(--dim);letter-spacing:2px;width:52px;text-align:left}
+.lInput{flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid var(--line);border-radius:10px;
+  color:var(--txt);font-size:15px;padding:11px 12px;font-family:inherit;outline:none;letter-spacing:1px}
+.lInput:focus{border-color:rgba(255,207,92,.55)}
+.lInput::placeholder{color:var(--dim2);letter-spacing:0}
+.lJoin{flex:0 0 auto;margin:0;padding:0 22px;border-radius:10px;font-size:15px;font-weight:800;
+  background:linear-gradient(180deg,#2f8f68,#1d6b4c);border:1px solid rgba(120,220,170,.5);color:#fff;letter-spacing:2px}
+.lJoin:disabled{opacity:.45}
+.lErr{min-height:16px;margin-top:8px;font-size:11.5px;color:var(--red);letter-spacing:.5px}
+.lErr.ok{color:var(--green)}
+/* 房间等待 */
+.rNoWrap{margin:8px 0 2px}
+.rNoLab{font-size:11px;color:var(--dim);letter-spacing:3px}
+.rNo{font-size:38px;font-weight:900;color:var(--gold);letter-spacing:6px;
+  text-shadow:0 2px 14px rgba(0,0,0,.5);cursor:pointer}
+.rNoHint{font-size:11px;color:var(--dim2);margin-top:2px}
+/* v1.2.4：等待页简易牌桌：中央迷你桌心圆 + 上下左右四个位置 */
+.rBoard{margin-top:14px;width:min(300px,78vw);aspect-ratio:1;margin-left:auto;margin-right:auto;
+  display:grid;grid-template-columns:1fr 96px 1fr;grid-template-rows:1fr 96px 1fr;gap:8px;
+  align-items:center;justify-items:center;position:relative}
+.rSeatSlot{min-width:0;width:100%;height:100%;border:1px dashed rgba(255,255,255,.18);border-radius:11px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  background:rgba(255,255,255,.03);cursor:pointer;transition:background .15s,border-color .15s;
+  padding:5px 4px;font-size:10.5px;color:var(--dim2)}
+.rSeatSlot.empty{cursor:pointer}
+.rSeatSlot.empty:active{background:rgba(255,207,92,.10);transform:scale(.98)}
+.rSeatSlot.taken{cursor:default;border-style:solid;border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.06)}
+.rSeatSlot.me{border-color:rgba(255,207,92,.55);background:rgba(255,207,92,.08)}
+.rSeatPos{font-size:9px;letter-spacing:1px;color:var(--dim2)}
+.rSeatName{font-size:13px;font-weight:700;color:var(--txt);display:flex;align-items:center;gap:4px;
+  white-space:nowrap;overflow:hidden;max-width:100%;text-overflow:ellipsis}
+.rSeatName .st{font-size:8.5px;font-weight:600;padding:1px 5px;border-radius:5px;letter-spacing:.5px;
+  white-space:nowrap;flex:0 0 auto}
+.rSeatName .st.ready{background:rgba(78,201,138,.20);color:var(--green)}
+.rSeatName .st.off{background:rgba(255,111,87,.16);color:var(--red)}
+.rSeatName .st.host{background:rgba(255,207,92,.16);color:var(--gold)}
+.rSeatKick{align-self:center;margin-top:3px;font-size:9.5px;letter-spacing:.5px;
+  color:var(--dim2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;background:rgba(255,255,255,.04)}
+/* 中央迷你桌心圆 */
+.rCenter{grid-column:2;grid-row:2;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.rDial{position:relative;width:88px;height:88px;border-radius:50%;
+  background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.10),rgba(0,0,0,.34) 70%);
+  border:1px solid rgba(255,255,255,.15);box-shadow:inset 0 2px 8px rgba(0,0,0,.5)}
+.rDw{position:absolute;width:18px;height:18px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;font-size:10px;font-weight:800;color:#b9cfc5;background:rgba(0,0,0,.34);
+  border:1px solid rgba(255,255,255,.12)}
+.rDw.n{left:50%;top:2px;transform:translateX(-50%)}
+.rDw.s{left:50%;bottom:2px;transform:translateX(-50%)}
+.rDw.w{left:2px;top:50%;transform:translateY(-50%)}
+.rDw.e{right:2px;top:50%;transform:translateY(-50%)}
+.rBoard .rSeatN{grid-column:2;grid-row:1}
+.rBoard .rSeatW{grid-column:1;grid-row:2}
+.rBoard .rSeatE{grid-column:3;grid-row:2}
+.rBoard .rSeatS{grid-column:2;grid-row:3}
+.rNoCopy{margin-top:4px;font-size:10.5px;color:var(--dim2);letter-spacing:.5px}
+.rStatus{margin-top:10px;font-size:11.5px;color:var(--dim);min-height:15px;letter-spacing:.5px}
 </style>
 </head>
 <body>
+<!-- ========== 首页 / 多人房间 ========== -->
+<div id="home">
+  <!-- 模式选择 -->
+  <div class="homeBox" id="homePick">
+    <div class="hDeco" id="hDeco"></div>
+    <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
+    <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
+    <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
+    <div class="hVer" id="hVer">v1.2.19</div>
+  </div>
+  <!-- 多人大厅（连接 + 建房/加入） -->
+  <div class="homeBox hide" id="homeLobby">
+    <div class="hTitle" style="font-size:26px;letter-spacing:4px">多人对战<span class="sub">创建房间，或输入好友的房间号加入</span></div>
+    <div class="lRow"><span class="lLab">昵称</span><input class="lInput" id="lName" maxlength="6" placeholder="你的名字"></div>
+    <div class="lRow"><span class="lLab">服务器</span><input class="lInput" id="lServer" placeholder="留空 = 自动（用当前页面地址）"></div>
+    <button class="hBtn pri" id="lCreate">创建房间</button>
+    <div class="lRow"><input class="lInput" id="lRoomNo" maxlength="6" inputmode="numeric" placeholder="好友的房间号"><button class="lJoin" id="lJoin">加入</button></div>
+    <div class="lErr" id="lErr"></div>
+    <button class="hBack" id="lBack">← 返回</button>
+  </div>
+  <!-- 房间等待 -->
+  <div class="homeBox hide" id="homeRoom">
+    <div class="rNoWrap">
+      <div class="rNoLab">房 间 号</div>
+      <div class="rNo" id="rNoTxt" title="点击复制">······</div>
+      <div class="rNoCopy">（点击数字复制）</div>
+      <div class="rNoHint">告诉朋友：输入房间号加入 · 点空位可换座</div>
+    </div>
+    <!-- v1.2.4：等待页改简易牌桌：中央迷你桌心圆 + 上下左右四个位置 -->
+    <div class="rBoard" id="rBoard">
+      <div class="rSeatSlot rSeatN" data-seat="0"></div>
+      <div class="rCenter"><div class="rDial">
+        <div class="rDw n">东</div><div class="rDw w">西</div>
+        <div class="rDw e">南</div><div class="rDw s">北</div>
+      </div></div>
+      <div class="rSeatSlot rSeatW" data-seat="3"></div>
+      <div class="rSeatSlot rSeatE" data-seat="1"></div>
+      <div class="rSeatSlot rSeatS" data-seat="2"></div>
+    </div>
+    <div class="rStatus" id="rStatus"></div>
+    <button class="hBtn pri hide" id="rStart">开始游戏</button>
+    <button class="hBtn multi" id="rReady">准备</button>
+    <button class="hBtn hide" id="rCfg">游戏设置</button>
+    <button class="hBtn danger hide" id="rClose">关闭房间</button>
+    <button class="hBack" id="rLeave">退出房间</button>
+  </div>
+</div><!-- /#home -->
+
 <div id="app">
   <div class="topbar">
     <span class="gname" id="gname">第 1 局</span>
@@ -421,7 +609,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 
   <div class="hud">
     <div class="row1">
-      <span class="who"><span class="seat" id="myWind">东</span><span id="myName">你</span><span class="mine" id="myDiFan">底2×番—</span></span>
+      <span class="who"><span class="seat" id="myWind">东</span><span id="myName">你</span></span>
       <span class="sp"></span>
       <span class="knockTag off" id="knockTag">未敲 · 不能胡</span>
     </div>
@@ -431,7 +619,6 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
       <div class="metric sc"><div class="k">可得（分）</div><div class="v" id="mScore">—</div></div>
       <div class="metric cap"><div class="k">封顶</div><div class="v" id="mCap">80</div></div>
     </div>
-    <div class="fandetail" id="fanDetail">摸牌后自动分析牌型…</div>
   </div>
 
   <div class="board">
@@ -456,16 +643,14 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
         <div class="rowmid2">
           <div class="river rv" id="rvW"></div>
           <div class="core">
-            <div class="turnnow" id="turnNow">轮到 你</div>
+            <div class="diceline" id="diceLine"></div>
             <div class="dial">
               <div class="dw n" id="dwN">东</div>
               <div class="dw w" id="dwW">东</div>
               <div class="dw e" id="dwE">东</div>
               <div class="dw s" id="dwS">东</div>
-              <div class="ctr"><div class="num" id="wallTxt">91</div><div class="lab">剩余牌</div></div>
+              <div class="ctr"><div class="cd" id="cdTxt">——</div></div>
             </div>
-            <div class="wallbar"><span class="bar"><i id="wallBar" style="width:100%"></i></span></div>
-            <div class="tags" id="coreTags"></div>
             <div class="logbar">
               <div class="log" id="log"></div>
               <span class="logmore" id="btnLog">全部手牌记录</span>
@@ -488,10 +673,13 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="seat seatS">
       <div class="mrow" id="ml0"></div>
       <div class="hand" id="hand"></div>
+      <div class="nm" id="nm0"></div>
     </div>
   </div>
 
   <div class="hint" id="hint"></div>
+  <!-- v1.2.3：听牌时的「听牌中 → xx 牌」挪到这里（页面底部边框下方，与 hint 同列） -->
+  <div class="tingline" id="tingLine"></div>
   <div class="acts" id="acts"></div>
 </div>
 
@@ -503,17 +691,20 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 "use strict";
 /* =========================================================================
    上海敲麻 · 单人练习（单文件 / 无外部依赖）
-   牌编码：0-8 万1-9 | 9-17 筒1-9 | 18-26 条1-9 | 27-30 东南西北 | 31-33 (中发白=花,不组牌)
+   牌编码：0-8 万1-9 | 9-17 筒1-9 | 18-26 条1-9 | 27-30 东南西北 | 31 中 32 發 33 白
    花牌：100-107 春夏秋冬梅兰竹菊 | 108-111 中 | 112-115 发 | 116-119 白
+   v1.2.17：敲麻玩法下中发白按 108-119 发（算花，不组牌）；清混碰下按 31-33 发
+   （算牌不算花，可碰可组刻）。编码空间只有一套，墙里发哪套由 buildWall 按玩法决定。
    ========================================================================= */
 
 /* ---------------- 基础工具 ---------------- */
 const RANK_CH = ['一','二','三','四','五','六','七','八','九'];
 const SUIT_CH = ['萬','筒','條'];
 const WIND_CH = ['東','南','西','北'];
+const HONOR_CH = ['東','南','西','北','中','發','白'];
 const SEASON  = ['春','夏','秋','冬','梅','蘭','竹','菊'];
 const TILECNT = 34;      // counts 数组长度
-const PLAYCNT = 31;      // 实际参与组牌的牌种数（0..30）
+const PLAYCNT = 34;      // 参与组牌的牌种数（0..33；敲麻下 31-33 不上墙，循环空转无影响）
 
 const isFlower = t => t >= 100;
 const isSeason = t => t >= 100 && t <= 107;
@@ -530,7 +721,7 @@ function flowerChar(t){
 }
 function tileName(t){
   if (isFlower(t)) return flowerChar(t);
-  if (isHonor(t)) return WIND_CH[t - 27];
+  if (isHonor(t)) return HONOR_CH[t - 27];
   return RANK_CH[t % 9] + SUIT_CH[suitOf(t)];
 }
 function toCounts(tiles){
@@ -647,7 +838,7 @@ function evaluateShape(handCounts, melds, opts){
 
   let numSuits = new Set(), hasWind = false, hasNum = false;
   for (const t of all){
-    if (t >= 27 && t <= 30) hasWind = true;
+    if (t >= 27 && t < 34) hasWind = true;   // v1.2.17：27-30 风牌 + 31-33 中发白都算字牌
     else if (t < 27){ hasNum = true; numSuits.add(suitOf(t)); }
   }
   // 碰碰胡：无吃牌 + 手牌可全刻子分解（七对子不算碰碰胡）
@@ -680,8 +871,8 @@ function evaluateShape(handCounts, melds, opts){
 
 /* 花数计算（底花） */
 function calcFlowers(p, handCounts){
-  let f = p.flowers.length;                 // 每张花牌 1 花
-  for (const m of p.melds){
+  let f = (p.flowers || []).length;         // 每张花牌 1 花
+  for (const m of (p.melds || [])){
     if (m.type === 'kong'){
       f += isWind(m.tile) ? (m.concealed ? 3 : 2) : (m.concealed ? 2 : 1);
     } else if (m.type === 'pung' && isWind(m.tile)){
@@ -699,7 +890,7 @@ function calcFlowers(p, handCounts){
 function extraFan(p, ctx){
   const add = [];
   if (p.menqing) add.push(['门清', 1]);
-  if (p.flowers.length === 0) add.push(['无花果', 1]);
+  if (calcFlowers(p, null) === 0) add.push(['无花果', 1]);   // v1.2.12：杠算花，暗杠/加杠都会破无花果
   if (ctx.diaoche) add.push(['大吊车', 1]);
   if (ctx.kongDraw) add.push(['杠上开花', 1]);
   if (ctx.haidi) add.push(['海底捞月', 1]);
@@ -773,10 +964,20 @@ function shantenColor(counts, fixedMelds, suit, allowWind){
     if (!counts[i]) continue;
     const s = suitOf(i);
     if (s === suit) sub[i] += counts[i];
-    else if (allowWind && i >= 27 && i <= 30) sub[i] += counts[i];
+    else if (allowWind && i >= 27 && i < 34) sub[i] += counts[i];
     else out += counts[i];
   }
-  return shantenStd(sub, fixedMelds) + out;
+  // v1.2.16：废牌不再「每张 1 向听」全额累加。
+  // 打掉一张废牌、摸进一张有效牌，这两件事在同一次进张里同时发生——
+  // 换牌本身也在推进搭子，旧算法把 out 全额相加属于重复计数，
+  // 混一色能算出 10~14，远超向听理论上限 8（4 面子 + 1 将）。
+  // 结果它与「完全不计废牌」的碰碰胡向听不同量纲，AI 跨类型比较时永远选碰碰胡，
+  // 清混碰玩法实际退化成只剩碰碰胡，谁也做不出混一色/清一色。
+  // v1.2.18：废牌权重半价再降到 1/3——出掉 3 张废牌约只需 1 张「纯损失」（其余
+  // 两张换回的牌同时就在推进搭子）。v1.2.16 的半价把散牌混一色仍算到封顶 8，
+  // 与碰碰胡 6~7 相比毫无竞争力，机器人依然「无脑碰碰胡」；
+  // 降到 1/3 后「一门已 7~9 张」的牌型才真正流向混一色/清一色。并封顶到理论上限 8。
+  return Math.min(8, shantenStd(sub, fixedMelds) + Math.ceil(out / 3));
 }
 // 风一色向听（全风牌）
 function shantenWindOnly(counts, fixedMelds){
@@ -784,15 +985,16 @@ function shantenWindOnly(counts, fixedMelds){
   let out = 0;
   for (let i = 0; i < PLAYCNT; i++){
     if (!counts[i]) continue;
-    if (i >= 27 && i <= 30) sub[i] += counts[i];
+    if (i >= 27 && i < 34) sub[i] += counts[i];   // 全字牌（风+中发白）
     else out += counts[i];
   }
   const std = shantenStd(sub, fixedMelds);
-  // 七对子路线：k 种风牌成对的进度
+  // 七对子路线：k 种字牌成对的进度（27-30 风牌 + 31-33 中发白，共 7 种——全字七对刚好凑齐）
   let pairs = 0, kinds = 0;
-  for (let i = 27; i <= 30; i++){ if (sub[i] >= 2) pairs++; if (sub[i] > 0) kinds++; }
+  for (let i = 27; i <= 33; i++){ if (sub[i] >= 2) pairs++; if (sub[i] > 0) kinds++; }
   const seven = 6 - pairs - Math.max(0, Math.min(4, kinds) - pairs);
-  return Math.min(std, seven) + out;
+  // v1.2.16：与 shantenColor 同一套废牌折算（半价 + 封顶 8），保证各牌型向听同量纲
+  return Math.min(8, Math.min(std, seven) + Math.ceil(out / 3));
 }
 
 const TYPES = ['pung', 'mix0', 'mix1', 'mix2', 'pure0', 'pure1', 'pure2', 'wind', 'std'];
@@ -841,8 +1043,10 @@ const CFG = {
   sevenPairs: false,   // 七小对算胡牌牌型（非传统敲麻，可选）
   lajiHu: true,        // 垃圾胡（推倒胡/平胡）：非传统敲麻，开着才认普通顺子牌型
   autoKnock: false,
+  autoHu: false,       // v1.2.15 自动胡牌：开=能胡就自动胡（含敲定后点炮「有和必和」）；关=自摸/点炮都出「胡/过」按钮自己决定
   speed: 1        // 0.6 慢 / 1 中 / 1.8 快
 };
+let SETDRAFT = null;   // 等待页房主编辑规则时的暂存草稿；null 表示未在草稿态
 function loadCfg(){
   try{ const s = JSON.parse(localStorage.getItem('sjm_cfg') || '{}'); Object.assign(CFG, s); }catch(e){}
 }
@@ -862,7 +1066,7 @@ const G = {
 function mkPlayer(idx, name, isBot){
   return {
     idx, name, isBot,
-    hand: [], flowers: [], melds: [], discards: [],
+    hand: [], flowers: [], melds: [], discards: [], pendingFlowers: [],
     knocked: false, knockWaits: [], menqing: true,
     drawn: null, target: null, missHu: new Set(),
     score: 0, drawnCount: 0, noPromptSig: '', tianDi: false,
@@ -881,7 +1085,15 @@ function buildWall(){
   const w = [];
   for (let t = 0; t <= 30; t++) for (let k = 0; k < 4; k++) w.push(t);
   for (let f = 100; f <= 107; f++) w.push(f);
-  for (let k = 0; k < 4; k++){ w.push(108 + k); w.push(112 + k); w.push(116 + k); }
+  // v1.2.17：中发白按玩法决定上墙形态——
+  //  敲麻（lajiHu 开）：108-119，算花，起手/摸到即补走；
+  //  清混碰（lajiHu 关）：31-33，算牌不算花，可碰、可成刻/将，风一色「全字」含它。
+  //  两种玩法墙都是 144 张，总数不变。
+  if (CFG.lajiHu){
+    for (let k = 0; k < 4; k++){ w.push(108 + k); w.push(112 + k); w.push(116 + k); }
+  } else {
+    for (let k = 0; k < 4; k++){ w.push(31); w.push(32); w.push(33); }
+  }
   return shuffle(w);
 }
 function drawFront(){
@@ -947,19 +1159,63 @@ function claimOptions(p, tile, from, isNext){
       for (const c of combos) opts.push({ k: 'chow', tile, combo: c });
     }
   }
+  // v1.2.19：清混碰下「吃过即锁门」——已有吃牌(chow)副露时，其他花色的吃/碰/杠
+  // 全部不再给选项（碰了必然胡不了），只保留本门 + 字牌（风/中发白）的吃碰杠；
+  // 胡(hu)不受影响（牌型合法与否由 tryWin 判）。敲麻玩法有平胡兜底，不锁门。
+  if (!CFG.lajiHu && !p.knocked){
+    const ls = lockedSuitOf(p);
+    if (ls !== null && ls >= 0){
+      const kept = [];
+      for (const o of opts){
+        if (o.k === 'hu'){ kept.push(o); continue; }
+        const s = suitOf(tile);
+        if (s === ls || s === 3) kept.push(o);
+      }
+      return kept;
+    }
+  }
   return opts;
 }
 // 摸到牌后可暗杠 / 加杠
-function selfKongOptions(p, tile){
+// v1.2.12：扫描整副手牌的可杠组合（暗杠 4 张 / 加杠 已碰+手里第 4 张），
+// 不依赖「刚摸的牌」——手牌里早已攒齐第 4 张、轮到出牌时同样要问
+function selfKongOptions(p){
   const out = [];
   const hc = toCounts(p.hand);
-  if (tile !== null && tile !== undefined && hc[tile] === 4) out.push({ k: 'ankan', tile });
-  if (tile !== null && tile !== undefined){
+  const done = new Set();
+  for (const t of p.hand){
+    if (done.has(t)) continue;
+    done.add(t);
+    if (hc[t] === 4) out.push({ k: 'ankan', tile: t });
     for (const m of p.melds){
-      if (m.type === 'pung' && m.tile === tile) out.push({ k: 'chakan', tile, meld: m });
+      if (m.type === 'pung' && m.tile === t){ out.push({ k: 'chakan', tile: t, meld: m }); break; }
     }
   }
+  // v1.2.19：清混碰下「吃过即锁门」——已有吃牌(chow)副露时本局方向锁死为该花色，
+  // 其他花色的暗杠/加杠都不能再做（会锁死牌型），只留本门与字牌（风/中发白）的杠
+  if (!CFG.lajiHu){
+    const ls = lockedSuitOf(p);
+    if (ls !== null && ls >= 0) return out.filter(o => {
+      const s = suitOf(o.tile);
+      return s === ls || s === 3;
+    });
+  }
   return out;
+}
+// v1.2.19：清混碰「吃过即锁门」判定——玩家副露里有吃牌(chow)就返回它锁定的花色。
+//  0/1/2 = 锁本门（只能再收本门 + 字牌，做本门混/清一色）；
+//  -1 = 副露里出现两种花色的吃牌（防御：正常流程已被 claimOptions 拦住）；
+//  null = 没吃过（碰碰胡 / 未定方向仍开放）。敲麻玩法有平胡兜底，不锁门。
+function lockedSuitOf(p){
+  if (CFG.lajiHu) return null;
+  let ls = null;
+  for (const m of p.melds){
+    if (m.type !== 'chow') continue;
+    const s = suitOf(m.tile);
+    if (ls === null) ls = s;
+    else if (ls !== s) ls = -1;
+  }
+  return ls;
 }
 function removeTiles(arr, tiles){
   for (const t of tiles){
@@ -972,17 +1228,66 @@ function removeTiles(arr, tiles){
    AI
    ======================================================================== */
 function aiTargetOf(p){
-  // 起手只在「混一色 / 碰碰胡」这两类稳健目标里锁定；
-  // 清一色、风一色属于机会型，中途自然出现即可，预设反而会拖死起手
   const e = evalAll(toCounts(p.hand), p.melds.length);
   // 开着垃圾胡时，如果普通顺子型明显更近，就往平胡方向打
   if (CFG.lajiHu && e.std <= e.pung &&
       e.std <= Math.min(e.mix0, e.mix1, e.mix2)) return 'std';
-  let best = 'pung', bv = e.pung + 0.2;
+  // v1.2.18：碰碰胡不再 +0.2 站台——两个牌型向听咬得越紧，越该让「成型更容易」的
+  // 混/清一色（能吃顺子）上场，否则散牌起手机器人永远无脑做碰碰胡
+  let best = 'pung', bv = e.pung + 0.1;
+  // v1.2.16：清混碰玩法下把「清一色 / 风一色」也纳入主攻方向——
+  // 旧版只在「碰碰胡 + 混一色」里选，机器人永远做不出清一色，只会乱吃
+  if (!CFG.lajiHu){
+    for (let s = 0; s < 3; s++){
+      // v1.2.18：本门不足 2 张就不参与混/清一色竞争——向听公式允许风牌混入，
+      // 全风手牌对任意「混一色(本门)」也算出低向听（其实没有本门数牌可做），
+      // 不设门槛的话风牌多时 mix* 会错误地抢走风一色/碰碰胡的目标
+      let suitN = 0;
+      for (const t of p.hand) if (t < 27 && suitOf(t) === s) suitN++;
+      if (suitN < 2) continue;
+      const mix = e['mix' + s], pure = e['pure' + s];
+      // 清一色只在「与混一同向听」时押（3 番 > 1 番）；纯差 1 步时仍走混一色——
+      // 旧版 pure-mix<=1 就押清一色太贪，混一色出线机会被挤掉
+      const takePure = (pure <= mix);
+      const v = takePure ? pure : mix;
+      // v1.2.16：向听封顶 8 表示「这个牌型基本没戏」，此时别去抢碰碰胡——
+      // 否则起手一门不占优时也会硬押混/清一色，花色锁一开就白白错过碰牌机会
+      // v1.2.18：v<=bv（平手倾斜混/清一色）——两者同向听时混一色能吃顺子更容易成，
+      // 不该让碰碰胡默认赢走平手
+      if (v < 8 && v <= bv){ bv = v; best = (takePure ? 'pure' : 'mix') + s; }
+    }
+    // 风一色与混/清一色同向听时押风一色（4 番 > 1 番）。
+    // v1.2.18：向听公式对字牌偏乐观（字种少、台面竞争激烈），加「字牌 ≥6」现实门槛——
+    // 手上没几张字也押风一色会把整局打废；够 6 张字时（已有刻/对基础）同向听押 4 番值得
+    let windN = 0;
+    for (const t of p.hand) if (t >= 27) windN++;
+    if (windN >= 6 && e.wind < 8 && e.wind <= bv){ bv = e.wind; best = 'wind'; }
+    return best;
+  }
   for (const k of ['mix0', 'mix1', 'mix2']){
+    const s = +k.slice(3);
+    let suitN = 0;
+    for (const t of p.hand) if (t < 27 && suitOf(t) === s) suitN++;
+    if (suitN < 2) continue;
     if (e[k] < bv){ bv = e[k]; best = k; }
   }
   return best;
+}
+/* v1.2.16：把 AI 的目标翻译成「只吃/碰哪些牌」的花色约束。
+   旧版只有 target 以 mix 开头才约束花色，target 是碰碰胡时什么花色都吃，
+   结果就是「明明打着清混碰，机器人还在吃另外两门」。 */
+function aiPlan(p){
+  const t = p.target || 'pung';
+  if (t === 'wind')        return { suit: 3, allowWind: true,  pung: false };   // 风一色：只留风牌
+  if (t.startsWith('mix')) return { suit: +t.slice(3), allowWind: true,  pung: false };  // 混一色：本门 + 风
+  if (t.startsWith('pure'))return { suit: +t.slice(4), allowWind: false, pung: false };  // 清一色：只本门
+  return { suit: null, allowWind: true, pung: true };                          // 碰碰胡：不限花色，但不吃顺子
+}
+function tileFitsPlan(t, plan){
+  if (plan.pung) return true;                 // 碰碰胡：任意牌都能碰/杠
+  const s = suitOf(t);
+  if (plan.suit === 3) return s === 3;        // 风一色：只要风牌
+  return s === plan.suit || (plan.allowWind && s === 3);
 }
 function dangerScore(t, p){
   let seen = 0;
@@ -1026,35 +1331,63 @@ function aiClaim(p, tile, from, opts, isNext){
   const hu = opts.find(o => o.k === 'hu');
   if (hu) return hu;                                   // 敲麻：有和必和
   if (p.knocked) return null;
+  // v1.2.18：每张牌打过来都重估一次做牌方向——开局只定一次 target 的老逻辑，
+  // 会让机器人「边打边判断」失灵：碰出本门副露后明明混一色更近也不切换，或
+  // 目标碰碰胡就整局无脑碰任何花色。实时刷新后花色锁、碰牌收益都跟最新局势走。
+  p.target = aiTargetOf(p);
+  // 清混碰：按做牌目标锁花色（敲麻有平胡兜底，吃碰自由度更高，沿用旧逻辑）
+  const plan = CFG.lajiHu ? null : aiPlan(p);
   const hc = toCounts(p.hand);
-  const cur = evalAll(hc, p.melds.length).best;
+  // v1.2.16：清混碰按「目标牌型」的向听算收益——旧版拿全类型最佳向听说事，
+  // 结果明明在往混一色做，碰本门牌却因为「对最佳向听无改善」而一律不动
+  const keyOf = e => (plan && p.target && e[p.target] !== undefined) ? e[p.target] : e.best;
+  const cur = keyOf(evalAll(hc, p.melds.length));
   let bestPick = null, bestGain = 0.35;                // 需要明显收益才动牌
   for (const o of opts){
+    if (plan){
+      if (o.k === 'chow' && plan.pung) continue;       // 碰碰胡不吃顺子（顺子无益还占副露位）
+      if (!tileFitsPlan(tile, plan)) continue;         // 花色不符：不碰/不吃/不杠
+    }
     let gain = 0;
     if (o.k === 'pung'){
       removeTiles(p.hand, [tile, tile]);
-      const e = evalAll(toCounts(p.hand), p.melds.length + 1);
-      gain = cur - e.best;
-      if (p.target === 'pung') gain += 0.6;
+      // v1.2.18：碰后必须弃一张——模拟「碰 + 最优弃牌」后的真实向听。
+      // 旧版只算碰完两张的向听，孤对一碰向听-2 看着大赚；但若碰完被迫拆好搭子
+      // 才是真亏，这正是「无脑碰」的来源。弃牌模拟让收益回归真实。
+      let bk = 99;
+      const uq = [...new Set(p.hand)];
+      const t0 = Date.now();
+      for (const dt of uq){
+        p.hand.splice(p.hand.indexOf(dt), 1);
+        const e = evalAll(toCounts(p.hand), p.melds.length + 1);
+        p.hand.push(dt);
+        if (e[bestT(p, e, plan)] < bk) bk = e[bestT(p, e, plan)];
+        if (Date.now() - t0 > 200) break;              // 限时：极端手牌降级为「碰完不算弃牌」
+      }
+      if (bk === 99) bk = keyOf(evalAll(toCounts(p.hand), p.melds.length + 1));
+      gain = cur - bk;
+      if (p.target === 'pung') gain += 0.3;            // v1.2.18：0.6→0.3，明显改善才碰
       p.hand.push(tile, tile);
     } else if (o.k === 'kong'){
       removeTiles(p.hand, [tile, tile, tile]);
       const e = evalAll(toCounts(p.hand), p.melds.length + 1);
-      gain = cur - e.best + 0.3;
+      gain = cur - keyOf(e) + 0.3;
       p.hand.push(tile, tile, tile);
     } else if (o.k === 'chow'){
-      if (p.target && p.target.startsWith('mix')){
-        const s = +p.target.slice(3);
-        if (suitOf(tile) !== s) continue;
-      }
+      if (p.target && p.target.startsWith('mix') && suitOf(tile) !== +p.target.slice(3)) continue;
       removeTiles(p.hand, o.combo);
       const e = evalAll(toCounts(p.hand), p.melds.length + 1);
-      gain = cur - e.best - 0.4;                       // 吃牌略保守（破门清）
+      gain = cur - keyOf(e) - 0.4;                     // 吃牌略保守（破门清）
       p.hand.push(...o.combo);
     }
     if (gain > bestGain){ bestGain = gain; bestPick = o; }
   }
   return bestPick;
+}
+// v1.2.18：pung 弃牌模拟里用的「该走哪个牌型」——取当前目标；目标缺失时退到最佳向听
+function bestT(p, e, plan){
+  if (plan && p.target && e[p.target] !== undefined) return p.target;
+  return 'best';
 }
 
 /* ========================================================================
@@ -1066,8 +1399,15 @@ function ask(kind, payload){
 }
 function resolvePend(v){
   if (!PEND) return;
-  const r = PEND.res; PEND = null;
+  const r = PEND.res, kind = PEND.kind; PEND = null;
   renderActs();
+  // 联机：动作上报给服务端（它才是裁判）；单机：本地解开 Promise 继续主循环
+  if (NET.active){
+    stopCd();
+    NET.pend = null;
+    netSend({ t:'act', kind, value: netSanitize(kind, v) });
+    return;
+  }
   r(v);
 }
 const waitBot = () => sleep((420 + Math.random() * 320) / CFG.speed);
@@ -1087,6 +1427,9 @@ function faceKey(t){
   if (t >= 112) return 'hatsu';
   if (t >= 108) return 'chun';
   if (t >= 100) return 'f' + (t - 100);
+  if (t === 31) return 'chun';       // 清混碰：中发白按普通牌编码（31-33）
+  if (t === 32) return 'hatsu';
+  if (t === 33) return 'haku';
   if (t >= 27) return 'w' + (t - 27);
   return 't' + t;
 }
@@ -1120,10 +1463,18 @@ function logMsg(s){
   if (G.logs.length > 200) G.logs.shift();
   const box = $('log');
   box.innerHTML = '';
-  for (let i = G.logs.length - 1; i >= Math.max(0, G.logs.length - 3); i--){
-    const d = document.createElement('div');
-    d.textContent = G.logs[i];
-    box.appendChild(d);
+  // v1.2.3：默认显示 3 条，空间不够自动减少为 2 / 1 条，绝不溢出
+  let n = Math.min(3, G.logs.length);
+  const total = G.logs.length;
+  while (n > 1){
+    box.innerHTML = '';
+    for (let i = total - 1; i >= total - n; i--){
+      const d = document.createElement('div');
+      d.textContent = G.logs[i];
+      box.appendChild(d);
+    }
+    if (box.scrollHeight <= box.clientHeight + 1) break;
+    n--;
   }
 }
 // 本局每一手的完整记录
@@ -1140,13 +1491,15 @@ function openHandLog(){
     body +
     '<div class="btns"><button class="pri" onclick="closeSheet()">关闭</button></div>');
 }
-function toast(text, cls){
+function toast(text, cls, seat){
+  // 带座位的提示（吃/碰/杠/敲）：落在当事人自己的牌河区；seatToast 定义在联机模块后（客户端专属）
+  if (seat != null && typeof seatToast === 'function'){ seatToast(seat, text); return; }
   const box = $('toast');
   const d = document.createElement('div');
   d.className = 'tst ' + (cls || '');
   d.textContent = text;
   box.appendChild(d);
-  setTimeout(() => d.remove(), 1150);
+  setTimeout(() => d.remove(), 2100);   // 与 pop 动画时长一致：停留约 2 秒再消失
 }
 
 let SEL = null;   // 玩家选中的手牌（牌 ID，逻辑用）
@@ -1155,6 +1508,12 @@ function renderHand(){
   const p = G.players[0];
   const box = $('hand');
   box.innerHTML = '';
+  // v1.2.13：点手牌区空白处（非牌）→ 选中的牌落回（不打出）
+  box.onclick = (e) => {
+    const t = e.target;
+    if (t !== box && !(t.classList && (t.classList.contains('drawgap') || t.classList.contains('ting')))) return;
+    if (SEL !== null){ SEL = null; SELIDX = null; renderHand(); renderRiver(); renderMe(); }
+  };
   const arr = p.hand.slice();
   let drawn = p.drawn;
   if (drawn !== null && drawn !== undefined){
@@ -1171,7 +1530,7 @@ function renderHand(){
     if (SELIDX === k) e.classList.add('sel');
     if (canPick) e.onclick = () => {
       if (SELIDX === k){ SEL = null; SELIDX = null; resolvePend(t); }
-      else { SEL = t; SELIDX = k; renderHand(); }
+      else { SEL = t; SELIDX = k; renderHand(); renderRiver(); renderMe(); }
     };
     box.appendChild(e);
   });
@@ -1183,7 +1542,7 @@ function renderHand(){
     if (SELIDX === 'd') e.classList.add('sel');
     if (canPick) e.onclick = () => {
       if (SELIDX === 'd'){ SEL = null; SELIDX = null; resolvePend(drawn); }
-      else { SEL = drawn; SELIDX = 'd'; renderHand(); }
+      else { SEL = drawn; SELIDX = 'd'; renderHand(); renderRiver(); renderMe(); }
     };
     box.appendChild(e);
   }
@@ -1195,22 +1554,23 @@ function windOf(i){ return SEAT_WIND[(i - G.dealer + 4) % 4]; }
 // 四边座位 → DOM：2=北(对家) 3=西(上家) 1=东(下家) 0=南(我)
 // 每人面前区域（以各自视角由近到远）：手牌排 → 花+吃碰杠排 → 牌河排
 function renderSeats(){
+  // i=0 自己：手牌下方的名牌（名字 + 局内总分，与对家对称）
+  const p0 = G.players[0];
+  const n0 = $('nm0');
+  n0.className = 'nm' + (G.turn === 0 && G.running ? ' cur' : '');
+  n0.innerHTML = p0.name + ' <span class="sc">' + p0.score + '分</span>';
   for (const i of [1, 2, 3]){
     const p = G.players[i];
     const cur = G.turn === i && G.running;
     const vert = (i !== 2);                       // 左右两家竖排
     const nm = $('nm' + i);
     nm.className = (vert ? 'nmV' : 'nm') + (cur ? ' cur' : '');
-    // 名牌：不显示方位；显示「底×番」
-    const df = playerDiFan(p);
-    const dfTxt = '底' + df.di + '×番' + (df.fan == null ? '—' : df.fan);
+    // 名牌：名字 + 分数（底×番已按需求去掉，结算面板里仍可看到明细）
     // 竖排名牌不留空格，避免 writing-mode 下出现额外间隔
     // 听牌状态改用手牌上的「听」圆章表示，名牌里不再显示「敲」
     nm.innerHTML = vert
-      ? p.name + '<span class="fl">' + dfTxt + '</span>' +
-        '<span class="sc">' + p.score + '分</span>'
-      : p.name + ' <span class="fl">' + dfTxt + '</span>' +
-        ' <span class="sc">' + p.score + '分</span>';
+      ? p.name + '<span class="sc">' + p.score + '分</span>'
+      : p.name + ' <span class="sc">' + p.score + '分</span>';
 
     const bk = $('bk' + i);
     bk.innerHTML = '';
@@ -1267,6 +1627,7 @@ function renderFx(box, p, vert, rev){
   const fg = document.createElement('div');
   fg.className = 'fg';
   for (const fl of p.flowers) addTile(fl, 'un', fg);
+  for (const fl of (p.pendingFlowers || [])) addTile(fl, 'un pending', fg);
   box.appendChild(fg);
   if (p.flowers.length && p.melds.length){
     const sep = document.createElement('div');
@@ -1282,6 +1643,9 @@ function renderFx(box, p, vert, rev){
     const src = (m.type === 'kong' && m.concealed) ? -1 : (m.from === undefined ? -1 : m.from);
     m.tiles.forEach((t, ti) => {
       const e = addTile(t, 'un' + (m.type === 'kong' && m.concealed ? ' concealed' : ''), mel);
+      // v1.2.18：点手牌算牌时，自己吃碰杠区（副露）里同牌也高亮——
+      // 副露和牌河一样都是「已见/已出的牌」，算台面剩几张不能漏掉它们
+      if (SEL !== null && t === SEL) e.classList.add('hl');
       if (ti === 1 && src >= 0){
         // 箭头挂在 fslot（竖排，牌本身旋转 90°）或 tile（横排）上，保证方向是屏幕方向
         const host = vert ? e.parentNode : e;
@@ -1308,6 +1672,8 @@ function renderRiver(){
     p.discards.forEach((t, k) => {
       const e = tileEl(t, 'xs');
       if (k === p.discards.length - 1 && G.lastFrom === i) e.classList.add('last');
+      // v1.2.13：出牌点选时，台面（四家牌河）相同的牌高亮，方便看已出几张；蓝色框区别于「上张打出」的红框
+      if (SEL !== null && t === SEL) e.classList.add('hl');
       if (i === 1 || i === 3){
         // 东西家：占位盒（占位=视觉，牌旋转 90° 朝他们）
         const s = document.createElement('div');
@@ -1356,7 +1722,7 @@ function playerDiFan(p){
   if (!p.hand || !p.hand.length) return { di, fan: null, tenpai: false };
   let addFan = 0;
   if (p.menqing) addFan += 1;                 // 门清
-  if (p.flowers.length === 0) addFan += 1;    // 无花果
+  if (calcFlowers(p, null) === 0) addFan += 1;  // 无花果（v1.2.12：杠算花，暗杠/加杠破无花果）
   if (p.melds.length === 4) addFan += 1;      // 大吊车
   let fan = null, tenpai = false;
   if (p.hand && p.hand.length % 3 === 1 && G.running){
@@ -1381,7 +1747,7 @@ function analyzeMe(){
   const di = CFG.base + flowers;
   const add = [];
   if (p.menqing) add.push(['门清', 1]);
-  if (p.flowers.length === 0) add.push(['无花果', 1]);
+  if (calcFlowers(p, hc) === 0) add.push(['无花果', 1]);   // v1.2.12：杠算花，暗杠/加杠都会破无花果
   if (p.melds.length === 4) add.push(['大吊车', 1]);
   const addFan = add.reduce((s, x) => s + x[1], 0);
 
@@ -1425,6 +1791,23 @@ function analyzeMe(){
   }
   return out;
 }
+// 听牌提示里的「台面剩余张数」：4 减去自己手牌、三家牌河、吃碰杠副露里已出现的同牌数。
+// 不算其他三家手牌（台面下，看不见）。
+function visibleLeft(t){
+  let n = 4;
+  const me = G.players[0];
+  if (me && me.hand) n -= me.hand.filter(x => x === t).length;
+  for (let i = 0; i < 4; i++){
+    const p = G.players[i];
+    if (!p) continue;
+    if (p.discards) n -= p.discards.filter(x => x === t).length;
+    for (const m of (p.melds || [])){
+      const ts = (m.tiles && m.tiles.length) ? m.tiles : [m.tile];
+      n -= ts.filter(x => x === t).length;
+    }
+  }
+  return Math.max(0, n);
+}
 // 当前手牌可敲听的打法：模拟每张牌，返回能进入听牌的 {discard, waits} 列表
 function potentialKnocks(p){
   if (p.knocked || p.isBot || p.hand.length % 3 !== 2) return [];
@@ -1448,43 +1831,35 @@ function capValue(){
 function renderHUD(){
   const p = G.players[0];
   const a = analyzeMe();
-  const me = G.players[0];
-  const shownDi = me.settleDi != null ? me.settleDi : a.di;
-  const shownFan = me.settleFan != null ? me.settleFan : (a.fan === null ? '—' : a.fan);
   $('mDi').textContent = a.di;
-  $('myDiFan').textContent = '底' + shownDi + '×番' + shownFan;
   $('mCap').textContent = capValue();
   $('myWind').textContent = SEAT_WIND[(0 - G.dealer + 4) % 4];
-  const knocks = (!p.knocked && p.hand.length % 3 === 2) ? potentialKnocks(p) : [];
+  const knocks = (!p.knocked && !NET.autoKnock && p.hand.length % 3 === 2) ? potentialKnocks(p) : [];
   const kt = $('knockTag');
   if (p.knocked){ kt.textContent = '已敲 · 听 ' + p.knockWaits.map(tileName).join('/'); kt.className = 'knockTag'; }
   else if (knocks.length){ kt.textContent = '可敲听 · 打' + tileName(knocks[0].discard) + ' 听 ' + knocks[0].waits.map(w => tileName(w.t)).join('/'); kt.className = 'knockTag'; }
   else { kt.textContent = '未敲 · 不能胡'; kt.className = 'knockTag off'; }
 
-  const parts = [];
-  if (a.waits.length){
-    let fan = a.fan;
-    $('mFan').textContent = fan;
-    const sc = Math.min(a.di * Math.pow(2, fan) * CFG.unit * (G.kaibao ? 2 : 1) * Math.pow(2, G.huangfan), capValue());
-    $('mScore').textContent = sc;
-    const b = a.best;
-    parts.push('<b>' + b.ev.type + '</b> ' + b.ev.base + '番');
-    for (const x of a.add) parts.push(x[0] + ' ' + x[1]);
-    const wtxt = a.waits.map(w => '<span class="w">' + tileName(w.t) + '</span>').join(' ');
-    let head = '';
-    if (a.discardToTenpai !== undefined) head = '打 ' + tileName(a.discardToTenpai) + ' 听牌 → ';
-    else head = '听牌中 → ';
-    $('fanDetail').innerHTML = head + wtxt + '<br>' + parts.join(' + ') + ' = <b>' + fan + ' 番</b>（共 ' + a.waits.length + ' 种）';
+  // v1.2.3：听牌行只显示「听牌中 → xx 牌」，放在页面底部边框下方；其他花字信息挪掉。
+  // v1.2.6：底部听牌行只在**已敲（听牌宣告）**后显示——没敲时即使牌型是听牌形状也不算听，
+  //         否则没选敲也会看到「听牌 → xx」误导玩家（可敲听的提示由 knockTag 负责）
+  // v1.2.7：已敲后永远显示「听牌中 →」，不再提示「打xx牌听牌 →」（已听牌的人摸到牌只需打出，
+  //         不需要再听一次；提示由顶部 knockTag 的「已敲 · 听 X/X」兜底）
+  const tl = $('tingLine');
+  if (p.knocked){
+    // v1.2.12：已敲后听牌锁定——底部恒显示敲定时的听牌，不随摸到/打出而变
+    const wtxt = p.knockWaits.map(tileName).map(x => '<span class="w">' + x + '</span>').join(' ');
+    tl.innerHTML = '听牌中 → ' + wtxt;
+    tl.className = 'tingline show';
   } else {
-    $('mFan').textContent = '—';
-    $('mScore').textContent = '—';
-    const lb = typeLabel(a.target);
-    parts.push('<b>' + lb + '</b> ' + typeBaseFan(a.target));
-    for (const x of a.add) parts.push(x[0] + ' ' + x[1]);
-    const sh = Math.max(0, a.shanten);
-    const head2 = a.discardToTenpai !== undefined ? '建议打 ' + tileName(a.discardToTenpai) + ' · ' : '';
-    $('fanDetail').innerHTML = head2 + '还差 <b>' + sh + '</b> 步进听 → 目标 ' + lb;
+    tl.innerHTML = '';
+    tl.className = 'tingline';
   }
+  // v1.2.11：顶部「番 / 单份」实时计算，不再锁在已敲分支——
+  // 听牌取最佳听口番，未听取当前牌型番（analyzeMe 两个分支都给出数字 fan）
+  $('mFan').textContent = a.fan;
+  const sc = Math.min(a.di * Math.pow(2, a.fan) * CFG.unit * (G.kaibao ? 2 : 1) * Math.pow(2, G.huangfan), capValue());
+  $('mScore').textContent = sc;
 }
 // 骰子点面（CSS 绘制）
 function dieHtml(n){
@@ -1495,14 +1870,13 @@ function dieHtml(n){
 }
 function renderTop(){
   $('gname').textContent = '第 ' + G.handNo + ' 局';
-  $('roundinfo').textContent = ['东风', '南风', '西风', '北风'][G.roundWind] + ' · 庄 ' + G.players[G.dealer].name;
+  // 防御：房间等待页改设置时 G.players 可能还没初始化（牌桌尚未开局）
+  const dl = G.players && G.players[G.dealer];
+  $('roundinfo').textContent = ['东风', '南风', '西风', '北风'][G.roundWind] + (dl ? ' · 庄 ' + dl.name : '');
   const tags = [];
+  // v1.2.12：豹子/开宝只在骰子旁显示一次，右上角不再重复
   if (G.huangfan) tags.push('荒番×' + Math.pow(2, G.huangfan));
-  if (G.kaibao) tags.push(G.kaibaoType === 'baozi' ? '豹子×2' : '开宝×2');
   $('huangfanTag').textContent = tags.join(' · ');
-  const left = wallLeft();
-  $('wallTxt').textContent = left;
-  $('wallBar').style.width = Math.max(0, left / 91 * 100) + '%';
   // 桌心罗盘：四家风位 + 当前出牌者
   const DIAL = { dwN: 'n', dwW: 'w', dwE: 'e', dwS: 's' };
   const SEAT_OF = { dwN: 2, dwW: 3, dwE: 1, dwS: 0 };
@@ -1511,22 +1885,40 @@ function renderTop(){
     el.textContent = windOf(i);
     el.className = 'dw ' + DIAL[id] + (G.turn === i && G.running ? ' cur' : '');
   }
-  // 桌心标签：骰子点数 + 开宝/荒番/封顶
-  const ct = $('coreTags');
-  let h = '';
-  if (G.dice){
-    const kbCls = G.kaibao ? ' kb' : '';
-    h += '<span class="diceC' + kbCls + '">' + dieHtml(G.dice[0]) + dieHtml(G.dice[1]) +
-         (G.kaibao ? '<em>' + (G.kaibaoType === 'baozi' ? '豹子 ×2' : '1·4 ×2') + '</em>' : '') + '</span>';
+  // v1.2.15 桌心上方：骰子 + 剩余牌数。
+  //   豹子/开宝只高亮骰子（.kb），不再写「豹子 ×2」文字；荒番只显示在右上角；
+  //   「轮到 X / 剩余时间」文案移除——当前出牌者看罗盘指针，倒计时放圆心（renderTurnClock）
+  const dl2 = $('diceLine');
+  if (dl2){
+    let h = '';
+    if (G.dice){
+      h += '<span class="diceC' + (G.kaibao ? ' kb' : '') + '">' + dieHtml(G.dice[0]) + dieHtml(G.dice[1]) + '</span>';
+    }
+    h += '<span class="wl" id="wallTxt">' + wallLeft() + '</span>';
+    dl2.innerHTML = h;
   }
-  if (G.huangfan) h += '<span class="tg">荒番 ×' + Math.pow(2, G.huangfan) + '</span>';
-  if (G.kaibao) h += '<span class="tg">开宝 ×2</span>';
-  h += '<span class="tg b">封顶 ' + capValue() + '</span>';
-  ct.innerHTML = h;
-  $('turnNow').innerHTML = G.running ? '轮到 <b>' + G.players[G.turn].name + '</b>' : '准备中';
+  renderTurnClock();   // 圆心：全局倒计时（联机）；单机显示「——」
 }
 // 左右两家的牌背：按可用高度均分，保证 13 张完整显示不被裁
 // 设置高度后布局会回流、可用高度随之变化，所以迭代两轮收敛，并留 3px 余量
+/* 操作按钮自适应：按钮少则撑宽、多则均分；字多时缩小字号兜底，绝不换行 */
+function fitActs(){
+  const box = document.getElementById('acts');
+  if (!box || !box.children.length) return;
+  for (const b of box.children){
+    b.style.fontSize = '';
+    let fs = 16;
+    while (fs > 10 && b.scrollWidth > b.clientWidth + 1){ fs--; b.style.fontSize = fs + 'px'; }
+  }
+}
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function'){   // 引擎沙箱内 window 只有局部 stub，无 addEventListener
+  window.addEventListener('resize', () => {
+    const a = document.getElementById('acts');
+    if (a && a.children.length) fitActs();
+    fitRivers();   // v1.2.13：窗口尺寸变化时重算左右牌河高度
+    fitLog();      // v1.2.14：窗口尺寸变化时重算手牌记录行数
+  });
+}
 function fitBacks(){
   for (let pass = 0; pass < 2; pass++){
     for (const i of [1, 3]){
@@ -1541,7 +1933,67 @@ function fitBacks(){
     }
   }
 }
-function render(){ renderTop(); renderHUD(); renderSeats(); renderRiver(); renderMe(); renderHand(); renderActs(); fitBacks(); }
+/* v1.2.13：左右牌河（rvE/rvW）高度自适应——按 rowmid2 可用高度算行数，
+   页面高 → 行数多（上限 RV_ROWS_MAX），页面矮 → 行数少（下限 RV_ROWS_MIN），
+   保证不与上下（南北家）牌河重叠；槽高 17px + 1px gap */
+const RV_ROWS_MIN = 10, RV_ROWS_MAX = 17;
+function fitRivers(){
+  const row = document.querySelector('.rowmid2');
+  if (!row) return;
+  const avail = row.clientHeight;
+  const rows = Math.max(RV_ROWS_MIN, Math.min(RV_ROWS_MAX, Math.floor((avail - 4) / 18)));
+  for (const id of ['rvE', 'rvW']){
+    const el = $(id);
+    if (el) el.style.height = (rows * 18 - 1) + 'px';
+  }
+}
+/* v1.2.14：手牌记录模块窗口级自适应——按 core 可用高度算行数（0~3）并固定高度。
+   同一窗口下行数恒定（log 条数多少不挤占，多余行空间留在模块内），
+   窗口矮时压缩为 2/1 行、甚至只显示「全部手牌记录」按钮（0 行）
+   v1.2.15：core 内固定占用改为动态测量（骰子行 + 桌心圆 + 记录按钮 + 间距/内边距），
+   布局改动后无需手工维护估算常数 */
+function fitLog(){
+  const core = document.querySelector('.core');
+  const log = $('log');
+  if (!core || !log) return;
+  const avail = core.clientHeight;
+  const dl = document.querySelector('.diceline');
+  const dialEl = document.querySelector('.dial');
+  const more = document.querySelector('.logmore');
+  const fixed = (dl ? dl.offsetHeight : 30) + (dialEl ? dialEl.offsetHeight : 96) +
+    (more ? more.offsetHeight : 15) + 22;   // +22 = core 上下 padding 12 + 两处 gap 6 + 余量
+  const rows = Math.max(0, Math.min(3, Math.floor((avail - fixed) / 13)));
+  log.style.height = rows * 13 + 'px';
+  log.style.display = rows === 0 ? 'none' : 'flex';
+}
+function render(){ renderTop(); renderHUD(); renderSeats(); renderRiver(); renderMe(); renderHand(); renderActs(); renderReady(); fitActs(); fitBacks(); fitRivers(); fitLog(); }
+
+/* ---------- 敲听选择（多种听法时选打哪张） ---------- */
+// 打出 k.discard 并敲听：单机本地预标已敲；联机标记 autoKnock（服务端下一问自动敲定）
+function knockPickResolve(k){
+  const p = G.players[0];
+  const h = p.hand.slice();
+  const idx = h.indexOf(k.discard);
+  if (idx >= 0){
+    h.splice(idx, 1);
+    const ws = getWaitsHand(h, p.melds);
+    if (ws.length && !NET.active){
+      p.knocked = true; p.knockWaits = ws.map(w => w.t); p.noPromptSig = '';
+    } else if (ws.length && NET.active){
+      NET.autoKnock = true;
+    }
+  }
+  SEL = null; SELIDX = null;
+  resolvePend(k.discard);
+}
+let __knocks = null;   // 听法选择面板的暂存方案列表
+// 听法选择面板里点某一项
+function pickKnock(i){
+  const k = __knocks && __knocks[i];
+  if (!k) return;
+  closeSheet();
+  knockPickResolve(k);
+}
 
 /* ---------- 操作按钮 ---------- */
 function renderActs(){
@@ -1552,43 +2004,61 @@ function renderActs(){
     b.textContent = txt; b.className = cls; b.onclick = fn;
     box.appendChild(b);
   };
-  // 本局已结算（弹窗可能被关掉了）：底部常驻「查看结算 / 下一局」
-  if (G.finished && G.result){
-    mkBtn('查看结算', 'hist', () => showResult());
-    mkBtn('下一局', 'pri', () => nextHand(G.result.dealer));
-    $('hint').innerHTML = '本局已结束 · 可查看结算';
+  // 倒计时统一显示在桌心（服务端权威，四家一致），底部不再单独记一份
+  const setHint = html => { $('hint').innerHTML = html; };
+  // 本局已结算（弹窗可能被关掉了）
+  // 联机时只认 G.finished（服务端 view 同步）——断线重连后 lastSettle 可能为 null，按钮也必须还在
+  if (G.finished && (G.result || NET.active)){
+    if (NET.active){
+      // 联机：回到首页 / 查看结算 / 准备下一局（四家都准备后服务端自动开局）
+      const readyMe = NET.readySeats.includes(NET.mySeat);
+      mkBtn('回到首页', 'none', () => backHome());
+      mkBtn('查看结算', 'hist', () => showResult());
+      mkBtn(readyMe ? '取消准备' : '准备下一局', 'pri', () => netReady(!readyMe));
+      $('hint').innerHTML = '本局已结束 · 等待四家准备下一局';
+    } else {
+      mkBtn('查看结算', 'hist', () => showResult());
+      mkBtn('下一局', 'pri', () => nextHand(0));
+      $('hint').innerHTML = '本局已结束 · 可查看结算';
+    }
     return;
   }
   if (!PEND){ $('hint').innerHTML = ''; return; }
   if (PEND.kind === 'discard'){
-    const knocks = potentialKnocks(G.players[0]);
+    const knocks = (!G.players[0].knocked && !NET.autoKnock) ? potentialKnocks(G.players[0]) : [];
     if (knocks.length){
-      const k = knocks[0];
-      $('hint').innerHTML = '听牌了！打 <b>' + tileName(k.discard) + '</b> 可敲听 ' +
-        k.waits.map(w => tileName(w.t)).join('/');
-      mkBtn('敲听', 'knock', () => {
-        const p = G.players[0];
-        const h = p.hand.slice();
-        const idx = h.indexOf(k.discard);
-        if (idx >= 0){
-          h.splice(idx, 1);
-          const ws = getWaitsHand(h, p.melds);
-          if (ws.length){
-            p.knocked = true; p.knockWaits = ws.map(w => w.t); p.noPromptSig = '';
-          }
-        }
-        SEL = null; SELIDX = null; resolvePend(k.discard);
-      });
-      mkBtn('明牌提示', 'none', () => showTip());
+      // v1.2.4：底部 tingLine 已经显示「打 X 听牌 → Y」，这里不再重复写一行
+      // 只在多听法场景下追加一条简短指引（提示用户点「敲听」按钮选打法）
+      if (knocks.length === 1){
+        $('hint').innerHTML = '';
+        mkBtn('敲听', 'knock', () => knockPickResolve(knocks[0]));
+      } else {
+        $('hint').innerHTML = '有 ' + knocks.length + ' 种听法可选';
+        mkBtn('敲听', 'knock', () => {
+          __knocks = knocks;
+          const rows = knocks.map((k, i) =>
+            '<button class="knockOpt" onclick="pickKnock(' + i + ')">打 ' + tileName(k.discard) +
+            ' → 听 ' + k.waits.map(w => tileName(w.t) + '(' + visibleLeft(w.t) + ')').join('/') + '</button>').join('');
+          openSheet('<h2><span>选择听法</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
+            '<div class="knockList">' + rows + '</div>');
+        });
+      }
     } else {
-      $('hint').innerHTML = '点击一张牌 <b>选中</b>，再点一次 <b>打出</b>';
-      mkBtn('明牌提示', 'none', () => showTip());
+      const me0 = G.players[0];
+      // v1.2.18：已敲定且只有一种听法（唯一听张）时，按钮上方醒目显示差什么牌、还剩几张；
+      // 多种听法时底部 tingLine 已全列，这里不打扰
+      if (me0.knocked && me0.knockWaits.length === 1){
+        const wt = me0.knockWaits[0];
+        $('hint').innerHTML = '听牌中 → <b>' + tileName(wt) + '</b> · 还有 <b>' + visibleLeft(wt) + '</b> 张';
+      } else {
+        setHint('点击一张牌 <b>选中</b>，再点一次 <b>打出</b>');
+      }
     }
     return;
   }
   if (PEND.kind === 'knock'){
-    const w = PEND.payload.waits.map(x => tileName(x.t)).join(' ');
-    $('hint').innerHTML = '听牌了！听 <b>' + w + '</b> — 敲定后不能换牌';
+    const w = PEND.payload.waits.map(x => tileName(x.t) + '(' + visibleLeft(x.t) + ')').join(' ');
+    setHint('听牌了！听 <b>' + w + '</b> — 敲定后不能换牌');
     mkBtn('敲定', 'knock', () => resolvePend('knock'));
     mkBtn('不敲', 'none', () => resolvePend('pass'));
     return;
@@ -1598,22 +2068,44 @@ function renderActs(){
     const tile = PEND.payload.tile;
     const from = PEND.payload.from;
     const blockedHu = G.players[0].missHu.has(tile);
-    $('hint').innerHTML = G.players[from].name + ' 打出 <b>' + tileName(tile) + '</b>' +
-      (blockedHu ? ' <span style="color:#ff6f57">（漏胡中，本张已不能胡）</span>' : '');
+    setHint(G.players[remap(from)].name + ' 打出 <b>' + tileName(tile) + '</b>' +
+      (blockedHu ? ' <span style="color:#ff6f57">（漏胡中，本张已不能胡）</span>' : ''));
     for (const o of opts){
       if (o.k === 'hu') mkBtn('胡', 'hu', () => resolvePend(o));
       if (o.k === 'kong') mkBtn('杠', 'kong', () => resolvePend(o));
       if (o.k === 'pung') mkBtn('碰', 'pung', () => resolvePend(o));
       if (o.k === 'chow'){
-        const nm = o.combo.map(tileName).join('') + tileName(tile);
-        mkBtn('吃', 'chow', () => resolvePend(o));
+        // 把吃到的具体顺子显示在按钮里（如「吃 456萬」），多个吃选项一眼分清是哪一套
+        const tl = o.combo.concat([tile]).sort((a, b) => a - b);
+        const nm = tl.map(t => String(t % 9 + 1)).join('') + SUIT_CH[suitOf(tile)];
+        mkBtn('吃 ' + nm, 'chow', () => resolvePend(o));
       }
     }
     mkBtn('过', 'none', () => {
       const hu = opts.find(o => o.k === 'hu');
-      if (hu) G.players[0].missHu.add(tile);
+      if (hu && !NET.active) G.players[0].missHu.add(tile);
       resolvePend(null);
     });
+    return;
+  }
+  if (PEND.kind === 'zimo'){
+    const tile = PEND.payload.tile;
+    setHint('你摸到了 <b>' + tileName(tile) + '</b>，可以胡');
+    mkBtn('胡', 'hu', () => resolvePend('hu'));
+    mkBtn('过', 'none', () => resolvePend('pass'));
+    return;
+  }
+  if (PEND.kind === 'selfkong'){
+    const opts = PEND.payload.options;
+    const tile = PEND.payload.tile;
+    // v1.2.13：摸牌后 vs 出牌前两种来源，文案要准确（discardTurn 是手牌攒齐第 4 张，不是刚摸到的）
+    const msg = PEND.payload.source === 'preDiscard' ? '你有 <b>' + tileName(tile) + '</b>，可以杠' : '你摸到了 <b>' + tileName(tile) + '</b>，可以杠';
+    setHint(msg);
+    for (const o of opts){
+      if (o.k === 'ankan') mkBtn('暗杠', 'kong', () => resolvePend(o));
+      if (o.k === 'chakan') mkBtn('加杠', 'kong', () => resolvePend(o));
+    }
+    mkBtn('过', 'none', () => resolvePend(null));
     return;
   }
 }
@@ -1641,24 +2133,45 @@ function showTip(){
    主流程
    ======================================================================== */
 function deal(){
+  for (const p of G.players) p.pendingFlowers = [];
   for (let k = 0; k < 13; k++)
     for (let i = 0; i < 4; i++) G.players[(G.dealer + i) % 4].hand.push(drawFront());
   G.players[G.dealer].hand.push(drawFront());
-  let any = true, guard = 0;
-  while (any && guard++ < 400){
-    any = false;
-    for (let i = 0; i < 4; i++){
-      const p = G.players[(G.dealer + i) % 4];
-      let ix;
-      while ((ix = p.hand.findIndex(isFlower)) >= 0){
-        p.flowers.push(p.hand.splice(ix, 1)[0]);
-        const t = drawTail();
-        if (t !== null && t !== undefined) p.hand.push(t); else break;
-        any = true;
-      }
+  // 起手花不立即补：暂存到 pendingFlowers，轮到本人首次出牌时再补（上海敲麻规则）
+  for (const p of G.players){
+    let ix;
+    while ((ix = p.hand.findIndex(isFlower)) >= 0){
+      p.pendingFlowers.push(p.hand.splice(ix, 1)[0]);
     }
   }
   for (const p of G.players) p.hand = sortTiles(p.hand);
+}
+// 起手补花：轮到本人首次出牌时，先把暂存的起手花统一补完，再出牌
+// v1.2.10：补花从牌尾摸上来的牌可能又是花（花牌集中在牌尾），必须循环换到手里无花
+async function supplyPendingFlowers(p){
+  if (!p.pendingFlowers || !p.pendingFlowers.length) return false;
+  let guard = 0;
+  while (guard++ < 400){
+    let fl = p.pendingFlowers.shift();
+    if (fl === undefined){
+      const ix = p.hand.findIndex(isFlower);   // 补上来的花同样要补掉
+      if (ix < 0) break;
+      fl = p.hand.splice(ix, 1)[0];
+    }
+    p.flowers.push(fl);
+    logMsg(p.name + ' 补花 ' + flowerChar(fl));
+    const t = drawTail();
+    if (t !== null && t !== undefined) p.hand.push(t);
+  }
+  p.pendingFlowers = [];
+  p.hand = sortTiles(p.hand);
+  render();
+  await waitBot();
+  if (p.flowers.filter(isSeason).length >= 8){
+    await finish({ type: 'bahua', idx: p.idx });
+    G.abort = true;
+  }
+  return true;
 }
 async function knockCheck(p){
   if (p.knocked || p.hand.length % 3 !== 1) return;
@@ -1667,41 +2180,63 @@ async function knockCheck(p){
   if (p.isBot){
     p.knocked = true;
     p.knockWaits = waits.map(w => w.t);
-    toast(p.name + ' 敲！', 'gold');
-    logMsg(p.name + ' 敲了，听 ' + waits.map(w => tileName(w.t)).join('/'));
+    toast(p.name + ' 敲！', 'gold', p.idx);
+    logMsg(p.name + ' 敲了');
     render();
     await sleep(420 / CFG.speed);
     return;
   }
   const sig = waits.map(w => w.t).join(',');
-  if (CFG.autoKnock){ doKnock(waits); return; }
+  if (CFG.autoKnock){ doKnock(waits, p.idx); return; }   // v1.2.15：带上座位——联机开「自动敲」时敲对当前玩家，不再错敲座位 0
   if (p.noPromptSig === sig) return;
   const r = await ask('knock', { waits });
+  if (G.abort) return;
   if (r === 'knock') doKnock(waits);
-  else { p.noPromptSig = sig; logMsg('你选择不敲'); }
+  else { p.noPromptSig = sig; logMsg(p.name + ' 选择不敲'); }
 }
 function doKnock(waits){
   const p = G.players[0];
   p.knocked = true;
   p.knockWaits = waits.map(w => w.t);
   p.noPromptSig = '';
-  toast('敲！已锁定听牌', 'gold');
-  logMsg('你敲了，听 ' + waits.map(w => tileName(w.t)).join('/'));
+  toast('敲！已锁定听牌', 'gold', 0);
+  logMsg('你敲了');
   render();
 }
 async function discardTurn(p, drawn, kongDraw){
+  await supplyPendingFlowers(p);
+  if (G.abort) return null;
+  // v1.2.12：未敲真人，轮到出牌时手牌可杠（暗杠/加杠）就得问；
+  // 摸牌后已问过（p.kongAsked=true）则不重复；选杠 → 返回 {kong}，由 runHand 走补牌
+  if (!p.knocked && !p.isBot && !p.kongAsked && !kongDraw){
+    const ko = selfKongOptions(p);
+    if (ko.length){
+      const r = await ask('selfkong', { options: ko, tile: ko[0].tile, source: 'preDiscard' }, p.idx);
+      if (G.abort) return null;
+      if (r && (r.k === 'ankan' || r.k === 'chakan')){
+        await applySelfKong(p, r);
+        if (G.finished) return null;      // 抢杠胡已结算
+        return { kong: true };
+      }
+      p.kongAsked = true;                 // 本轮不杠，下一轮（下次摸牌）再问
+    }
+  }
   let d;
   if (p.knocked){
     if (drawn !== null && drawn !== undefined) d = drawn;
     else d = aiChooseDiscard(p);
     await sleep(560 / CFG.speed);
   } else if (p.isBot){
+    // v1.2.18：摸牌后出牌前重估做牌方向——「边打边判断」：碰/吃改变牌型进度后，
+    // 该转混一色/清一色/碰碰胡都在这里实时切换，而不是开局定死一路走到黑
+    p.target = aiTargetOf(p);
     d = aiChooseDiscard(p);
     await waitBot();
   } else {
     SEL = null; SELIDX = null;
     renderHand();
     d = await ask('discard');
+    if (G.abort) return null;          // 中途退出/返回首页：不再打这一张
   }
   const i = p.hand.indexOf(d);
   if (i >= 0) p.hand.splice(i, 1);
@@ -1721,44 +2256,104 @@ async function applySelfKong(p, o){
     p.melds.push({ type: 'kong', tiles: [o.tile, o.tile, o.tile, o.tile], tile: o.tile, concealed: true, from: -1 });
     logMsg(p.name + ' 暗杠 ' + tileName(o.tile));
   } else {
+    // v1.2.12 抢杠：加杠前先查其他已敲者是否听这张牌——有人听则抢杠胡，被抢者（加杠方）付 3 倍
+    const robbers = [];
+    for (let j = 0; j < 4; j++){
+      if (j === p.idx) continue;
+      const q = G.players[j];
+      if (q.knocked && q.knockWaits.includes(o.tile)) robbers.push(j);
+    }
+    if (robbers.length){
+      const wins = [];
+      for (const idx of robbers){
+        const q = G.players[idx];
+        const hc = toCounts(q.hand);
+        hc[o.tile]++;
+        wins.push({ idx, ev: tryWin(hc, q), tile: o.tile, robKong: true, diaoche: q.melds.length === 4 });
+      }
+      logMsg(p.name + ' 加杠 ' + tileName(o.tile) + ' 被抢杠！');
+      toast('抢杠！', 'big');
+      await finish({ type: 'dianpao', wins, from: p.idx });
+      return;
+    }
     removeTiles(p.hand, [o.tile]);
-    o.meld.type = 'kong';
-    o.meld.tiles.push(o.tile);
+    // 服务端经网络传输后 o.meld 对象引用会丢失，按 tile 重新定位「碰」的那组副露
+    const meld = o.meld || p.melds.find(m => m.type === 'pung' && m.tile === o.tile);
+    meld.type = 'kong';
+    meld.tiles.push(o.tile);
     logMsg(p.name + ' 加杠 ' + tileName(o.tile));
   }
   p.drawn = null;
-  toast(p.name + ' 杠！', 'gold');
+  toast(p.name + ' 杠！', 'gold', p.idx);
   render();
   await sleep(420 / CFG.speed);
 }
 async function collectClaims(tile, from){
-  const res = [];
+  // 分轮询问：胡 > 杠=碰 > 吃。先问所有能胡的人，没人胡再问杠/碰，没人碰再问下家吃。
+  // 第1轮：胡（最高优先）
+  const huers = [];
   for (let i = 1; i < 4; i++){
     const idx = (from + i) % 4;
     const p = G.players[idx];
     const opts = claimOptions(p, tile, from, i === 1);
+    const huOpt = opts.find(o => o.k === 'hu');
+    if (!huOpt) continue;
+    const pick = await pickClaim(p, idx, tile, from, [huOpt], i === 1);
+    if (pick && pick.k === 'hu') huers.push(idx);
+  }
+  if (huers.length) return { type: 'hu', players: huers };
+  // 第2轮：杠 / 碰（同级，一起问；杠优先于碰）
+  const kp = [];
+  for (let i = 1; i < 4; i++){
+    const idx = (from + i) % 4;
+    const p = G.players[idx];
+    const opts = claimOptions(p, tile, from, i === 1).filter(o => o.k === 'kong' || o.k === 'pung');
     if (!opts.length) continue;
-    let pick;
-    if (p.isBot){
-      pick = aiClaim(p, tile, from, opts, i === 1);
-      if (pick) await sleep(160 / CFG.speed);
-    } else if (p.knocked){
-      // 敲定后规则强制：有和必和、有杠必杠，不给选择
-      pick = opts.find(o => o.k === 'hu') || opts.find(o => o.k === 'kong') || null;
-      if (pick) render();
-    } else {
+    const pick = await pickClaim(p, idx, tile, from, opts, i === 1);
+    if (pick && pick.k !== 'pass') kp.push({ idx, pick });
+  }
+  if (kp.length){
+    const pri = { kong: 3, pung: 2 };
+    kp.sort((a, b) => pri[b.pick.k] - pri[a.pick.k]);
+    return { type: kp[0].pick.k, idx: kp[0].idx, opt: kp[0].pick };
+  }
+  // 第3轮：吃（只有下家能吃）
+  const ni = (from + 1) % 4;
+  const np = G.players[ni];
+  const nOpts = claimOptions(np, tile, from, true).filter(o => o.k === 'chow');
+  if (nOpts.length){
+    const pick = await pickClaim(np, ni, tile, from, nOpts, true);
+    if (pick && pick.k === 'chow') return { type: 'chow', idx: ni, opt: pick };
+  }
+  return null;
+}
+/* 单次 claim 决策：bot 走 AI；敲定默认有和必和/有杠必杠（可被「自动胡牌=关」改为逐次询问）；真人走 ask 并记漏胡 */
+async function pickClaim(p, idx, tile, from, opts, isNext){
+  if (p.isBot){
+    const pick = aiClaim(p, tile, from, opts, isNext);
+    if (pick) await sleep(160 / CFG.speed);
+    return pick;
+  }
+  const hu = opts.find(o => o.k === 'hu');
+  // v1.2.15 「自动胡牌」开：能胡就自动胡（含敲定后的有和必和），不再逐次询问
+  if (hu && CFG.autoHu){ render(); return hu; }
+  if (p.knocked){
+    // v1.2.15 「自动胡牌」关：敲定后点炮不再默认自动胡，出「胡/过」按钮自己决定
+    // （敲定者不能吃碰杠，opts 里只可能有 hu；过=漏胡，动牌前不能再胡同一张）
+    if (hu){
       render();
-      pick = await ask('claim', { opts, tile, from });
+      const pick = await ask('claim', { opts: [hu], tile, from }, idx);
+      if (!pick || pick.k === 'pass') p.missHu.add(tile);
+      return pick || null;
     }
-    if (pick && pick.k !== 'pass') res.push({ idx, pick });
+    const pick = opts.find(o => o.k === 'kong') || null;
+    if (pick) render();
+    return pick;
   }
-  if (!res.length) return null;
-  const pri = { hu: 4, kong: 3, pung: 2, chow: 1 };
-  res.sort((a, b) => pri[b.pick.k] - pri[a.pick.k]);
-  if (res[0].pick.k === 'hu'){
-    return { type: 'hu', players: res.filter(r => r.pick.k === 'hu').map(r => r.idx) };
-  }
-  return { type: res[0].pick.k, idx: res[0].idx, opt: res[0].pick };
+  render();
+  const pick = await ask('claim', { opts, tile, from }, idx);
+  if (!pick || pick.k === 'pass'){ if (opts.some(o => o.k === 'hu')) p.missHu.add(tile); }
+  return pick;
 }
 
 async function runHand(){
@@ -1787,10 +2382,7 @@ async function runHand(){
   logMsg('骰子 ' + d1 + ' ' + d2 + kbTxt);
   if (G.kaibao) toast(G.kaibaoType === 'baozi' ? '豹子开宝！本局 ×2' : '开宝 1·4！本局 ×2', 'gold');
 
-  // 八花齐（起手）
-  for (const p of G.players){
-    if (p.flowers.filter(isSeason).length >= 8) { await finish({ type: 'bahua', idx: p.idx }); return; }
-  }
+  // 起手花已暂存到 pendingFlowers，八花齐改在「首次出牌补花」后判定（见 supplyPendingFlowers）
   // 天胡
   const dp = G.players[G.dealer];
   const ev0 = tryWin(toCounts(dp.hand), dp);
@@ -1811,6 +2403,8 @@ async function runHand(){
       G.turn = cur;
       render();
       incoming = await discardTurn(p, null, false);
+      if (G.abort) return;
+      if (incoming && incoming.kong){ pendingKong = true; mode = 'draw'; continue; }
       from = cur;
       mode = 'claim';
     } else if (mode === 'draw'){
@@ -1828,6 +2422,7 @@ async function runHand(){
         continue;
       }
       p.drawn = t; p.hand.push(t);
+      p.kongAsked = false;               // v1.2.12：每轮摸牌重置「可杠已问过」
       G.turn = cur;
       render();
       await waitBot();
@@ -1836,27 +2431,52 @@ async function runHand(){
       const ev = tryWin(hc, p);
       const dihu = (cur !== G.dealer) && p.drawnCount === 1 && p.menqing;
       if (ev && (p.knocked || dihu)){
-        result = {
-          type: 'zimo', idx: cur, ev, tile: t,
-          ctx: { kongDraw: pendingKong, haidi: wallLeft() === 0, diaoche: p.melds.length === 4, dihu, tianhu: false }
-        };
-        break;
+        const zctx = { kongDraw: pendingKong, haidi: wallLeft() === 0, diaoche: p.melds.length === 4, dihu, tianhu: false };
+        // 机器人 / 「自动胡牌」开：能胡就自动胡
+        if (p.isBot || CFG.autoHu){
+          result = { type: 'zimo', idx: cur, ev, tile: t, ctx: zctx };
+          break;
+        }
+        // 真人：摸到能胡的牌不自动胡，显示「胡 / 过」，点了才胡
+        const r = await ask('zimo', { ev, tile: t }, cur);
+        if (G.abort) return;
+        if (r === 'hu'){
+          result = { type: 'zimo', idx: cur, ev, tile: t, ctx: zctx };
+          break;
+        }
+        // 点「过」：弃胡，继续出牌
       }
-      // 敲后：有杠必杠
-      if (p.knocked){
-        const ko = selfKongOptions(p, t);
-        if (ko.length){
+      // 摸牌后暗杠 / 加杠（selfKongOptions 扫描全手牌）
+      const ko = selfKongOptions(p);
+      if (ko.length){
+        if (p.isBot || p.knocked){
+          // 机器人 / 敲定后（有杠必杠）：自动杠；抢杠胡则本局已结算
           await applySelfKong(p, ko[0]);
+          if (G.finished) return;
           pendingKong = true;
           continue;
         }
+        // 真人未敲：显示「暗杠 / 加杠 / 过」
+        const r = await ask('selfkong', { options: ko, tile: t, source: 'draw' }, cur);
+        if (G.abort) return;
+        if (r && (r.k === 'ankan' || r.k === 'chakan')){
+          await applySelfKong(p, r);
+          if (G.finished) return;          // 抢杠胡已结算
+          pendingKong = true;
+          continue;
+        }
+        // 点「过」：本轮不再问（discardTurn 跳过），继续出牌
+        p.kongAsked = true;
       }
       const d = await discardTurn(p, t, pendingKong);
+      if (G.abort) return;
+      if (d && d.kong){ pendingKong = true; continue; }   // v1.2.12：出牌前选择杠 → 补牌
       pendingKong = false;
       incoming = d; from = cur;
       mode = 'claim';
     } else {
       const c = await collectClaims(incoming, from);
+      if (G.abort) return;
       if (!c){ cur = (from + 1) % 4; mode = 'draw'; continue; }
       if (c.type === 'hu'){
         const wins = [];
@@ -1881,14 +2501,19 @@ async function runHand(){
         removeTiles(p.hand, [tile, tile]);
         p.melds.push({ type: 'pung', tiles: [tile, tile, tile], tile, concealed: false, from });
         logMsg(p.name + ' 碰 ' + tileName(tile));
+        G.turn = p.idx;   // 碰牌后轮到碰的人出牌，罗盘指针同步指向他
+        toast(p.name + ' 碰！', 'gold', p.idx);   // 带座位：服务端广播后客户端定位到对应牌河
         render(); await waitBot();
         incoming = await discardTurn(p, null, false);
+        if (G.abort) return;
+        if (incoming && incoming.kong){ pendingKong = true; mode = 'draw'; continue; }
         from = p.idx; mode = 'claim';
       } else if (c.type === 'kong'){
         removeTiles(p.hand, [tile, tile, tile]);
         p.melds.push({ type: 'kong', tiles: [tile, tile, tile, tile], tile, concealed: false, from });
         logMsg(p.name + ' 明杠 ' + tileName(tile));
-        toast(p.name + ' 杠！', 'gold');
+        G.turn = p.idx;   // 杠后指针指向杠的人
+        toast(p.name + ' 杠！', 'gold', p.idx);
         render(); await sleep(420 / CFG.speed);
         cur = p.idx; pendingKong = true; mode = 'draw';
       } else if (c.type === 'chow'){
@@ -1896,12 +2521,17 @@ async function runHand(){
         const tl = c.opt.combo.concat([tile]).sort((a, b) => a - b);
         p.melds.push({ type: 'chow', tiles: tl, tile, concealed: false, from });
         logMsg(p.name + ' 吃 ' + tl.map(tileName).join(''));
+        G.turn = p.idx;   // 吃牌后轮到吃的人出牌，罗盘指针同步指向他
+        toast(p.name + ' 吃！', 'gold', p.idx);
         render(); await waitBot();
         incoming = await discardTurn(p, null, false);
+        if (G.abort) return;
+        if (incoming && incoming.kong){ pendingKong = true; mode = 'draw'; continue; }
         from = p.idx; mode = 'claim';
       }
     }
   }
+  if (G.abort) return;                 // 被中止的这一局不进结算（否则会冒出「流局」弹窗）
   await finish(result || { type: 'liuju' });
 }
 
@@ -1936,13 +2566,51 @@ function finishHand(html, dealer, rec){
   rec.html = html;                 // 历史回看用（不含「下一局」按钮）
   G.history.push(rec);
   renderSeats();
-  openSheet(html + '<div class="btns"><button class="pri" onclick="nextHand(' + dealer + ')">下一局</button></div>');
+  openSheet(settleHtml(html, dealer));
   renderActs();
 }
+// 结算面板 + 「下一局」按钮（单机/联机共用，按钮 html 不进历史记录）
+function settleHtml(html, dealer){
+  // 联机：结算面板按钮为「回到首页 + 准备下一局」（四家都准备后服务端自动开局）
+  if (NET.active){
+    const readyMe = NET.readySeats.includes(NET.mySeat);
+    return html + '<div class="btns"><button onclick="backHome()">回到首页</button>' +
+      '<button class="pri" onclick="netReady(' + (readyMe ? 'false' : 'true') + ')">' +
+      (readyMe ? '取消准备' : '准备下一局') + '</button></div>';
+  }
+  return html + '<div class="btns"><button class="pri" onclick="nextHand(' +
+    (Number(dealer) || 0) + ')">下一局</button></div>';
+}
+// 联机：点「准备下一局 / 取消准备」→ 关结算弹窗并上报服务端
+function netReady(v){ closeSheet(); netSend({ t:'act', kind:'ready', value: v }); }
 // 底部「查看结算」：恢复本局结算面板
 function showResult(){
+  // 联机：结算面板由服务端下发的 html 恢复
+  if (NET.active){
+    if (NET.lastSettle) openSheet(settleHtml(NET.lastSettle.html, NET.lastSettle.dealer));
+    return;
+  }
   if (!G.result) return;
-  openSheet(G.result.html + '<div class="btns"><button class="pri" onclick="nextHand(' + G.result.dealer + ')">下一局</button></div>');
+  openSheet(settleHtml(G.result.html, G.result.dealer));
+}
+// ---------------- 包三口（v1.2.11） ----------------
+// 口数：a 从 b 处吃/碰的次数（明杠不算；暗杠 from=-1 天然排除）
+function chengbaoKou(a, b){
+  let n = 0;
+  for (const m of a.melds)
+    if (!m.concealed && m.from === b && (m.type === 'chow' || m.type === 'pung')) n++;
+  return n;
+}
+// 与 idx 互为「承包」关系的对家（任一方对另一方吃三口或碰三口）；无则返回 -1
+function chengbaoPartner(idx){
+  const p = G.players[idx];
+  if (!p) return -1;
+  for (let j = 0; j < 4; j++){
+    if (j === idx) continue;
+    // chengbaoKou 的第二个参数是座位号（m.from 存的是座位号）
+    if (chengbaoKou(p, j) >= 3 || chengbaoKou(G.players[j], idx) >= 3) return j;
+  }
+  return -1;
 }
 async function finish(res){
   G.running = false;
@@ -1995,20 +2663,32 @@ async function finish(res){
     res.ev.total = res.ev.base + add.reduce((s, x) => s + x[1], 0);
     const sc = scoreOf(res.ev, res.ctx, p, mult);
     p.settleFan = res.ev.total; p.settleDi = sc.di;
+    // v1.2.11 包三口：胡家与承包对家互为承包 → 承包方替三家付钱并自加 2 份罚金，共付 5 份，另两家免付
+    const cb = chengbaoPartner(res.idx);
     const d = [0, 0, 0, 0];
-    for (let i = 0; i < 4; i++){
-      if (i === res.idx) { p.score += sc.per * 3; d[i] = sc.per * 3; }
-      else { G.players[i].score -= sc.per; d[i] = -sc.per; }
+    if (cb >= 0){
+      const q = G.players[cb];
+      q.score -= sc.per * 5; p.score += sc.per * 5;
+      d[cb] = -sc.per * 5; d[res.idx] = sc.per * 5;
+    } else {
+      for (let i = 0; i < 4; i++){
+        if (i === res.idx) { p.score += sc.per * 3; d[i] = sc.per * 3; }
+        else { G.players[i].score -= sc.per; d[i] = -sc.per; }
+      }
     }
-    logMsg(p.name + ' 自摸 ' + res.ev.type + '！');
+    logMsg(p.name + ' 自摸！');
     toast((p.isBot ? p.name + ' 自摸' : '自摸！'), 'big');
+    const baoSub = cb >= 0 ? '<div class="sub">包三口 · ' + G.players[cb].name + ' 替三家支付并加罚 2 份，共付 ' + (sc.per * 5) + ' 分</div>' : '';
     const tiles = sortTiles(p.hand);
     const html2 = '<h2><span>结算</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
       '<div class="result"><div class="winner">' + p.name + ' 自摸 · ' + res.ev.type + '</div>' +
-      '<div class="sub">胡 ' + tileName(res.tile) + ' · 三家各付 ' + sc.per + ' 分</div></div>' +
+      (cb >= 0 ? baoSub : '<div class="sub">胡 ' + tileName(res.tile) + ' · 三家各付 ' + sc.per + ' 分</div>') +
+      '</div>' +
       tilesRow(tiles, res.tile) + flowersRow(p) + meldsRow(p) +
       fanBreakdownHtml(res.ev, add, sc, extraNote) + scoreTable(d);
-    finishHand(html2, res.idx, { kind: '自摸', winners: [res.idx], note: res.ev.type + ' · ' + res.ev.total + ' 番 · 每家 ' + sc.per + ' 分', delta: d });
+    finishHand(html2, res.idx, { kind: '自摸', winners: [res.idx],
+      note: res.ev.type + ' · ' + res.ev.total + ' 番' + (cb >= 0 ? ' · 包三口(' + G.players[cb].name + '付5份)' : '') + ' · ' + (cb >= 0 ? '收 ' + sc.per * 5 : '每家 ' + sc.per) + ' 分',
+      delta: d });
     if (G.huangfan) G.huangfan--;
     return;
   }
@@ -2017,19 +2697,24 @@ async function finish(res){
   const d = [0, 0, 0, 0];
   let blocks = '', winNames = [];
   let firstWinner = res.wins[0].idx;
-  // 一炮多响：点炮者下家最近的胡牌者为庄
-  for (const w of res.wins) if (((w.idx - res.from + 4) % 4) < ((firstWinner - res.from + 4) % 4)) firstWinner = w.idx;
+  // v1.2.11：只有一家胡牌 → 胡牌者坐庄；多家胡牌（一炮多响）→ 点炮者坐庄
+  const nextDealer = res.wins.length > 1 ? res.from : res.wins[0].idx;
   for (const w of res.wins){
     const p = G.players[w.idx];
     const add = extraFan(p, { diaoche: w.diaoche });
     w.ev.total = w.ev.base + add.reduce((s, x) => s + x[1], 0);
     const sc = scoreOf(w.ev, {}, p, mult);
     p.settleFan = w.ev.total; p.settleDi = sc.di;
-    p.score += sc.per; G.players[res.from].score -= sc.per;
-    d[w.idx] += sc.per; d[res.from] -= sc.per;
+    // v1.2.11 包三口：点炮者与胡家互为承包 → 点炮者加罚 2 份，共付 3 份；其他家点炮正常结算
+    // v1.2.12 抢杠：被抢者（加杠方）付 3 倍
+    const bao = chengbaoPartner(w.idx) === res.from;
+    const pay = (bao || w.robKong) ? sc.per * 3 : sc.per;
+    p.score += pay; G.players[res.from].score -= pay;
+    d[w.idx] += pay; d[res.from] -= pay;
     winNames.push(p.name);
     blocks += '<div class="result"><div class="winner">' + p.name + ' 胡 · ' + w.ev.type + '</div>' +
-      '<div class="sub">' + G.players[res.from].name + ' 点炮 ' + tileName(w.tile) + '</div></div>' +
+      '<div class="sub">' + G.players[res.from].name + (w.robKong ? ' 加杠被抢 · 付 3 倍 ' + (sc.per * 3) + ' 分' : ' 点炮 ' + tileName(w.tile) +
+      (bao ? ' · 包三口，付 3 份 ' + (sc.per * 3) + ' 分' : '，付 ' + sc.per + ' 分')) + '</div></div>' +
       tilesRow(sortTiles(p.hand), w.tile) + flowersRow(p) + meldsRow(p) +
       fanBreakdownHtml(w.ev, add, sc, extraNote);
   }
@@ -2037,7 +2722,7 @@ async function finish(res){
   toast(winNames.length > 1 ? '一炮多响！' : (G.players[firstWinner].isBot ? G.players[firstWinner].name + ' 胡了' : '胡了！'), 'big');
   const note = winNames.map((n, k) => n + ' ' + res.wins[k].ev.type + ' ' + res.wins[k].ev.total + '番').join('；');
   finishHand('<h2><span>结算</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
-    blocks + scoreTable(d), firstWinner,
+    blocks + scoreTable(d), nextDealer,
     { kind: winNames.length > 1 ? '一炮多响' : '点炮', winners: res.wins.map(w => w.idx), from: res.from, note: note, delta: d });
   if (G.huangfan) G.huangfan--;
 }
@@ -2079,37 +2764,41 @@ function scoreTable(deltas){
    历史记录
    ======================================================================== */
 function viewHist(k){
-  const r = G.history[k];
-  if (!r) return;
+  const r = (NET.active ? NET.history : G.history)[k];
+  if (!r || !r.html) return;
   openSheet(r.html.replace('<h2><span>结算</span>', '<h2><span>' + r.wind + ' 第 ' + r.no + ' 局 · 结算</span>')
                   .replace('<h2><span>流局</span>', '<h2><span>' + r.wind + ' 第 ' + r.no + ' 局 · 流局</span>') +
     '<div class="btns"><button onclick="openHistory()">返回记录</button></div>');
 }
 function openHistory(){
-  const H = G.history;
+  // 联机：历史来自服务端结算广播；单机：本地 G.history
+  const H = NET.active ? NET.history : G.history;
+  const mySeat = NET.active ? NET.mySeat : 0;
   let body = '';
   if (!H.length){
     body = '<p class="dimc">还没有已结算的牌局。<br>打完一局后，记录会自动出现在这里。</p>';
   } else {
-    body += '<table class="scoreTbl"><tr><th>本轮总分</th>';
-    for (const p of G.players) body += '<th>' + p.name + '</th>';
-    body += '</tr><tr><td>—</td>';
+    body += '<table class="scoreTbl"><tr>';
+    for (const p of G.players) body += '<th>' + escName(p.name) + '</th>';
+    body += '</tr><tr>';
     for (const p of G.players){
       const v = p.score;
       body += '<td class="' + (v > 0 ? 'pos' : v < 0 ? 'neg' : '') + '">' + (v > 0 ? '+' + v : v) + '</td>';
     }
     body += '</tr></table>';
     body += '<div class="hlist">';
-    H.forEach((r, k) => {
-      const kindCls = r.kind === '流局' ? 'kj' : (r.winners.indexOf(0) >= 0 ? 'kw' : 'kl');
-      body += '<div class="hrow" onclick="viewHist(' + k + ')">' +
-        '<div class="hr1"><span class="hw">' + r.wind + ' ' + r.no + '</span>' +
+    // v1.2.14：最近一局排在最上面
+    [...H].reverse().forEach((r, k) => {
+      const idx = H.length - 1 - k;   // 原数组索引（viewHist 按原序索引）
+      const kindCls = r.kind === '流局' ? 'kj' : (r.winners.indexOf(mySeat) >= 0 ? 'kw' : 'kl');
+      body += '<div class="hrow" onclick="viewHist(' + idx + ')">' +
+        '<div class="hr1"><span class="hw">' + r.wind + ' 第' + r.no + ' 局</span>' +
         '<span class="hk ' + kindCls + '">' + r.kind + '</span>' +
         '<span class="hgo">查看 ›</span></div>' +
         '<div class="hr2">' + r.note + '</div>' +
-        '<div class="hr3">' + G.players.map((p, i) => {
-          const v = r.delta[i];
-          return '<span class="' + (v > 0 ? 'pos' : v < 0 ? 'neg' : '') + '">' + p.name + ' ' +
+        '<div class="hr3">' + r.delta.map((v, i) => {
+          const pn = G.players[i] ? escName(G.players[i].name) : ('玩家' + (i + 1));
+          return '<span class="' + (v > 0 ? 'pos' : v < 0 ? 'neg' : '') + '">' + pn + ' ' +
             (v > 0 ? '+' + v : v) + '</span>';
         }).join('') + '</div></div>';
     });
@@ -2119,7 +2808,7 @@ function openHistory(){
     '<span class="hcnt">' + H.length + ' 局</span>' +
     '<button class="close" onclick="closeSheet()">×</button></h2>' +
     body +
-    '<div class="btns"><button class="pri" onclick="confirmNewRound()">开始新一轮</button></div>' +
+    (NET.active ? '' : '<div class="btns"><button class="pri" onclick="confirmNewRound()">开始新一轮</button></div>') +
     '<p class="dimc">记录按「轮」累计，只有开始新一轮才会清零。</p>');
 }
 function confirmNewRound(){
@@ -2145,6 +2834,14 @@ function openSheet(html){
 function closeSheet(){ $('mask').classList.add('hide'); renderActs(); }
 
 function nextHand(dealer){
+  // 联机：下一局由服务端推进（谁先点都行，服务端只认第一份）
+  if (NET.active){
+    closeSheet();
+    stopCd();
+    netSend({ t:'act', kind:'next', value: 0 });
+    renderActs();
+    return;
+  }
   closeSheet();
   G.finished = false; G.result = null;
   for (const p of G.players){ p.settleFan = null; p.settleDi = null; }
@@ -2155,41 +2852,159 @@ function nextHand(dealer){
 }
 
 /* ---------- 设置 ---------- */
-function seg(id, opts, cur, fn){
-  return '<div class="seg" id="' + id + '">' + opts.map(o =>
-    '<button class="' + (o.v === cur ? 'on' : '') + '" onclick="' + fn + '(' + (typeof o.v === 'number' ? o.v : "'" + o.v + "'") + ')">' + o.l + '</button>'
+/* ro = true 时只显示当前值（联机非房主 / 已开局后查看用） */
+function seg(id, opts, cur, fn, ro){
+  return '<div class="seg' + (ro ? ' ro' : '') + '" id="' + id + '">' + opts.map(o =>
+    ro
+      ? '<span class="' + (o.v === cur ? 'on' : '') + '">' + o.l + '</span>'
+      : '<button class="' + (o.v === cur ? 'on' : '') + '" onclick="' + fn + '(' + (typeof o.v === 'number' ? o.v : "'" + o.v + "'") + ')">' + o.l + '</button>'
   ).join('') + '</div>';
 }
-function openSet(){
-  openSheet('<h2><span>设置</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
+/* 规则项主体：联机时房主可在等待页改，其他情况只读 */
+function cfgRows(ro){
+  const c = SETDRAFT || CFG;   // 草稿态（等待页房主编辑中）读草稿，否则读已生效规则
+  return (
     '<div class="setrow"><div class="lb">底（底花）<small>胡牌时的基础花数</small></div>' +
-      seg('sgBase', [{l:'1',v:1},{l:'2',v:2},{l:'3',v:3}], CFG.base, 'setCfg') + '</div>' +
+      seg('sgBase', [{l:'1',v:1},{l:'2',v:2},{l:'3',v:3}], c.base, 'setCfg', ro) + '</div>' +
     '<div class="setrow"><div class="lb">每花分值<small>1 花 = 几分</small></div>' +
-      seg('sgUnit', [{l:'1',v:1},{l:'2',v:2},{l:'5',v:5}], CFG.unit, 'setCfg2') + '</div>' +
+      seg('sgUnit', [{l:'1',v:1},{l:'2',v:2},{l:'5',v:5}], c.unit, 'setCfg2', ro) + '</div>' +
     '<div class="setrow"><div class="lb">封顶（勒子）<small>1 勒 = 10 花，上海麻将常见 5 勒</small></div>' +
-      seg('sgLezi', [{l:'3勒',v:3},{l:'5勒',v:5},{l:'8勒',v:8},{l:'不封',v:99}], CFG.lezi, 'setCfg3') + '</div>' +
+      seg('sgLezi', [{l:'3勒',v:3},{l:'5勒',v:5},{l:'8勒',v:8},{l:'不封',v:99}], c.lezi, 'setCfg3', ro) + '</div>' +
     '<div class="setrow"><div class="lb">允许吃牌<small>关掉后只能碰/杠，牌局更快</small></div>' +
-      seg('sgChow', [{l:'开',v:1},{l:'关',v:0}], CFG.allowChow ? 1 : 0, 'setCfg4') + '</div>' +
+      seg('sgChow', [{l:'开',v:1},{l:'关',v:0}], c.allowChow ? 1 : 0, 'setCfg4', ro) + '</div>' +
     '<div class="setrow"><div class="lb">七小对算胡牌<small>非传统敲麻牌型，开着更容易胡（2 番）</small></div>' +
-      seg('sgSeven', [{l:'开',v:1},{l:'关',v:0}], CFG.sevenPairs ? 1 : 0, 'setCfg7') + '</div>' +
-    '<div class="setrow"><div class="lb">垃圾胡（平胡）<small>普通顺子牌型也能胡（0 番，只算底花）。关掉则必须碰碰/混一色/清一色/风一色</small></div>' +
-      seg('sgLaji', [{l:'开',v:1},{l:'关',v:0}], CFG.lajiHu ? 1 : 0, 'setCfg8') + '</div>' +
-    '<div class="setrow"><div class="lb">自动敲<small>你一听牌就自动敲定</small></div>' +
-      seg('sgKnock', [{l:'开',v:1},{l:'关',v:0}], CFG.autoKnock ? 1 : 0, 'setCfg5') + '</div>' +
+      seg('sgSeven', [{l:'开',v:1},{l:'关',v:0}], c.sevenPairs ? 1 : 0, 'setCfg7', ro) + '</div>' +
+    '<div class="setrow"><div class="lb">玩法<small>敲麻：普通顺子牌型也能胡（0 番，只算底花），中发白算花；清混碰：必须碰碰胡 / 混一色 / 清一色 / 风一色，中发白算牌不算花</small></div>' +
+      seg('sgLaji', [{l:'敲麻',v:1},{l:'清混碰',v:0}], c.lajiHu ? 1 : 0, 'setCfg8', ro) + '</div>' +
+    '<div class="setrow"><div class="lb">自动敲<small>一听牌就自动敲定</small></div>' +
+      seg('sgKnock', [{l:'开',v:1},{l:'关',v:0}], c.autoKnock ? 1 : 0, 'setCfg5', ro) + '</div>' +
+    '<div class="setrow"><div class="lb">自动胡牌<small>开：能胡就自动胡（含点炮「有和必和」）；关：自摸/点炮都出「胡/过」按钮自己决定</small></div>' +
+      seg('sgHu', [{l:'开',v:1},{l:'关',v:0}], c.autoHu ? 1 : 0, 'setCfg9', ro) + '</div>' +
     '<div class="setrow"><div class="lb">机器人速度</div>' +
-      seg('sgSpeed', [{l:'慢',v:0.6},{l:'中',v:1},{l:'快',v:1.8}], CFG.speed, 'setCfg6') + '</div>' +
-    '<div class="btns"><button onclick="resetAll()">重开一桌</button><button class="pri" onclick="closeSheet()">完成</button></div>');
+      seg('sgSpeed', [{l:'慢',v:0.6},{l:'中',v:1},{l:'快',v:1.8}], c.speed, 'setCfg6', ro) + '</div>'
+  );
 }
-function setCfg(v){ CFG.base = v; saveCfg(); openSet(); render(); }
-function setCfg2(v){ CFG.unit = v; saveCfg(); openSet(); render(); }
-function setCfg3(v){ CFG.lezi = v; saveCfg(); openSet(); render(); }
-function setCfg4(v){ CFG.allowChow = !!v; saveCfg(); openSet(); }
-function setCfg5(v){ CFG.autoKnock = !!v; saveCfg(); openSet(); }
-function setCfg6(v){ CFG.speed = v; saveCfg(); openSet(); }
-function setCfg7(v){ CFG.sevenPairs = !!v; saveCfg(); openSet(); }
-function setCfg8(v){ CFG.lajiHu = !!v; saveCfg(); openSet(); render(); }
+function openSet(){
+  // 已加入房间（含等待页）：规则由房间统一设定。等待页房主可改；其他人和开局后只能看。
+  const inRoom = !!NET.roomNo;
+  if (inRoom){
+    const isHost = NET.isHost;
+    const inGame = NET.tableOn;
+    const canEdit = isHost && !inGame;                 // 只有等待页的房主能改
+
+    // 草稿：等待页房主进入编辑态时，从当前规则拷贝一份；点「确定」才提交，点「取消」丢弃
+    if (canEdit){ if (!SETDRAFT) SETDRAFT = Object.assign({}, CFG); }
+    else SETDRAFT = null;
+
+    let tip, btns;
+    if (inGame){
+      // 牌局中：规则只读，房主额外保留「结束本局 / 关闭房间」，另加「回到首页」
+      tip = '<p class="dimc">规则由房主设定，开局后锁定。</p>';
+      btns = (isHost
+          ? '<button class="danger" onclick="netEndGame()">结束本局</button><button class="danger" onclick="netCloseRoom()">关闭房间</button>'
+          : '') +
+        '<button onclick="backHome()">回到首页</button>' +
+        '<button class="pri" onclick="closeSet()">关闭</button>';
+    } else if (canEdit){
+      // 等待页房主：改完点「确定」一次性提交
+      tip = '<p class="dimc">你是房主：改完点「确定」提交，开局后锁定。</p>';
+      btns = '<button onclick="closeSet()">取消</button><button class="pri" onclick="commitCfg()">确定</button>';
+    } else {
+      // 等待页非房主：只读，一个「关闭」按钮
+      tip = '<p class="dimc">规则由房主设定，开局后锁定。</p>';
+      btns = '<button class="pri" onclick="closeSet()">关闭</button>';
+    }
+    openSheet('<h2><span>设置</span><span class="sp"></span><button class="close" onclick="closeSet()">×</button></h2>' +
+      tip + cfgRows(!canEdit) +
+      '<div class="btns">' + btns + '</div>');
+    return;
+  }
+  // 单机：设置走草稿——首页入口弹「返回 / 开始游戏」；局内点「完成」提交并确认清记录重开
+  const soloInGame = $('home').classList.contains('hide');   // home 隐藏 = 已进游戏画面
+  if (!SETDRAFT) SETDRAFT = Object.assign({}, CFG);
+  const tip = soloInGame
+    ? '<p class="dimc">改完点「完成」：会清空本局记录并重新开局。</p>'
+    : '<p class="dimc">先看看规则再开局，随时可回首页。</p>';
+  const btns = soloInGame
+    ? '<button onclick="closeSet()">取消</button><button onclick="backHome()">返回首页</button>' +
+      '<button class="pri" onclick="commitSoloDone()">完成</button>'
+    : '<button onclick="closeSet()">返回</button>' +
+      '<button class="pri" onclick="commitSoloGo()">开始游戏</button>';
+  openSheet('<h2><span>设置</span><span class="sp"></span><button class="close" onclick="closeSet()">×</button></h2>' +
+    tip + cfgRows(false) +
+    '<div class="btns">' + btns + '</div>');
+}
+/* v1.2.18：单机设置草稿提交 —— 取差异并清草稿；无差异返回 null */
+let __soloDiff = null;   // 局内「完成」确认弹窗里待应用的草稿差异
+function takeSoloDiff(){
+  if (!SETDRAFT) return null;
+  const diff = {};
+  for (const k of Object.keys(SETDRAFT)) if (SETDRAFT[k] !== CFG[k]) diff[k] = SETDRAFT[k];
+  SETDRAFT = null;
+  return diff;
+}
+function applySoloDiff(diff){
+  if (!diff || !Object.keys(diff).length) return false;
+  for (const k in diff) CFG[k] = diff[k];
+  saveCfg();
+  return true;
+}
+/* 首页「开始游戏」：提交草稿、关掉设置面板，再开局 */
+function commitSoloGo(){
+  applySoloDiff(takeSoloDiff());
+  closeSheet();
+  startSolo();
+}
+/* 局内「完成」：有改动则弹确认（局内修改会清空记录重开），没改动只关面板 */
+function commitSoloDone(){
+  const diff = takeSoloDiff();
+  if (!diff || !Object.keys(diff).length){ closeSheet(); return; }
+  openSheet('<h2><span>重新开局？</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
+    '<div class="ru"><p>局内修改游戏设置会<b>清空本局记录并重新开局</b>，确定要应用这些改动吗？</p></div>' +
+    '<div class="btns"><button onclick="closeSheet()">取消</button>' +
+    '<button class="pri" onclick="soloRestartApply()">确定，重新开局</button></div>');
+  __soloDiff = diff;
+}
+/* 确认弹窗里点「确定，重新开局」：应用草稿并重开一局 */
+function soloRestartApply(){
+  const diff = __soloDiff || {}; __soloDiff = null;
+  applySoloDiff(diff);
+  resetAll();     // closeSheet + initGame + saveCfg + runHand
+}
+/* 关闭设置面板（带草稿清理）：等待页房主点「取消」/「×」时丢弃未提交的修改 */
+function closeSet(){ SETDRAFT = null; closeSheet(); }
+/* 等待页房主点「确定」：把草稿与当前规则的差异一次性发给服务端 */
+function commitCfg(){
+  if (!SETDRAFT){ closeSheet(); return; }
+  const diff = {};
+  for (const k of Object.keys(SETDRAFT)){
+    if (SETDRAFT[k] !== CFG[k]) diff[k] = SETDRAFT[k];
+  }
+  SETDRAFT = null;
+  if (Object.keys(diff).length){
+    if (!netSend({ t:'cfg', cfg: diff })){
+      toast('连接已断开，正在重连…', 'red'); netKickReconnect(); return;
+    }
+  }
+  closeSheet();
+}
+/* 改一项规则：等待页房主编辑草稿 → 只改草稿；单机 → 立即生效并保存 */
+function setCfgKey(k, v, needRender){
+  if (SETDRAFT){ SETDRAFT[k] = v; openSet(); return; }   // 草稿态：只预览，不提交
+  CFG[k] = v; saveCfg(); openSet(); if (needRender) render();
+}
+function setCfg(v){ setCfgKey('base', v, true); }
+function setCfg2(v){ setCfgKey('unit', v, true); }
+function setCfg3(v){ setCfgKey('lezi', v, true); }
+function setCfg4(v){ setCfgKey('allowChow', !!v, false); }
+function setCfg5(v){ setCfgKey('autoKnock', !!v, false); }
+function setCfg6(v){ setCfgKey('speed', v, false); }
+function setCfg7(v){ setCfgKey('sevenPairs', !!v, false); }
+function setCfg8(v){ setCfgKey('lajiHu', !!v, true); }
+function setCfg9(v){ setCfgKey('autoHu', !!v, false); }
 function resetAll(){
   closeSheet();
+  G.abort = false;
   initGame();
   saveCfg();
   runHand();
@@ -2202,6 +3017,7 @@ function openRule(){
   '<h3>用牌（144 张）</h3>' +
   '<p>万/筒/条 各 1-9 各 4 张（108）+ 東南西北 各 4 张（16）+ 花牌 20 张。<b>中发白算花</b>：摸到即亮出补花，不参与组牌。</p>' +
   '<p>花牌 20 张 = 春夏秋冬梅兰竹菊 8 张 + 中/发/白 各 4 张。</p>' +
+  '<p class="dimc">玩法差异：敲麻按上面规则（中发白算花）；清混碰里<b>中发白算牌不算花</b>——可碰、可组刻子/将牌，作字牌参与混一色 / 风一色。</p>' +
 
   '<h3>胡牌牌型（推倒胡不能胡）</h3>' +
   '<table><tr><th>牌型</th><th>说明</th><th class="f">番</th></tr>' +
@@ -2243,8 +3059,624 @@ function openRule(){
   '<li><b>有杠必杠</b>：敲定后摸到可杠的牌，系统自动杠</li>' +
   '<li><b>漏胡</b>：放弃胡某张牌后，在动牌之前不能再胡同一张</li>' +
   '<li>机器人一听牌就敲，和真人一个规则</li></ul>' +
-  '<p style="color:#8ba79a">说明：本版未实现「抢杠」与「承包」两项进阶规则，其余按上海敲麻主流打法。</p>' +
+  '<p style="color:#8ba79a">说明：已实现「包三口」「抢杠胡」等进阶规则，其余按上海敲麻主流打法。</p>' +
   '</div><div class="btns"><button class="pri" onclick="closeSheet()">开始打牌</button></div>');
+}
+
+/* ========================================================================
+   多人联机（NET）
+   架构：服务器权威。服务端跑规则引擎，客户端只渲染投影 + 上报动作。
+   投影（view）经 applyView 座位重映射后直接物化进全局 G：
+   「我」永远是本地 seat 0（南），1=下家 2=对家 3=上家 —— 渲染层零改动。
+   ======================================================================== */
+/* 吃/碰/杠/敲：提示落在**当事人自己的牌河区域**正中，一眼就知道是谁干的。
+   用 fixed 定位而不是塞进 .river 里 —— .river 有 overflow:hidden，宽高又只有 48~52px，
+   直接塞进去会被裁掉。改为量出牌河中心点，浮窗贴上去。
+   放在 NET 模块（引擎抽取切分点 CUT 之后），保证这是客户端专属代码，不进服务端引擎。 */
+const RIVER_OF = ['rvS', 'rvE', 'rvN', 'rvW'];   // 座位 0=南(我) 1=东 2=北 3=西
+function seatToast(seat, text){
+  const d = document.createElement('div');
+  d.className = 'seatTst';
+  d.textContent = text;
+  document.body.appendChild(d);
+  const host = $(RIVER_OF[seat] || RIVER_OF[0]);
+  if (host){
+    const r = host.getBoundingClientRect();
+    d.style.left = Math.round(r.left + r.width / 2 - d.offsetWidth / 2) + 'px';
+    d.style.top = Math.round(r.top + r.height / 2 - d.offsetHeight / 2) + 'px';
+  } else {
+    d.style.left = '50%'; d.style.top = '38%'; d.style.transform = 'translate(-50%,-50%)';
+  }
+  setTimeout(() => d.remove(), 2000);
+}
+const NET = {
+  active: false,       // 是否处于联机对局
+  ws: null,
+  mySeat: -1,          // 真实座位（0-3）
+  token: '',           // 重连凭证
+  roomNo: '',
+  isHost: false,
+  players: [],         // 房间座位快照（房间等待页用）
+  history: [],         // 本桌历史牌局（rec 含结算 html，供回看）
+  lastSettle: null,    // 当前局结算 { html, dealer }
+  pend: null,          // 待回应的服务端询问 { kind, payload, deadline }
+  timer: null,         // 倒计时
+  hb: null,            // 心跳
+  tableOn: false,      // 牌桌是否已进入
+  lastView: null,
+  reconnecting: false, // 重连流程进行中
+  reconnectTries: 0,   // 重连退避计数
+  lastMsgAt: 0,        // 最近一次收到服务端消息的时间（探活用）
+  askLeft: 0,          // 服务端下发的决策剩余毫秒（全局倒计时唯一数据源）
+  askAt: 0,            // 收到 askLeft 的本地时刻
+  autoKnock: false,    // 点「敲听」打牌后置真：服务端再问「敲不敲」时自动确认，免二次点
+  kicked: false,       // 本页座位被别处顶替：不再自动重连，避免两个页面互相抢座位
+  readySeats: []       // 局间「准备下一局」：已准备的真实座位列表（服务端下发）
+};
+function netSend(o){
+  try{ if (NET.ws && NET.ws.readyState === 1){ NET.ws.send(JSON.stringify(o)); return true; } }catch(e){}
+  return false;
+}
+function netServerDefault(){
+  return (/^https?:$/.test(location.protocol) && location.hostname) ? location.host : '';
+}
+/* 动作上报前的客户端清理（服务端还会做权威校验） */
+function netSanitize(kind, v){
+  if (kind === 'discard') return (typeof v === 'number') ? v : null;
+  if (kind === 'knock')   return v === 'knock' ? 'knock' : 'pass';
+  if (kind === 'next')    return (typeof v === 'number') ? v : 0;
+  if (kind === 'zimo')    return v === 'hu' ? 'hu' : 'pass';
+  if (kind === 'selfkong'){
+    if (v && (v.k === 'ankan' || v.k === 'chakan')) return { k: v.k, tile: v.tile };
+    return null;
+  }
+  if (kind === 'claim'){
+    if (!v || v.k === 'pass') return null;
+    const o = { k: v.k, tile: v.tile };
+    if (v.combo) o.combo = v.combo.slice();
+    return o;
+  }
+  return null;
+}
+// 统一构造 ws 地址：HTTPS 页面禁止明文 ws（mixed content），自动升级为 wss
+function wsUrl(s){
+  const t = String(s || '').trim();
+  if (/^wss?:\/\//.test(t)) return t;
+  return ((location.protocol === 'https:') ? 'wss://' : 'ws://') + t;
+}
+function netConnect(server, onOk){
+  const s = (server || netServerDefault()).trim();
+  if (!s){ lobErr('请填写服务器地址（由房主提供，形如 123.45.67.89:8080）'); return; }
+  const url = wsUrl(s);
+  let opened = false;
+  try{ NET.ws = new WebSocket(url); }catch(e){ lobErr('地址无效'); return; }
+  NET.ws.onopen = () => { opened = true; lobErr('已连接服务器', true); if (onOk) onOk(); };
+  NET.ws.onerror = () => { if (!opened) lobErr('连不上服务器，请检查地址与网络'); };
+  NET.ws.onclose = () => {
+    clearInterval(NET.hb);
+    if (NET.kicked) return;                             // 被别处顶替：不重连
+    if (NET.active || NET.tableOn) netTryReconnect();   // 对局中断线：退避重连
+    else if (opened) lobErr('连接已断开');
+  };
+  NET.ws.onmessage = e => {
+    let m = null;
+    try{ m = JSON.parse(e.data); }catch(err){ return; }
+    netHandle(m);
+  };
+  clearInterval(NET.hb);
+  NET.hb = setInterval(() => netSend({ t:'ping' }), 25000);
+}
+/* 断线退避重连：1.8s/2.6s/…最长 6s，8 次后放弃并提示 */
+function netTryReconnect(){
+  if (!NET.active && !NET.tableOn) return;   // 已离开对局，不重连
+  if (NET.reconnecting) return;              // 已在重连流程
+  if (NET.reconnectTries >= 8){
+    NET.reconnectTries = 0;
+    toast('重连失败，请回到首页后重新进入房间', 'red');
+    return;
+  }
+  NET.reconnectTries++;
+  const delay = Math.min(1000 + 800 * NET.reconnectTries, 6000);
+  toast('与服务器断开，正在重连(' + NET.reconnectTries + ')…', 'red');
+  setTimeout(() => {
+    if (!NET.active && !NET.tableOn) return;
+    NET.reconnecting = true;
+    netReconnect();
+  }, delay);
+}
+/* 立即重连（回前台 / 用户主动操作时） */
+function netKickReconnect(){
+  if (!NET.active && !NET.tableOn) return;
+  if (NET.ws && (NET.ws.readyState === 0 || NET.ws.readyState === 1)) return; // 已在连/已连
+  NET.reconnecting = false; NET.reconnectTries = 0;
+  netReconnect();
+}
+function netReconnect(){
+  const s = ($('lServer').value || netServerDefault()).trim();
+  if (!s || !NET.roomNo){ NET.reconnecting = false; return; }
+  const url = wsUrl(s);
+  try{ NET.ws = new WebSocket(url); }catch(e){ NET.reconnecting = false; netTryReconnect(); return; }
+  NET.ws.onopen = () => {
+    netSend({ t:'reconnect', roomNo: NET.roomNo, token: NET.token });
+    clearInterval(NET.hb);
+    NET.hb = setInterval(() => netSend({ t:'ping' }), 25000);
+  };
+  NET.ws.onclose = () => {
+    clearInterval(NET.hb);
+    // v1.2.15：被别处顶替（kicked）后不再重连，否则会把新页面又挤下去，两边轮流假死
+    if (NET.kicked) return;
+    // 重连的连接又挂了（含服务端拒绝后 close）：继续退避，除非已被 err 分支终止
+    if (NET.active || NET.tableOn){ NET.reconnecting = false; netTryReconnect(); }
+  };
+  NET.ws.onerror = () => {};
+  NET.ws.onmessage = e => { let m = null; try{ m = JSON.parse(e.data); }catch(err){ return; } netHandle(m); };
+}
+// v1.2.12：结算记录入历史（按 局号+风圈 去重，防断线重连补发双份）
+function netPushSettleRec(rec){
+  if (!rec) return;
+  if (!NET.history.some(r => r.no === rec.no && r.wind === rec.wind)) NET.history.push(rec);
+}
+function netHandle(m){
+  NET.lastMsgAt = Date.now();
+  switch (m.t){
+    case 'welcome':
+      NET.mySeat = m.seat; NET.token = m.token; NET.roomNo = m.roomNo; NET.isHost = !!m.isHost;
+      // 重连中不清 reconnecting：服务端会紧接着补发 view / settle（见 resumeSeat），
+      // 由第一个业务帧清除，确保补发的 settle 走「不自动弹窗、只恢复数据」分支
+      if (!NET.tableOn){ NET.reconnecting = false; NET.reconnectTries = 0; }
+      break;
+    case 'roomNo':
+      NET.roomNo = m.roomNo; $('rNoTxt').textContent = m.roomNo;
+      showRoom();                       // 建房/加入成功 → 切到房间等待页
+      break;
+    case 'room':
+      NET.players = m.players;
+      // 本桌规则以服务端为准（房主改完会广播给所有人）
+      if (m.cfg) Object.assign(CFG, m.cfg), NET.cfg = m.cfg;
+      // 房主可能已换人（原房主退出 / 全员退出后重进），以服务端名单为准
+      // 服务端 players 是按座位号的数组（空座位为 null），直接索引取自己
+      if (NET.mySeat >= 0){
+        const me = m.players[NET.mySeat];
+        if (me) NET.isHost = !!me.host;
+      }
+      // 牌局进行中也会收到 room（有人掉线时广播），此时不能打断牌桌
+      if (!NET.tableOn) showRoom();
+      renderRoom();
+      break;
+    case 'start':
+      NET.tableOn = false; NET.lastSettle = null; NET.history = [];
+      netSetClock(0);
+      break;
+    case 'view':
+      NET.lastView = m.view;
+      if (!NET.tableOn){ NET.tableOn = true; NET.active = true; $('home').classList.add('hide'); }
+      // 重连成功：首个业务帧到达，重连流程结束
+      if (NET.reconnecting){ NET.reconnecting = false; NET.reconnectTries = 0; }
+      applyView(m.view);
+      break;
+    case 'ask':
+      netAsk(m);
+      break;
+    case 'settle':
+      NET.lastSettle = { html: m.html, dealer: m.dealer };
+      // v1.2.12：去重（按 局号+风圈），防断线重连时服务端补发 settle 造成同一局记录双份
+      netPushSettleRec(m.rec);
+      stopCd();
+      netSetClock(0);
+      PEND = null;
+      NET.pend = null;
+      // 结算帧投影（含亮牌）先落地，再补「下一局」入口
+      if (m.view) applyView(m.view);
+      G.finished = true;
+      G.running = false;
+      G.result = { dealer: m.dealer };
+      // v1.2.5：断线重连后服务端会补发 settle 以同步 lastSettle，但不需要再次自动弹窗
+      if (!NET.reconnecting) openSheet(settleHtml(m.html, m.dealer));
+      else { NET.reconnecting = false; NET.reconnectTries = 0; }
+      renderActs();
+      break;
+    case 'toast':
+      // 带座位（吃/碰/杠/敲）→ 定位到对应牌河；服务端下的是真实座位，先重映射到本地视角
+      if (m.seat != null) seatToast(remap(m.seat), m.text);
+      else toast(m.text, m.cls);
+      break;
+    case 'err':
+      if (NET.reconnecting){
+        // 重连被服务端拒绝（房间解散 / 凭证无效）：停止重试，回首页并说明原因
+        NET.reconnecting = false; NET.reconnectTries = 0;
+        NET.teardown();
+        $('home').classList.remove('hide');
+        showHomePick();
+        lobErr(m.msg);
+        return;
+      }
+      if (NET.tableOn) toast(m.msg, 'red');
+      else lobErr(m.msg);
+      break;
+    case 'ended':
+      NET.tableOn = false; NET.pend = null; stopCd(); netSetClock(0);
+      PEND = null; NET.lastSettle = null;
+      toast('本局已结束，回到房间等待页', 'gold');
+      $('home').classList.remove('hide');
+      showRoom();
+      break;
+    case 'bye':
+      NET.teardown();
+      $('home').classList.remove('hide');
+      showHomePick();
+      if (m.msg) lobErr(m.msg);        // 被房主移出 / 房间关闭等原因
+      break;
+    case 'kicked':
+      // v1.2.15：同一个座位在别处被重新进入（另一个页面/设备）。
+      // 本页必须彻底退出且不再重连——否则两个页面轮流抢座位，两边都收不全询问，牌桌看着像卡死。
+      NET.kicked = true;
+      NET.reconnecting = false; NET.reconnectTries = 0;
+      NET.teardown();
+      $('home').classList.remove('hide');
+      showHomePick();
+      lobErr(m.msg || '这个座位已在别处进入，本页已退出');
+      break;
+  }
+}
+/* 服务端轮到你做决定 */
+function netAsk(m){
+  NET.pend = { kind: m.kind, payload: m.payload, deadline: m.deadline || 0 };
+  // 倒计时以服务端下发的「相对剩余毫秒」为准（不换算绝对时刻，避免各端时钟偏差）
+  netSetClock(typeof m.askLeft === 'number' ? m.askLeft : Math.max(0, (m.deadline || 0) - Date.now()));
+  SEL = null; SELIDX = null;
+  PEND = { kind: m.kind, payload: m.payload, res: null, seat: 0 };  // 伪 PEND：复用 renderActs 的按钮逻辑
+  render();
+  startCd();
+  // 刚点过「敲听」打牌 → 服务端紧接着问「敲不敲」：直接确认，免掉第二次点击
+  if (m.kind === 'knock' && NET.autoKnock){
+    NET.autoKnock = false;
+    resolvePend('knock');
+    return;
+  }
+  // 其它询问（出牌/吃碰杠）到了，说明上一轮没走「敲听」路径，清掉残留标志
+  if (m.kind !== 'knock') NET.autoKnock = false;
+}
+/* ---------- 全局倒计时（服务端权威，四家同一个数） ----------
+   数据源只有一处：服务端下发的剩余毫秒 askLeft + 本地收到时刻。
+   中途退出、断线重连都不会单独记一份自己的状态，看到的和大家一致。 */
+function netSetClock(left){
+  NET.askLeft = Math.max(0, left || 0);
+  NET.askAt = Date.now();
+}
+function netLeftSec(){
+  if (!NET.active || !NET.askLeft) return 0;
+  const l = NET.askLeft - (Date.now() - NET.askAt);
+  return l > 0 ? Math.ceil(l / 1000) : 0;
+}
+/* 圆心倒计时（v1.2.15）：纯数字、黄色高亮，无其他文字；无决策或单机（机器人局）显示「——」。
+   数据源不变：联机 = 服务端下发的剩余毫秒（netLeftSec），四家同一个数 */
+function renderTurnClock(){
+  const el = $('cdTxt');
+  if (!el) return;
+  const s = NET.active ? netLeftSec() : 0;
+  // v1.2.16：没人在决策时直接留空（旧版显示「——」占位，桌心看着多余）
+  el.textContent = s > 0 ? String(s) : '';
+  el.className = 'cd' + (s > 0 && s <= 3 ? ' warn' : '');
+}
+function stopCd(){ if (NET.timer){ clearInterval(NET.timer); NET.timer = null; } }
+/* 局间「准备下一局」：四家牌河各自盖「准备」字样（谁准备了谁亮，全部可见） */
+function renderReady(){
+  if (!NET.active) return;
+  const settled = G.finished;
+  const readySeats = NET.readySeats || [];
+  for (let i = 0; i < 4; i++){
+    const host = $(RIVER_OF[i]);
+    if (!host) continue;
+    let badge = host.querySelector('.readyBadge');
+    const seat = (i + NET.mySeat + 4) % 4;   // 本地牌河 i → 真实座位
+    const show = settled && readySeats.indexOf(seat) >= 0;
+    if (show){
+      if (!badge){
+        badge = document.createElement('div');
+        badge.className = 'readyBadge';
+        badge.textContent = '准备';
+        host.appendChild(badge);
+      }
+    } else if (badge) badge.remove();
+  }
+}
+function startCd(){
+  stopCd();
+  if (!NET.active) return;
+  NET.timer = setInterval(() => renderTurnClock(), 500);
+  renderTurnClock();
+}
+NET.teardown = function(){
+  netSend({ t:'leave' });
+  clearInterval(NET.hb); clearInterval(NET.timer);
+  // 主动断开前摘掉回调，避免触发 netConnect.onclose 里的「连接已断开」误报
+  try{ if (NET.ws){ NET.ws.onclose = null; NET.ws.onerror = null; NET.ws.close(); } }catch(e){}
+  NET.ws = null; NET.active = false; NET.tableOn = false;
+  NET.mySeat = -1; NET.token = ''; NET.roomNo = ''; NET.isHost = false;
+  NET.players = []; NET.lastSettle = null; NET.pend = null; NET.lastView = null;
+  NET.reconnecting = false; NET.reconnectTries = 0;
+  netSetClock(0);
+  loadCfg();          // 退出联机：恢复本机自己存的单机规则（联机时被房间规则覆盖过）
+  stopCd();
+};
+
+/* ---------- 投影 → 本地 G（座位重映射） ---------- */
+function remap(seat){ return NET.active ? (seat - NET.mySeat + 4) % 4 : seat; }
+function applyView(V){
+  if (V.cfg) Object.assign(CFG, V.cfg);   // 本桌规则由服务端下发，客户端只跟着显示
+  const t = V.table;
+  NET.mySeat = V.mySeat;
+  if (V.ready) NET.readySeats = V.ready;  // 局间「准备下一局」状态
+  // 倒计时跟着投影一起刷新：不管是不是轮到我，四家看到的是同一个数
+  netSetClock(V.askLeft);
+  G.running = t.phase === 'playing';
+  // 结算后服务端可能补发一帧「空闲投影」（phase=idle、finished=false，来自 finish 早期 render）。
+  // 它会把「已结算」短暂降级成「未结算」，导致底部「准备下一局/查看结算」按钮瞬间消失。
+  // 真正的新局 phase 一定是 playing，这里只拦截非 playing 的降级。
+  const prevFinished = G.finished;
+  G.finished = !!t.finished;
+  if (!t.finished && t.phase !== 'playing' && prevFinished && NET.lastSettle && NET.tableOn){
+    G.finished = true;
+  }
+  G.result = NET.lastSettle ? { dealer: NET.lastSettle.dealer } : null;
+  G.handNo = t.handNo; G.roundWind = t.roundWind;
+  G.huangfan = t.huangfan; G.kaibao = !!t.kaibao; G.kaibaoType = t.kaibaoType;
+  G.dice = t.dice;
+  G.turn = remap(t.turn); G.dealer = remap(t.dealer);
+  G.lastDiscard = t.lastDiscard;
+  G.lastFrom = (t.lastFrom < 0) ? -1 : remap(t.lastFrom);
+  G.logs = V.logs.slice();
+  // 牌墙：只给剩余张数 —— 用 wpos/wtail 还原 wallLeft() 的返回值
+  G.wall = []; G.wpos = 0; G.wtail = Math.max(0, t.wallLeft - 1);
+  const local = new Array(4);
+  for (const pv of V.players) local[remap(pv.seat)] = pv;
+  G.players = local.map((pv, li) => ({
+    idx: li,
+    name: pv.name,
+    isBot: !!pv.isBot,
+    online: pv.online !== false,
+    hand: (pv.hand != null) ? pv.hand.slice() : new Array(pv.handCount).fill(-1),
+    flowers: pv.flowers.slice(),
+    melds: pv.melds.map(m => ({
+      type: m.type, tiles: m.tiles.slice(), tile: m.tile,
+      concealed: !!m.concealed, from: (m.from < 0 ? -1 : remap(m.from))
+    })),
+    discards: pv.discards.slice(),
+    knocked: !!pv.knocked,
+    // v1.2.15：自己的敲定听牌由服务端随投影下发（此前恒为空 → 联机时顶部「已敲·听」
+    // 与底部「听牌中 →」都显示不出听的牌）；别家的听牌不下发（私密信息）
+    knockWaits: (pv.knockWaits || []).slice(),
+    menqing: !!pv.menqing,
+    drawn: (pv.drawn != null) ? pv.drawn : null,
+    score: pv.score,
+    drawnCount: 0, target: null,
+    missHu: new Set(pv.missHu || []),
+    noPromptSig: '', tianDi: false,
+    settleFan: null, settleDi: null
+  }));
+  renderLog();
+  render();
+  // 倒计时要自己走：投影只在局面变化时下发，中间的每一秒靠本地 tick 递减
+  if (NET.active && !NET.timer) startCd();
+}
+/* 牌河下方的三手记录（引擎里由 logMsg 直接画，联机时由投影驱动） */
+function renderLog(){
+  const box = $('log');
+  if (!box) return;
+  box.innerHTML = '';
+  const L = G.logs || [];
+  for (let i = L.length - 1; i >= Math.max(0, L.length - 3); i--){
+    const d = document.createElement('div');
+    d.textContent = L[i];
+    box.appendChild(d);
+  }
+}
+
+/* ---------- 首页 ---------- */
+function showHomePick(){
+  $('homePick').classList.remove('hide');
+  $('homeLobby').classList.add('hide');
+  $('homeRoom').classList.add('hide');
+}
+function showRoom(){
+  $('homePick').classList.add('hide');
+  $('homeLobby').classList.add('hide');
+  $('homeRoom').classList.remove('hide');
+}
+function showLobby(){
+  $('homePick').classList.add('hide');
+  $('homeLobby').classList.remove('hide');
+  $('homeRoom').classList.add('hide');
+  try{
+    const sv = JSON.parse(localStorage.getItem('sjm_net') || '{}');
+    if (sv.name) $('lName').value = sv.name;
+    if (sv.server) $('lServer').value = sv.server;
+  }catch(e){}
+  if (!$('lServer').placeholder) $('lServer').placeholder = netServerDefault() || '如 192.168.1.5:8080';
+  lobErr('');   // 上一次会话的错误提示不带给新会话
+}
+function lobErr(msg, ok){
+  const el = $('lErr');
+  el.textContent = msg || '';
+  el.className = 'lErr' + (ok ? ' ok' : '');
+}
+function netSavePref(){
+  try{
+    localStorage.setItem('sjm_net', JSON.stringify({ name: $('lName').value.trim(), server: $('lServer').value.trim() }));
+  }catch(e){}
+}
+function bindHome(){
+  // 装饰牌：中 · 发 · 白（牌编码 108/112/116）
+  const deco = $('hDeco');
+  if (deco){
+    deco.innerHTML = [108, 112, 116].map(t => tileHTML(t, '')).join('');
+    deco.querySelectorAll('.tile').forEach(el => el.classList.add('static'));
+  }
+  // v1.2.18：单机入口先弹设置（返回 / 开始游戏）再开局；
+  // 若从联机（含等待室）返回过首页，roomNo 等残留会让 openSet 误判成房间模式——先清理
+  $('hBtnSolo').onclick = () => {
+    if (NET.roomNo || NET.active || NET.tableOn) NET.teardown();
+    openSet();
+  };
+  $('hBtnMulti').onclick = showLobby;
+  $('lBack').onclick = showHomePick;
+  $('lCreate').onclick = () => {
+    const name = $('lName').value.trim();
+    if (!name){ lobErr('先给自己起个名字'); return; }
+    netSavePref();
+    lobErr('连接中…', true);
+    NET.kicked = false;                 // 重新入座：清掉上一次被顶替的标记，恢复自动重连
+    netConnect($('lServer').value, () => netSend({ t:'create', name }));
+  };
+  $('lJoin').onclick = () => {
+    const name = $('lName').value.trim();
+    const no = $('lRoomNo').value.trim();
+    if (!name){ lobErr('先给自己起个名字'); return; }
+    if (!/^\d{6}$/.test(no)){ lobErr('房间号是 6 位数字'); return; }
+    netSavePref();
+    lobErr('连接中…', true);
+    NET.kicked = false;                 // 重新入座（含「退出再回」）：清掉被顶替标记
+    netConnect($('lServer').value, () => netSend({ t:'join', name, roomNo: no }));
+  };
+  $('rNoTxt').onclick = () => {
+    const t = NET.roomNo;
+    if (!t) return;
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(t).then(() => toast('房间号已复制', 'gold'), () => {});
+    }
+  };
+  $('rReady').onclick = () => netSend({ t:'ready' });
+  $('rStart').onclick = () => netSend({ t:'start' });
+  $('rCfg').onclick = () => openSet();
+  $('rClose').onclick = netCloseRoom;
+  $('rLeave').onclick = () => {
+    NET.teardown();
+    showHomePick();
+  };
+}
+/* v1.2.4：等待页 = 简易牌桌
+   四边按「本地视角」排布：南(下)=我、东(右)=下家、北(上)=对家、西(左)=上家
+   与进牌局后的方位完全一致——点哪个空位，就是坐到牌桌的那一侧 */
+const POS_OF_REL = ['rSeatS', 'rSeatE', 'rSeatN', 'rSeatW'];   // 视角位 0我 / 1右家 / 2对家 / 3左家
+const REL_LABEL = ['我', '右家', '对家', '左家'];
+function renderRoom(){
+  const box = $('rBoard');
+  if (!box) return;
+  let waitCnt = 0;
+  const seats = NET.players;
+  const base = NET.mySeat >= 0 ? NET.mySeat : 0;     // 我的真实座位
+  box.querySelectorAll('.rSeatSlot').forEach(el => {
+    el.classList.remove('taken', 'me', 'empty');
+  });
+  for (let r = 0; r < 4; r++){
+    const seat = (base + r) % 4;                     // 视角位 → 真实座位号
+    const slotEl = box.querySelector('.' + POS_OF_REL[r]);
+    if (!slotEl) continue;
+    const s = seats[seat];
+    const isMe = (r === 0);
+    slotEl.classList.remove('taken','me','empty');
+    slotEl.onclick = null;
+    slotEl.dataset.seat = seat;                      // DOM 上的座位号跟着视角刷新
+    if (s){
+      let st = '';
+      if (s.host) st += '<span class="st host">房主</span>';
+      if (!s.online) st += '<span class="st off">掉线</span>';
+      else if (s.ready) st += '<span class="st ready">已准备</span>';
+      if (!s.host && !s.ready) waitCnt++;            // 统计「除房主外还没准备的人」——含自己（自己没准备也要准备）；房主不需要准备
+      slotEl.innerHTML =
+        '<div class="rSeatPos">' + REL_LABEL[r] + '</div>' +
+        '<div class="rSeatName">' + escName(s.name) + st + '</div>' +
+        (NET.isHost && !isMe ? '<button class="rSeatKick" onclick="event.stopPropagation();netKick(' + seat + ')">移出</button>' : '');
+      slotEl.classList.add('taken');
+      if (isMe) slotEl.classList.add('me');
+    } else {
+      slotEl.classList.add('empty');
+      // 空位：点击换过去（牌局中 / 已有人 / 自己原位 都会被拦下）
+      slotEl.innerHTML = '<div class="rSeatPos">空位</div><div class="rSeatName" style="color:var(--dim2)">点我换过来</div>';
+      slotEl.onclick = () => netMoveSeat(seat);
+    }
+  }
+  // 中央圆：方位也按视角走（下方永远是我），顺/逆时针顺序与牌局中的罗盘一致
+  const dialWind = { s: base, e: (base + 1) % 4, n: (base + 2) % 4, w: (base + 3) % 4 };
+  for (const k in dialWind){
+    const el = box.querySelector('.rDw.' + k);
+    if (el) el.textContent = SEAT_WIND[dialWind[k]];   // 开局前按「座位 0 = 东」推算
+  }
+  const st = $('rStatus');
+  // v1.2.4：人数提示 bug 修复——房主与非房主走同一套算法，服务端每次广播 room 都重算，
+  // 所以任何一个人点/取消准备，四家看到的「X 位真人入座 / Y 位未准备」都会一起变。
+  const total = seats.filter(s => s).length;
+  if (waitCnt > 0) st.textContent = total + ' 位真人入座，还有 ' + waitCnt + ' 位未准备';
+  else if (total >= 2) st.textContent = total + ' 位真人入座，全员就绪！';
+  else st.textContent = total + ' 位真人已入座，空位开局时自动补机器人';
+  // 房主：不显示准备按钮；其他已加入的真人全部准备后才能开始
+  const othersReady = NET.players.every((s, i) => !s || i === NET.mySeat || s.ready);
+  // 开始按钮对房主常驻，未就绪时置灰（不隐藏），避免按钮忽有忽无导致页面跳动
+  $('rStart').classList.toggle('hide', !NET.isHost);
+  $('rStart').disabled = !othersReady;
+  $('rClose').classList.toggle('hide', !NET.isHost);
+  $('rReady').classList.toggle('hide', !!NET.isHost);   // 房主不需要准备
+  // 规则设置：等待页所有人可见（房主可改，非房主查看）；牌局中走右上角设置按钮
+  const cfgEl = $('rCfg');
+  if (cfgEl){
+    cfgEl.classList.toggle('hide', !!NET.tableOn);
+    cfgEl.textContent = NET.isHost ? '游戏设置' : '查看设置';
+  }
+  const me = NET.players[NET.mySeat];
+  $('rReady').textContent = (me && me.ready) ? '取消准备' : '准备';
+}
+/* 客户端发送换座请求 */
+function netMoveSeat(seat){
+  if (NET.tableOn) return;                    // 牌局中禁止换座
+  if (seat === NET.mySeat) return;
+  if (NET.players[seat]) return;
+  if (!netSend({ t:'moveSeat', seat })) return;
+  const rel = (seat - (NET.mySeat >= 0 ? NET.mySeat : 0) + 4) % 4;
+  toast('正在换到' + REL_LABEL[rel] + '…', 'gold');
+}
+function escName(s){
+  return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+}
+
+/* ---------- 模式入口 ---------- */
+function startSolo(){
+  NET.active = false; NET.tableOn = false;
+  stopCd();
+  $('home').classList.add('hide');
+  G.abort = false;
+  initGame();
+  render();
+  runHand();
+}
+function backHome(){
+  closeSheet();
+  if (NET.active || NET.tableOn){ NET.teardown(); }
+  G.abort = true; G.running = false;
+  // 关键：不要把旧的 PEND resolve 掉。一旦 resolve(null)，上一局的主循环会拿着
+  // null 继续往下跑，跑完还会走 finish({type:'liuju'}) —— 就是新开一局时冒出来的
+  // 那个「流局」幽灵弹窗。直接丢弃引用，让上一局的 async 循环永远停在 await 处。
+  PEND = null;
+  NET.pend = null;
+  stopCd();
+  $('home').classList.remove('hide');
+  showHomePick();
+}
+function netKick(seat){
+  const s = NET.players[seat];
+  if (!confirm('把「' + (s ? s.name : '该玩家') + '」移出房间？')) return;
+  if (!netSend({ t:'kick', seat })){
+    toast('连接已断开，正在重连…', 'red'); netKickReconnect(); return;
+  }
+}
+function netEndGame(){
+  if (!confirm('确定结束当前牌局？所有人会回到房间等待页。')) return;
+  if (!netSend({ t:'end' })){ toast('连接已断开，正在重连…', 'red'); netKickReconnect(); return; }
+  closeSheet();
+}
+function netCloseRoom(){
+  if (!confirm('确定关闭房间？房间会解散，所有人回到首页。')) return;
+  if (!netSend({ t:'close' })){ toast('连接已断开，正在重连…', 'red'); netKickReconnect(); return; }
+  closeSheet();
 }
 
 /* ========================================================================
@@ -2257,15 +3689,38 @@ $('btnSet').onclick = openSet;
 $('mask').onclick = e => { if (e.target === $('mask')) closeSheet(); };
 
 loadCfg();
-initGame();
-render();
-runHand();
+bindHome();
+showHomePick();
+
+/* 回前台探活：浏览器挂后台后 TCP 可能已死但浏览器未察觉（半开连接），
+   表现为回到页面后牌局卡死、按钮无反应。方案：回前台立即发 ping，
+   3 秒内没收到任何服务端消息就强制断开并重连；连接已断则立即重连。 */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!NET.active && !NET.tableOn) return;
+  if (NET.ws && NET.ws.readyState === 1){
+    const before = NET.lastMsgAt;
+    netSend({ t:'ping' });
+    setTimeout(() => {
+      if (!NET.active && !NET.tableOn) return;   // 已离开
+      if (NET.lastMsgAt > before) return;        // 有回应，连接正常
+      try{ if (NET.ws){ NET.ws.onclose = null; NET.ws.onerror = null; NET.ws.close(); } }catch(e){}
+      netKickReconnect();
+    }, 3000);
+    return;
+  }
+  netKickReconnect();   // 已断 / 正在连
+});
 
 // 暴露给弹层内联事件
 window.nextHand = nextHand;
 window.closeSheet = closeSheet;
+window.backHome = backHome;
+window.netEndGame = netEndGame;
+window.netCloseRoom = netCloseRoom;
+window.netKick = netKick;
 window.setCfg = setCfg; window.setCfg2 = setCfg2; window.setCfg3 = setCfg3;
-window.setCfg4 = setCfg4; window.setCfg5 = setCfg5; window.setCfg6 = setCfg6; window.setCfg7 = setCfg7; window.setCfg8 = setCfg8;
+window.setCfg4 = setCfg4; window.setCfg5 = setCfg5; window.setCfg6 = setCfg6; window.setCfg7 = setCfg7; window.setCfg8 = setCfg8; window.setCfg9 = setCfg9;
 window.resetAll = resetAll;
 </script>
 </body>
