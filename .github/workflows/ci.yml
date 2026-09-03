@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: 引擎回归 (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: 安装根依赖
+        run: npm install
+      - name: 抽取引擎（退出码须为 0）
+        run: node proto/tools/extract.js
+      - name: 引擎单元测试 62 项
+        run: node tests/unit.js
+      - name: 无头仿真 200 局（零和/可复现/无死循环/可见性裁剪）
+        run: node proto/server/simulate.js 200
+      - name: 清混碰 AI 24 局回归
+        run: node tests/m37_qhp_game.js
+      - name: 玩法专项回归（m*.js 全量）
+        run: |
+          for f in tests/m13_priority.js tests/m16_kong_fan.js tests/m17_duoxiang_dealer.js \
+                   tests/m19_start_flower.js tests/m23_chengbao.js tests/m25_kong_rules.js \
+                   tests/m30_next_hand.js tests/m33_autohu_waits.js tests/m36_qinghunpeng.js \
+                   tests/m37_qhp_game.js tests/m39_zhongfabai.js tests/m41_suit_lock.js tests/m4_recycle.js; do
+            node "$f" || exit 1
+          done
+
+  e2e:
+    name: 端到端 (Playwright)
+    runs-on: ubuntu-latest
+    needs: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装根依赖 + 服务端依赖(ws)
+        run: |
+          npm install
+          cd server && npm install && cd ..
+      - name: 安装 Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: 启动服务端（后台）
+        run: PORT=8099 node server/server.js &
+      - name: 运行 Playwright 端到端（tests/m*.py）
+        run: |
+          for f in tests/m*.py; do
+            python3 "$f" || exit 1
+          done

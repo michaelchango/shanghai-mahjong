@@ -3,3 +3,5 @@ node_modules/
 proto/server/engine.js
 .DS_Store
 *.log
+# WorkBuddy 本地记忆/配置目录，不入库
+.workbuddy/
