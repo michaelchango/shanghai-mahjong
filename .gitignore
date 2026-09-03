@@ -1,0 +1,5 @@
+node_modules/
+# 由 proto/tools/extract.js 从 index.html 生成，禁止手改、不入库
+proto/server/engine.js
+.DS_Store
+*.log
