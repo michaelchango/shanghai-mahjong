@@ -729,7 +729,7 @@ function scanRooms(){
 }
 
 server.listen(PORT, () => {
-  log(`一道来敲麻 v1.2.20 服务端已启动: http://0.0.0.0:${PORT}`);
+  log(`一道来敲麻 v1.2.21 服务端已启动: http://0.0.0.0:${PORT}`);
   log('手机浏览器访问上面的地址 → 多人对战 → 创建房间');
   setInterval(scanRooms, SCAN_INTERVAL).unref();
   setInterval(() => {

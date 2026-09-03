@@ -556,7 +556,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer">v1.2.20</div>
+    <div class="hVer" id="hVer">v1.2.21</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby">
@@ -1160,17 +1160,23 @@ function claimOptions(p, tile, from, isNext){
       for (const c of combos) opts.push({ k: 'chow', tile, combo: c });
     }
   }
-  // v1.2.19：清混碰下「吃过即锁门」——已有吃牌(chow)副露时，其他花色的吃/碰/杠
-  // 全部不再给选项（碰了必然胡不了），只保留本门 + 字牌（风/中发白）的吃碰杠；
-  // 胡(hu)不受影响（牌型合法与否由 tryWin 判）。敲麻玩法有平胡兜底，不锁门。
+  // v1.2.19+21：清混碰按「副露方向约束」过滤吃/碰/杠选项——胡(hu)不受影响
+  // （牌型合法与否由 tryWin 判）。敲麻玩法有平胡兜底，不锁门。
+  //  吃过 → 只本门+字；碰出两门以上刻 → 只能碰/杠（吃顺必死）；
+  //  只碰一门刻 → 吃顺限本门（可转本门混/清），碰/杠仍开放（可继续做碰碰胡）
   if (!CFG.lajiHu && !p.knocked){
-    const ls = lockedSuitOf(p);
-    if (ls !== null && ls >= 0){
+    const d = directionOf(p);
+    if (!d.free){
       const kept = [];
+      const ts = suitOf(tile);
       for (const o of opts){
         if (o.k === 'hu'){ kept.push(o); continue; }
-        const s = suitOf(tile);
-        if (s === ls || s === 3) kept.push(o);
+        if (d.pung){ if (o.k !== 'chow') kept.push(o); continue; }        // 只能碰/杠
+        if (d.lock !== undefined){ if (ts === d.lock || ts === 3) kept.push(o); continue; }
+        if (d.single !== undefined){                                       // 吃顺只本门
+          if (o.k === 'chow'){ if (ts === d.single) kept.push(o); }
+          else kept.push(o);
+        }
       }
       return kept;
     }
@@ -1218,6 +1224,31 @@ function lockedSuitOf(p){
   }
   return ls;
 }
+// v1.2.21：副露方向约束（吃/碰/杠与做牌目标都必须与之相容）。
+//  敲麻（lajiHu 开）有平胡兜底 → 恒自由。
+//  { lock: 0/1/2 }  副露里有吃牌(chow) → 本局锁死该花色（只能本门+字，v1.2.19 语义）
+//  { pung: true }   已碰/杠出两门以上数牌刻 → 只能走碰碰胡（吃任何顺子都会死牌）
+//  { single: 0/1/2 } 只碰过一门数牌刻（可有字刻）→ 吃顺子只能吃这一门；
+//                    碰/杠仍开放（可继续碰成碰碰胡，也可吃本门顺转混/清一色）
+//  { free: true }   没副露或只有字刻 → 方向未定，全开放
+function directionOf(p){
+  if (CFG.lajiHu) return { free: true };
+  let chowS = null;
+  const numSuits = new Set();
+  for (const m of p.melds){
+    const t = m.tile;
+    if (m.type === 'chow'){
+      const s = suitOf(t);
+      if (chowS === null) chowS = s; else if (chowS !== s) chowS = -1;
+      continue;
+    }
+    if (t < 27) numSuits.add(suitOf(t));     // 数牌刻/杠
+  }
+  if (chowS !== null) return chowS >= 0 ? { lock: chowS } : { pung: true };
+  if (numSuits.size >= 2) return { pung: true };
+  if (numSuits.size === 1) return { single: [...numSuits][0] };
+  return { free: true };
+}
 function removeTiles(arr, tiles){
   for (const t of tiles){
     const i = arr.indexOf(t);
@@ -1230,16 +1261,25 @@ function removeTiles(arr, tiles){
    ======================================================================== */
 function aiTargetOf(p){
   const e = evalAll(toCounts(p.hand), p.melds.length);
+  // v1.2.21：清混碰下做牌目标必须与已有副露相容——已经碰了萬刻就不能把方向换成
+  // 筒混一色（先碰九萬再吃筒顺的死牌就是这么来的）。directionOf 给出约束后，
+  // 冲突的 mix/pure/wind 门直接跳过，pung 只在没吃过顺子时才允许。
+  const dir = CFG.lajiHu ? null : directionOf(p);
+  const suitOK = s => !dir || dir.free || dir.single === s ||
+    (dir.lock !== undefined && s === dir.lock);
   // 开着垃圾胡时，如果普通顺子型明显更近，就往平胡方向打
   if (CFG.lajiHu && e.std <= e.pung &&
       e.std <= Math.min(e.mix0, e.mix1, e.mix2)) return 'std';
   // v1.2.18：碰碰胡不再 +0.2 站台——两个牌型向听咬得越紧，越该让「成型更容易」的
   // 混/清一色（能吃顺子）上场，否则散牌起手机器人永远无脑做碰碰胡
+  // v1.2.21：已吃过顺子(chow)时碰碰胡已不可能，pung 出局，只走本门一色路线
   let best = 'pung', bv = e.pung + 0.1;
+  if (dir && dir.lock !== undefined) bv = 99;
   // v1.2.16：清混碰玩法下把「清一色 / 风一色」也纳入主攻方向——
   // 旧版只在「碰碰胡 + 混一色」里选，机器人永远做不出清一色，只会乱吃
   if (!CFG.lajiHu){
     for (let s = 0; s < 3; s++){
+      if (!suitOK(s)) continue;   // v1.2.21：方向约束外的门不参与竞争
       // v1.2.18：本门不足 2 张就不参与混/清一色竞争——向听公式允许风牌混入，
       // 全风手牌对任意「混一色(本门)」也算出低向听（其实没有本门数牌可做），
       // 不设门槛的话风牌多时 mix* 会错误地抢走风一色/碰碰胡的目标
@@ -1260,9 +1300,10 @@ function aiTargetOf(p){
     // 风一色与混/清一色同向听时押风一色（4 番 > 1 番）。
     // v1.2.18：向听公式对字牌偏乐观（字种少、台面竞争激烈），加「字牌 ≥6」现实门槛——
     // 手上没几张字也押风一色会把整局打废；够 6 张字时（已有刻/对基础）同向听押 4 番值得
+    // v1.2.21：已有数牌副露的方向不做风一色（方向已定/字不够）——只有自由方向且字够多才押
     let windN = 0;
     for (const t of p.hand) if (t >= 27) windN++;
-    if (windN >= 6 && e.wind < 8 && e.wind <= bv){ bv = e.wind; best = 'wind'; }
+    if ((!dir || dir.free) && windN >= 6 && e.wind < 8 && e.wind <= bv){ bv = e.wind; best = 'wind'; }
     return best;
   }
   for (const k of ['mix0', 'mix1', 'mix2']){
