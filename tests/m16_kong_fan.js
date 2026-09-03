@@ -130,14 +130,14 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  FAIL: ' +
   // v1.2.12：杠算花 → 有杠必破无花果，结算不再给无花果
   ok('结算面板不含「无花果」（杠算花，已被杠破）', !(cap.finishHtml && cap.finishHtml.includes('无花果')));
   const base = res && res.ev ? res.ev.base : -1;
-  ok('牌型为碰碰胡（base=1）', base === 1, base);
-  const expectTotal = base === 1 ? (cap.finishHtml && cap.finishHtml.includes('门清') ? 3 : 2) : -1;
+  ok('牌型为碰碰胡（v1.2.23 线性番 base=2）', base === 2, base);
+  const expectTotal = base === 2 ? (cap.finishHtml && cap.finishHtml.includes('门清') ? 4 : 3) : -1;
   ok('总番数 = 牌型 + 附加番（杠上开花，无花果已破）', res && res.ev && res.ev.total === expectTotal, res && res.ev && [res.ev.type, res.ev.total, expectTotal]);
-  ok('支付 = 底×2^番×unit（未超封顶不截断）', (() => {
+  ok('支付 = 底×番×unit（v1.2.23 线性，未超封顶不截断）', (() => {
     if (!res || !res.ev) return false;
     const di = 1 /*CFG.base*/ + (res.ev.flowers || 0);
-    const raw = di * Math.pow(2, res.ev.total) * 1 /*CFG.unit*/;
-    return cap.finishHtml.includes('× 2^' + res.ev.total) && cap.finishHtml.includes(String(raw));
+    const raw = di * Math.max(1, res.ev.total) * 1 /*CFG.unit*/;
+    return cap.finishHtml.includes('× ' + Math.max(1, res.ev.total)) && cap.finishHtml.includes(String(raw));
   })());
 
   console.log('== Part B：点炮时门清/无花果仍计入 ==');

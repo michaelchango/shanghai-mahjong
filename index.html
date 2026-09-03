@@ -556,7 +556,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer">v1.2.22</div>
+    <div class="hVer" id="hVer">v1.2.23</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby">
@@ -846,20 +846,22 @@ function evaluateShape(handCounts, melds, opts){
   const pungWin = !seven && noChow && isPungShape(handCounts, need);
 
   let type = null, base = 0;
+  // v1.2.23：线性番（N 番 = 底 × N）。番表在旧版基础上整体 +1，
+  // 保持牌型间相对等级（碰碰胡/混一色=2番起步），垃圾胡 0 番兜底按 1 倍计。
   if (!hasNum && hasWind){
     // 全风牌
-    if (pungWin){ type = '风碰'; base = 8; }
-    else { type = '风一色'; base = 4; }      // 乱风向（七对子形态）
+    if (pungWin){ type = '风碰'; base = 9; }
+    else { type = '风一色'; base = 5; }      // 乱风向（七对子形态）
   } else if (numSuits.size === 1 && !hasWind){
-    if (pungWin){ type = '清碰'; base = 4; } else { type = '清一色'; base = 3; }
+    if (pungWin){ type = '清碰'; base = 5; } else { type = '清一色'; base = 4; }
   } else if (numSuits.size === 1 && hasWind){
-    if (pungWin){ type = '混碰'; base = 2; } else { type = '混一色'; base = 1; }
+    if (pungWin){ type = '混碰'; base = 3; } else { type = '混一色'; base = 2; }
   } else if (pungWin){
-    type = '碰碰胡'; base = 1;
+    type = '碰碰胡'; base = 2;
   } else if (seven && CFG.sevenPairs){
-    type = '七小对'; base = 2;      // 非传统敲麻牌型，默认关闭，可在设置里开启
+    type = '七小对'; base = 3;      // 非传统敲麻牌型，默认关闭，可在设置里开启
   } else if (CFG.lajiHu && stdWin){
-    type = '垃圾胡'; base = 0;      // 垃圾胡（推倒胡/平胡）：只算底花，0 番
+    type = '垃圾胡'; base = 0;      // 垃圾胡（推倒胡/平胡）：只算底花，0 番（计分兜底 ×1）
   } else {
     return null;   // 不允许的牌型
   }
@@ -1025,7 +1027,8 @@ function typeLabel(t){
            std:'垃圾胡(平胡)' }[t] || t;
 }
 function typeBaseFan(t){
-  return { pung:1, mix0:1, mix1:1, mix2:1, pure0:3, pure1:3, pure2:3, wind:4, std:0 }[t] || 0;
+  // v1.2.23：线性番（番表 +1；std=垃圾胡 0 番兜底 1 倍）
+  return { pung:2, mix0:2, mix1:2, mix2:2, pure0:4, pure1:4, pure2:4, wind:5, std:0 }[t] || 0;
 }
 
 /* ========================================================================
@@ -1899,7 +1902,8 @@ function renderHUD(){
   const tl = $('tingLine');
   if (!CFG.lajiHu){
     if (liveWaits.length){
-      tl.innerHTML = '听牌中 → ' + liveWaits.map(w => '<span class="w">' + tileName(w.t) + '</span>').join(' ');
+      // v1.2.23：免敲听牌提示恢复并带剩余张数——「听牌中 → 三萬(2) 白(0)」
+      tl.innerHTML = '听牌中 → ' + liveWaits.map(w => '<span class="w">' + tileName(w.t) + '(' + visibleLeft(w.t) + ')</span>').join(' ');
       tl.className = 'tingline show';
     } else {
       tl.innerHTML = '';
@@ -1907,7 +1911,8 @@ function renderHUD(){
     }
   } else if (p.knocked){
     // v1.2.12：已敲后听牌锁定——底部恒显示敲定时的听牌，不随摸到/打出而变
-    const wtxt = p.knockWaits.map(tileName).map(x => '<span class="w">' + x + '</span>').join(' ');
+    // v1.2.23：敲定后底部听牌也带上剩余张数
+    const wtxt = p.knockWaits.map(x => tileName(x) + '(' + visibleLeft(x) + ')').map(x => '<span class="w">' + x + '</span>').join(' ');
     tl.innerHTML = '听牌中 → ' + wtxt;
     tl.className = 'tingline show';
   } else {
@@ -1917,7 +1922,8 @@ function renderHUD(){
   // v1.2.11：顶部「番 / 单份」实时计算，不再锁在已敲分支——
   // 听牌取最佳听口番，未听取当前牌型番（analyzeMe 两个分支都给出数字 fan）
   $('mFan').textContent = a.fan;
-  const sc = Math.min(a.di * Math.pow(2, a.fan) * CFG.unit * (G.kaibao ? 2 : 1) * Math.pow(2, G.huangfan), capValue());
+  // v1.2.23：线性番——N 番 = 底 × N（0 番兜底 ×1）；开宝/荒番仍是外部倍数
+  const sc = Math.min(a.di * Math.max(1, a.fan) * CFG.unit * (G.kaibao ? 2 : 1) * Math.pow(2, G.huangfan), capValue());
   $('mScore').textContent = sc;
 }
 // 骰子点面（CSS 绘制）
@@ -2612,7 +2618,8 @@ async function runHand(){
 function scoreOf(ev, ctx, p, mult){
   const di = CFG.base + (ev.flowers || 0);
   const fan = ev.total || 0;
-  const raw = di * Math.pow(2, fan) * CFG.unit * mult;
+  // v1.2.23：线性番——N 番 = 底 × N（不再 2^N）；0 番（垃圾胡）兜底按 ×1
+  const raw = di * Math.max(1, fan) * CFG.unit * mult;
   const cap = CFG.lezi * 10 * CFG.unit * mult;
   return { di, fan, raw, cap, per: Math.min(raw, cap) };
 }
@@ -2622,7 +2629,7 @@ function fanBreakdownHtml(ev, add, sc, extraNote){
   rows.push('<div class="li"><span class="n">' + ev.type + '</span><span class="v">' + ev.base + ' 番</span></div>');
   for (const x of add) rows.push('<div class="li"><span class="n">' + x[0] + '</span><span class="v">+' + x[1] + '</span></div>');
   rows.push('<div class="li tot"><span class="n">合计</span><span class="v">' + sc.fan + ' 番</span></div>');
-  rows.push('<div class="li"><span class="n">' + sc.di + ' × 2^' + sc.fan + (extraNote ? ' ' + extraNote : '') + '</span><span class="v">' + sc.raw + '</span></div>');
+  rows.push('<div class="li"><span class="n">' + sc.di + ' × ' + Math.max(1, sc.fan) + (extraNote ? ' ' + extraNote : '') + '</span><span class="v">' + sc.raw + '</span></div>');
   if (sc.raw > sc.cap) rows.push('<div class="li"><span class="n">超过封顶，按勒子计</span><span class="v">' + sc.cap + '</span></div>');
   rows.push('<div class="li tot"><span class="n">每家支付</span><span class="v">' + sc.per + ' 分</span></div>');
   return '<div class="fanbreak">' + rows.join('') + '</div>';

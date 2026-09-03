@@ -41,30 +41,30 @@ let lv = ev([m(1),m(2),m(3),m(4),m(5),m(6),m(7),m(8),m(9),p(1),p(1),p(1),p(2),p(
 ok('开垃圾胡：推倒胡=垃圾胡(0番)', lv && lv.type === '垃圾胡' && lv.base === 0, JSON.stringify(lv));
 let r;
 r = ev([m(1),m(1),m(1),m(5),m(5),m(5),p(3),p(3),p(3),s(7),s(7),s(7),E,E]);
-ok('碰碰胡1番', r && r.type === '碰碰胡' && r.base === 1, JSON.stringify(r));
+ok('碰碰胡2番', r && r.type === '碰碰胡' && r.base === 2, JSON.stringify(r));
 r = ev([m(1),m(2),m(3),m(4),m(5),m(6),m(7),m(8),m(9),m(9),m(9),m(2),m(2),m(2)]);
-ok('清一色3番', r && r.type === '清一色' && r.base === 3, JSON.stringify(r));
+ok('清一色4番', r && r.type === '清一色' && r.base === 4, JSON.stringify(r));
 r = ev([m(1),m(1),m(1),m(5),m(5),m(5),m(7),m(7),m(7),m(9),m(9),m(9),m(3),m(3)]);
-ok('清碰4番', r && r.type === '清碰' && r.base === 4, JSON.stringify(r));
+ok('清碰5番', r && r.type === '清碰' && r.base === 5, JSON.stringify(r));
 r = ev([m(1),m(2),m(3),m(4),m(5),m(6),m(7),m(8),m(9),E,E,E,N,N]);
-ok('混一色1番', r && r.type === '混一色' && r.base === 1, JSON.stringify(r));
+ok('混一色2番', r && r.type === '混一色' && r.base === 2, JSON.stringify(r));
 r = ev([m(1),m(1),m(1),m(5),m(5),m(5),m(7),m(7),m(7),E,E,E,N,N]);
-ok('混碰2番', r && r.type === '混碰' && r.base === 2, JSON.stringify(r));
+ok('混碰3番', r && r.type === '混碰' && r.base === 3, JSON.stringify(r));
 r = ev([E,E,E,S,S,S,W,W,W,N,N,N,E,E]);
-ok('风碰8番', r && r.type === '风碰' && r.base === 8, JSON.stringify(r));
+ok('风碰9番', r && r.type === '风碰' && r.base === 9, JSON.stringify(r));
 r = ev([E,E,E,E,S,S,S,S,W,W,W,W,N,N]);
-ok('风一色(乱风向)4番', r && r.type === '风一色' && r.base === 4, JSON.stringify(r));
+ok('风一色(乱风向)5番', r && r.type === '风一色' && r.base === 5, JSON.stringify(r));
 r = ev([m(1),m(1),m(3),m(3),m(5),m(5),p(2),p(2),p(4),p(4),s(6),s(6),E,E]);
 ok('普通七小对不能胡', r === null, JSON.stringify(r));
 r = ev([m(1),m(1),m(1),m(2),m(2),m(2),m(3),m(3)],
        mkMelds([{type:'pung',tile:m(5),tiles:[m(5),m(5),m(5)]},{type:'pung',tile:m(9),tiles:[m(9),m(9),m(9)]}]));
-ok('副露清碰4番', r && r.type === '清碰' && r.base === 4, JSON.stringify(r));
+ok('副露清碰5番', r && r.type === '清碰' && r.base === 5, JSON.stringify(r));
 r = ev([m(1),m(1),m(1),m(2),m(2),m(2),m(3),m(3)],
        mkMelds([{type:'chow',tile:m(5),tiles:[m(4),m(5),m(6)]},{type:'pung',tile:m(9),tiles:[m(9),m(9),m(9)]}]));
-ok('有吃牌不算碰碰胡', r && r.type === '清一色' && r.base === 3, JSON.stringify(r));
+ok('有吃牌不算碰碰胡', r && r.type === '清一色' && r.base === 4, JSON.stringify(r));
 r = ev([m(1),m(1),m(1),m(2),m(2),m(2),m(3),m(3)],
        mkMelds([{type:'kong',tile:m(5),tiles:[m(5),m(5),m(5),m(5)]},{type:'pung',tile:m(9),tiles:[m(9),m(9),m(9)]}]));
-ok('暗杠仍算碰碰胡', r && r.type === '清碰' && r.base === 4, JSON.stringify(r));
+ok('暗杠仍算碰碰胡', r && r.type === '清碰' && r.base === 5, JSON.stringify(r));
 
 console.log('== 4. 向听数 ==');
 const sh = (hand, melds) => T.shantenStd(T.toCounts(hand), melds || 0);

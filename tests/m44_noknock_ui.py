@@ -51,6 +51,7 @@ with sync_playwright() as pw:
     check('knockTag 显示实时听牌（非「未敲·不能胡」）', '听' in hud['kt'] and '未敲' not in hud['kt'], hud)
     check('听牌行显示「听牌中 →」', '听牌中' in hud['ting'], hud['ting'])
     check('听牌行含「中」', '中' in hud['ting'], hud['ting'])
+    check('听牌行带剩余张数（如 中(3)）', ('(' in hud['ting'] and ')' in hud['ting']), hud['ting'])
 
     # 别人点炮「中」→ 胡按钮出现（免敲，无敲定）
     pg.evaluate("""(hand) => {
