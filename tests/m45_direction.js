@@ -37,8 +37,9 @@ p = mk(false, [PUNG(W)], [0, 1, 17, 17, 18, 19, 27, 27, 31, 31, 32, 33, 33]);
 ok('打筒9（跨门刻，走碰碰胡）仍可碰', kinds(T.claimOptions(p, TONG9, 1, true)).includes('pung'), kinds(T.claimOptions(p, TONG9, 1, true)));
 ok('打風（字刻）仍可碰', kinds(T.claimOptions(p, E, 1, true)).includes('pung'), kinds(T.claimOptions(p, E, 1, true)));
 ok('direction = single(萬)', JSON.stringify(T.directionOf(p)) === '{"single":0}', T.directionOf(p));
+// v1.2.22：碰过（哪怕一门）→ 本门吃也彻底不给（用户主张：碰过就不该有吃按钮）
 const pw = mk(false, [PUNG(W)], [0, 1, 11, 12, 18, 19, 27, 27, 31, 31, 32, 33, 33]);
-ok('打萬2（本门顺）可吃（转本门混/清）', kinds(T.claimOptions(pw, 2, 1, true)).includes('chow'), kinds(T.claimOptions(pw, 2, 1, true)));
+ok('碰过萬：打萬2（本门顺）也不给吃', !kinds(T.claimOptions(pw, 2, 1, true)).includes('chow'), kinds(T.claimOptions(pw, 2, 1, true)));
 const b = mk(false, [PUNG(W)], [11, 12, 13, 14, 15, 20, 21, 22, 31, 31, 1, 2, 7]);
 const tg = T.aiTargetOf(b);
 ok('AI 目标不再误切跨门筒（pung / 本門 mix/pure）', tg === 'pung' || tg === 'mix0' || tg === 'pure0', tg);

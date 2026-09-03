@@ -556,7 +556,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer">v1.2.21</div>
+    <div class="hVer" id="hVer">v1.2.22</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby">
@@ -1162,8 +1162,7 @@ function claimOptions(p, tile, from, isNext){
   }
   // v1.2.19+21：清混碰按「副露方向约束」过滤吃/碰/杠选项——胡(hu)不受影响
   // （牌型合法与否由 tryWin 判）。敲麻玩法有平胡兜底，不锁门。
-  //  吃过 → 只本门+字；碰出两门以上刻 → 只能碰/杠（吃顺必死）；
-  //  只碰一门刻 → 吃顺限本门（可转本门混/清），碰/杠仍开放（可继续做碰碰胡）
+  //  吃过 → 只本门+字；碰/杠过数牌（一门或多门）→ 彻底不再吃（v1.2.22：碰过就无吃按钮）
   if (!CFG.lajiHu && !p.knocked){
     const d = directionOf(p);
     if (!d.free){
@@ -1171,12 +1170,10 @@ function claimOptions(p, tile, from, isNext){
       const ts = suitOf(tile);
       for (const o of opts){
         if (o.k === 'hu'){ kept.push(o); continue; }
-        if (d.pung){ if (o.k !== 'chow') kept.push(o); continue; }        // 只能碰/杠
+        // v1.2.22：只要碰/杠过数牌（single 或 pung），吃选项一律不给；
+        // 碰/杠照常（清混碰是靠碰做一色/碰碰胡的玩法）
+        if (d.pung || d.single !== undefined){ if (o.k !== 'chow') kept.push(o); continue; }
         if (d.lock !== undefined){ if (ts === d.lock || ts === 3) kept.push(o); continue; }
-        if (d.single !== undefined){                                       // 吃顺只本门
-          if (o.k === 'chow'){ if (ts === d.single) kept.push(o); }
-          else kept.push(o);
-        }
       }
       return kept;
     }
@@ -1227,10 +1224,10 @@ function lockedSuitOf(p){
 // v1.2.21：副露方向约束（吃/碰/杠与做牌目标都必须与之相容）。
 //  敲麻（lajiHu 开）有平胡兜底 → 恒自由。
 //  { lock: 0/1/2 }  副露里有吃牌(chow) → 本局锁死该花色（只能本门+字，v1.2.19 语义）
-//  { pung: true }   已碰/杠出两门以上数牌刻 → 只能走碰碰胡（吃任何顺子都会死牌）
-//  { single: 0/1/2 } 只碰过一门数牌刻（可有字刻）→ 吃顺子只能吃这一门；
-//                    碰/杠仍开放（可继续碰成碰碰胡，也可吃本门顺转混/清一色）
-//  { free: true }   没副露或只有字刻 → 方向未定，全开放
+//  { pung: true }   碰/杠出两门以上数牌刻 → 只能碰/杠（吃任何顺子都会死牌）
+//  { single: 0/1/2 } 只碰/杠过一门数牌刻（可有字刻）→ v1.2.22：同样彻底不再吃；
+//                    碰/杠照常开放（憋本门碰一色 / 跨门继续碰成碰碰胡都行）
+//  { free: true }   没副露或只有字刻 → 方向未定，吃任意门都行（吃后转 lock）
 function directionOf(p){
   if (CFG.lajiHu) return { free: true };
   let chowS = null;

@@ -71,6 +71,16 @@ with sync_playwright() as pw:
     btns2 = btn_texts(pg)
     check('真人打風时仍有「碰」按钮（字牌合法）', '碰' in btns2, btns2)
 
+    # v1.2.22：碰过数牌后彻底不再吃——即使打本门顺也不给「吃」按钮
+    print('== Part D：碰过一门后本门吃也消失 ==')
+    d = pg.evaluate("""() => {
+      const me = G.players[0];
+      me.melds = [{ type:'pung', tile:8, tiles:[8,8,8], from:2 }];   // 碰九萬
+      me.hand = [0,1, 11,12, 18,19, 27,27, 31,31,32,33,33];
+      const o = claimOptions(me, 2, 3, true);    // 上家打 萬2（本门顺 123 可吃）
+      return o.map(x => x.k);
+    }""")
+    check('碰过萬后：打本门萬顺不再给吃', not any(k in d for k in ('chow','pung')), d)
     pg.close(); b.close()
 
 print('JS 错误:', '、'.join(errs) if errs else '无')
