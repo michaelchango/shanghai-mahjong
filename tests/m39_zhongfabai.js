@@ -108,11 +108,17 @@ T.CFG.lajiHu = false;
 const p6a = bot([27, 27, 27, 0, 0, 0, 9, 9, 18, 18, ZHONG, ZHONG, 5], 'pung');
 const pick6a = T.aiClaim(p6a, ZHONG, 1, T.claimOptions(p6a, ZHONG, 1, false), false);
 ok('未听牌朝碰碰胡：打「中」会碰', pick6a !== null && pick6a.k === 'pung', pick6a);
-// 已听牌（pung 0 向听）时不再无脑碰——碰了要弃牌、破听又暴露牌（v1.2.18 修复点）
+// 已听牌（pung 0 向听）+ 清混碰免敲（v1.2.20）：点炮直接胡（hu 优先于碰，不必再纠结碰不碰）
 const p6b = bot([27, 27, 27, 28, 28, 28, 0, 0, 0, ZHONG, ZHONG, 9, 9], 'pung');
 const curB = T.evalAll(T.toCounts(p6b.hand), 0).pung;
 const pick6b = T.aiClaim(p6b, ZHONG, 1, T.claimOptions(p6b, ZHONG, 1, false), false);
-ok('已听牌（0 向听）不碰：守护听牌', curB === 0 && pick6b === null, { curB, pick: pick6b });
+ok('已听牌（0 向听）+ 点炮：有和必和（免敲）', curB === 0 && pick6b !== null && pick6b.k === 'hu', { curB, pick: pick6b });
+// v1.2.20 对照：敲麻模式同手牌未敲定 → 无 hu 选项，才谈「碰不碰」（会因已听而拒碰）
+T.CFG.lajiHu = true;
+const p6c = bot([27, 27, 27, 28, 28, 28, 0, 0, 0, ZHONG, ZHONG, 9, 9], 'pung');
+const pick6c = T.aiClaim(p6c, ZHONG, 1, T.claimOptions(p6c, ZHONG, 1, false), false);
+ok('敲麻对照：未敲定点炮无胡 → 已听不无脑碰', pick6c === null, pick6c);
+T.CFG.lajiHu = false;
 // 混一色（筒）目标：允许中发白
 const planMix = T.aiPlan(bot([], 'mix1'));
 const planPure = T.aiPlan(bot([], 'pure1'));

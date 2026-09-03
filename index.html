@@ -556,7 +556,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer">v1.2.19</div>
+    <div class="hVer" id="hVer">v1.2.20</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby">
@@ -1143,7 +1143,8 @@ function claimOptions(p, tile, from, isNext){
     const ev = tryWin(hc, p);
     hc[tile]--;
     const blocked = p.missHu.has(tile);
-    if (ev && (p.knocked || p.tianDi) && !blocked){
+    // v1.2.20：清混碰免敲——不需要敲定，能胡就有胡资格（敲麻仍要求已敲/天胡）
+    if (ev && (p.knocked || p.tianDi || !CFG.lajiHu) && !blocked){
       opts.push({ k: 'hu', tile, ev });
     }
   }
@@ -1834,9 +1835,20 @@ function renderHUD(){
   $('mDi').textContent = a.di;
   $('mCap').textContent = capValue();
   $('myWind').textContent = SEAT_WIND[(0 - G.dealer + 4) % 4];
-  const knocks = (!p.knocked && !NET.autoKnock && p.hand.length % 3 === 2) ? potentialKnocks(p) : [];
+  const knocks = CFG.lajiHu && !p.knocked && !NET.autoKnock && p.hand.length % 3 === 2 ? potentialKnocks(p) : [];
   const kt = $('knockTag');
-  if (p.knocked){ kt.textContent = '已敲 · 听 ' + p.knockWaits.map(tileName).join('/'); kt.className = 'knockTag'; }
+  // v1.2.20：清混碰免敲——没有敲定概念，knockTag 显示「实时听牌/未听牌」；
+  // 敲麻维持 已敲·听 / 可敲听 / 未敲·不能胡 三态
+  const liveWaits = (!CFG.lajiHu && G.running && p.hand.length % 3 === 1) ? getWaits(p) : [];
+  if (!CFG.lajiHu){
+    if (liveWaits.length){
+      kt.textContent = '听 ' + liveWaits.map(w => tileName(w.t) + '(' + visibleLeft(w.t) + ')').join(' / ');
+      kt.className = 'knockTag';
+    } else {
+      kt.textContent = '未听牌';
+      kt.className = 'knockTag off';
+    }
+  } else if (p.knocked){ kt.textContent = '已敲 · 听 ' + p.knockWaits.map(tileName).join('/'); kt.className = 'knockTag'; }
   else if (knocks.length){ kt.textContent = '可敲听 · 打' + tileName(knocks[0].discard) + ' 听 ' + knocks[0].waits.map(w => tileName(w.t)).join('/'); kt.className = 'knockTag'; }
   else { kt.textContent = '未敲 · 不能胡'; kt.className = 'knockTag off'; }
 
@@ -1845,8 +1857,17 @@ function renderHUD(){
   //         否则没选敲也会看到「听牌 → xx」误导玩家（可敲听的提示由 knockTag 负责）
   // v1.2.7：已敲后永远显示「听牌中 →」，不再提示「打xx牌听牌 →」（已听牌的人摸到牌只需打出，
   //         不需要再听一次；提示由顶部 knockTag 的「已敲 · 听 X/X」兜底）
+  // v1.2.20：清混碰免敲——听牌行随摸打实时刷新当前能和的牌
   const tl = $('tingLine');
-  if (p.knocked){
+  if (!CFG.lajiHu){
+    if (liveWaits.length){
+      tl.innerHTML = '听牌中 → ' + liveWaits.map(w => '<span class="w">' + tileName(w.t) + '</span>').join(' ');
+      tl.className = 'tingline show';
+    } else {
+      tl.innerHTML = '';
+      tl.className = 'tingline';
+    }
+  } else if (p.knocked){
     // v1.2.12：已敲后听牌锁定——底部恒显示敲定时的听牌，不随摸到/打出而变
     const wtxt = p.knockWaits.map(tileName).map(x => '<span class="w">' + x + '</span>').join(' ');
     tl.innerHTML = '听牌中 → ' + wtxt;
@@ -2025,7 +2046,8 @@ function renderActs(){
   }
   if (!PEND){ $('hint').innerHTML = ''; return; }
   if (PEND.kind === 'discard'){
-    const knocks = (!G.players[0].knocked && !NET.autoKnock) ? potentialKnocks(G.players[0]) : [];
+    // v1.2.20：清混碰免敲没有「敲听」动作；敲麻才有 敲听 按钮
+    const knocks = (CFG.lajiHu && !G.players[0].knocked && !NET.autoKnock) ? potentialKnocks(G.players[0]) : [];
     if (knocks.length){
       // v1.2.4：底部 tingLine 已经显示「打 X 听牌 → Y」，这里不再重复写一行
       // 只在多听法场景下追加一条简短指引（提示用户点「敲听」按钮选打法）
@@ -2045,11 +2067,17 @@ function renderActs(){
       }
     } else {
       const me0 = G.players[0];
-      // v1.2.18：已敲定且只有一种听法（唯一听张）时，按钮上方醒目显示差什么牌、还剩几张；
-      // 多种听法时底部 tingLine 已全列，这里不打扰
-      if (me0.knocked && me0.knockWaits.length === 1){
-        const wt = me0.knockWaits[0];
-        $('hint').innerHTML = '听牌中 → <b>' + tileName(wt) + '</b> · 还有 <b>' + visibleLeft(wt) + '</b> 张';
+      // v1.2.18：只有一种听法（唯一听张）时，按钮上方醒目显示差什么牌、还剩几张；
+      // v1.2.20：清混碰免敲 = 当前实时唯一听张；敲麻 = 敲定后锁定的唯一听张
+      let uniWait = null;
+      if (!CFG.lajiHu && G.running && me0.hand.length % 3 === 1){
+        const lw = getWaits(me0);
+        if (lw.length === 1) uniWait = lw[0].t;
+      } else if (me0.knocked && me0.knockWaits.length === 1){
+        uniWait = me0.knockWaits[0];
+      }
+      if (uniWait !== null){
+        $('hint').innerHTML = '听牌中 → <b>' + tileName(uniWait) + '</b> · 还有 <b>' + visibleLeft(uniWait) + '</b> 张';
       } else {
         setHint('点击一张牌 <b>选中</b>，再点一次 <b>打出</b>');
       }
@@ -2174,6 +2202,8 @@ async function supplyPendingFlowers(p){
   return true;
 }
 async function knockCheck(p){
+  // v1.2.20：清混碰免敲——没有「敲定」步骤，能胡的牌直接胡（点炮/自摸），不弹敲听
+  if (!CFG.lajiHu) return;
   if (p.knocked || p.hand.length % 3 !== 1) return;
   const waits = getWaitsHand(p.hand, p.melds);
   if (!waits.length) return;
@@ -2256,12 +2286,14 @@ async function applySelfKong(p, o){
     p.melds.push({ type: 'kong', tiles: [o.tile, o.tile, o.tile, o.tile], tile: o.tile, concealed: true, from: -1 });
     logMsg(p.name + ' 暗杠 ' + tileName(o.tile));
   } else {
-    // v1.2.12 抢杠：加杠前先查其他已敲者是否听这张牌——有人听则抢杠胡，被抢者（加杠方）付 3 倍
+    // v1.2.12 抢杠：加杠前先查其他家是否和这张牌——有人听则抢杠胡，被抢者（加杠方）付 3 倍
+    // v1.2.20：清混碰免敲下改为实时听判断（敲麻仍用敲定锁定的 knockWaits）
     const robbers = [];
     for (let j = 0; j < 4; j++){
       if (j === p.idx) continue;
       const q = G.players[j];
       if (q.knocked && q.knockWaits.includes(o.tile)) robbers.push(j);
+      else if (!CFG.lajiHu && !q.knocked && getWaitsHand(q.hand, q.melds).some(w => w.t === o.tile)) robbers.push(j);
     }
     if (robbers.length){
       const wins = [];
@@ -2430,7 +2462,8 @@ async function runHand(){
       const hc = toCounts(p.hand);
       const ev = tryWin(hc, p);
       const dihu = (cur !== G.dealer) && p.drawnCount === 1 && p.menqing;
-      if (ev && (p.knocked || dihu)){
+      // v1.2.20：清混碰免敲——自摸能胡直接给胡（敲麻仍要求已敲定，地胡免敲）
+      if (ev && (p.knocked || dihu || !CFG.lajiHu)){
         const zctx = { kongDraw: pendingKong, haidi: wallLeft() === 0, diaoche: p.melds.length === 4, dihu, tianhu: false };
         // 机器人 / 「自动胡牌」开：能胡就自动胡
         if (p.isBot || CFG.autoHu){
