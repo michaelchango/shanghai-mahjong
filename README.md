@@ -264,6 +264,4 @@ for f in tests/m*.py; do python3 "$f" || exit 1; done
 
 ## 版本
 
-当前 **v1.2.23**。完整版本历史见 `CHANGELOG.md`。
-
-> 联机房间与托管/断线的详细设计见同目录 `联网方案-v1.1-准备工作.md`。
+当前 **v1.2.24**。完整版本历史见 `CHANGELOG.md`。

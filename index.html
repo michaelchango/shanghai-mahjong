@@ -162,7 +162,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .fslot .tile{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);margin:0}
 .fslot.r .tile{transform:translate(-50%,-50%) rotate(-90deg)}
 /* 牌河竖排槽（东西家）：占位 = 视觉，避免旋转牌重叠/被裁 */
-.rvslot{position:relative;flex:0 0 auto;width:23px;height:17px}
+.rvslot{position:relative;flex:0 0 auto;width:15px;height:21px}
 .rvslot .tile{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);margin:0}
 .rvslot.r .tile{transform:translate(-50%,-50%) rotate(-90deg)}
 /* 北家：花/副露排牌面朝上（对着我看清，排列顺序按北家视角从右到左） */
@@ -287,6 +287,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .tile svg{position:relative;display:block;width:100%;height:100%}
 .tile.sm{--tw:19px;--th:26px;border-radius:4px}
 .tile.xs{--tw:16px;--th:22px;border-radius:3px}
+/* v1.2.25：左右牌河牌——旋转 90° 后视觉 14×20，整体比我的 xs 牌（16×22）略小一圈，
+   跟用户「跟我的牌河牌一样大」的诉求相协调 */
+.tile.rv{--tw:20px;--th:14px;border-radius:2.5px}
 .tile.xxs{--tw:13px;--th:18px;border-radius:2px}
 .tile.fl{background:linear-gradient(178deg,#fffbe8 0%,#fdf3d2 50%,#f2e5b8 100%);border-color:#d6c48c}
 .tile.dimmed{opacity:.5}
@@ -556,7 +559,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer">v1.2.23</div>
+    <div class="hVer" id="hVer">v1.2.24</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby">
@@ -1057,7 +1060,7 @@ function saveCfg(){ try{ localStorage.setItem('sjm_cfg', JSON.stringify(CFG)); }
 
 const G = {
   players: [], wall: [], wpos: 0, wtail: 145,
-  dealer: 0, turn: 0, handNo: 1, roundWind: 0,
+  dealer: 0, turn: 0, handNo: 1, roundNo: 1, roundWind: 0,
   huangfan: 0, kaibao: false,
   lastDiscard: null, lastFrom: -1, lastDiscardEl: null,
   running: false, logs: [], totalHands: 16,
@@ -1079,7 +1082,7 @@ function mkPlayer(idx, name, isBot){
 function initGame(){
   G.players = [mkPlayer(0, '你', false), mkPlayer(1, BOT_NAMES[0], true),
                mkPlayer(2, BOT_NAMES[1], true), mkPlayer(3, BOT_NAMES[2], true)];
-  G.handNo = 1; G.dealer = 0; G.huangfan = 0; G.roundWind = 0;
+  G.handNo = 1; G.roundNo = 1; G.dealer = 0; G.huangfan = 0; G.roundWind = 0;
   G.history = []; G.finished = false; G.result = null;
 }
 
@@ -1554,7 +1557,7 @@ function renderHand(){
   box.onclick = (e) => {
     const t = e.target;
     if (t !== box && !(t.classList && (t.classList.contains('drawgap') || t.classList.contains('ting')))) return;
-    if (SEL !== null){ SEL = null; SELIDX = null; renderHand(); renderRiver(); renderMe(); }
+    if (SEL !== null){ SEL = null; SELIDX = null; renderHand(); renderRiver(); renderMe(); renderSeats(); }
   };
   const arr = p.hand.slice();
   let drawn = p.drawn;
@@ -1572,7 +1575,7 @@ function renderHand(){
     if (SELIDX === k) e.classList.add('sel');
     if (canPick) e.onclick = () => {
       if (SELIDX === k){ SEL = null; SELIDX = null; resolvePend(t); }
-      else { SEL = t; SELIDX = k; renderHand(); renderRiver(); renderMe(); }
+      else { SEL = t; SELIDX = k; renderHand(); renderRiver(); renderMe(); renderSeats(); }
     };
     box.appendChild(e);
   });
@@ -1584,7 +1587,7 @@ function renderHand(){
     if (SELIDX === 'd') e.classList.add('sel');
     if (canPick) e.onclick = () => {
       if (SELIDX === 'd'){ SEL = null; SELIDX = null; resolvePend(drawn); }
-      else { SEL = drawn; SELIDX = 'd'; renderHand(); renderRiver(); renderMe(); }
+      else { SEL = drawn; SELIDX = 'd'; renderHand(); renderRiver(); renderMe(); renderSeats(); }
     };
     box.appendChild(e);
   }
@@ -1712,7 +1715,9 @@ function renderRiver(){
     const i = RIVER_MAP[id], p = G.players[i], box = $(id);
     box.innerHTML = '';
     p.discards.forEach((t, k) => {
-      const e = tileEl(t, 'xs');
+      // v1.2.25：左右牌河牌用更小的 rv 尺寸（视觉 14×20），跟我的牌河牌观感协调且牌河高度同步降低
+      const tileCls = (i === 1 || i === 3) ? 'rv' : 'xs';
+      const e = tileEl(t, tileCls);
       if (k === p.discards.length - 1 && G.lastFrom === i) e.classList.add('last');
       // v1.2.13：出牌点选时，台面（四家牌河）相同的牌高亮，方便看已出几张；蓝色框区别于「上张打出」的红框
       if (SEL !== null && t === SEL) e.classList.add('hl');
@@ -1934,7 +1939,7 @@ function dieHtml(n){
   return '<span class="die">' + P[n].map(p => '<i style="left:' + p[0] + '%;top:' + p[1] + '%"></i>').join('') + '</span>';
 }
 function renderTop(){
-  $('gname').textContent = '第 ' + G.handNo + ' 局';
+  $('gname').textContent = '第 ' + G.roundNo + ' 局';
   // 防御：房间等待页改设置时 G.players 可能还没初始化（牌桌尚未开局）
   const dl = G.players && G.players[G.dealer];
   $('roundinfo').textContent = ['东风', '南风', '西风', '北风'][G.roundWind] + (dl ? ' · 庄 ' + dl.name : '');
@@ -2090,8 +2095,20 @@ function renderActs(){
   }
   if (!PEND){ $('hint').innerHTML = ''; return; }
   if (PEND.kind === 'discard'){
+    const me0 = G.players[0];
+    // v1.2.25：轮到我出牌但还没出——只要打出某张即可听牌，底部听牌行列出
+    // 全部可听的牌与剩余张数（「可听 xx牌(n) xx牌(m)」）；已敲定者由 renderHUD 显示锁定听，不覆盖
+    const canKnocks = (!me0.knocked && !me0.isBot && me0.hand.length % 3 === 2 && !NET.autoKnock) ? potentialKnocks(me0) : [];
+    if (canKnocks.length){
+      const seen = [], list = [];
+      for (const k of canKnocks) for (const w of k.waits) if (seen.indexOf(w.t) < 0){ seen.push(w.t); list.push(w.t); }
+      list.sort((a, b) => a - b);
+      const ting = $('tingLine');
+      ting.innerHTML = '可听 ' + list.map(t => '<span class="w">' + tileName(t) + '(' + visibleLeft(t) + ')</span>').join(' ');
+      ting.className = 'tingline show';
+    }
     // v1.2.20：清混碰免敲没有「敲听」动作；敲麻才有 敲听 按钮
-    const knocks = (CFG.lajiHu && !G.players[0].knocked && !NET.autoKnock) ? potentialKnocks(G.players[0]) : [];
+    const knocks = (CFG.lajiHu && !me0.knocked && !NET.autoKnock) ? canKnocks : [];
     if (knocks.length){
       // v1.2.4：底部 tingLine 已经显示「打 X 听牌 → Y」，这里不再重复写一行
       // 只在多听法场景下追加一条简短指引（提示用户点「敲听」按钮选打法）
@@ -2110,7 +2127,6 @@ function renderActs(){
         });
       }
     } else {
-      const me0 = G.players[0];
       // v1.2.18：只有一种听法（唯一听张）时，按钮上方醒目显示差什么牌、还剩几张；
       // v1.2.20：清混碰免敲 = 当前实时唯一听张；敲麻 = 敲定后锁定的唯一听张
       let uniWait = null;
@@ -2365,6 +2381,13 @@ async function applySelfKong(p, o){
   await sleep(420 / CFG.speed);
 }
 async function collectClaims(tile, from){
+  // v1.2.25：首巡别家还握着起手花（起手花在各自首次出牌时才补）——上家打出第一张、
+  // 我能不能吃碰杠必须先基于补完花之后的完整手牌判断，否则会漏掉补花摸上来的牌
+  for (let i = 1; i < 4; i++){
+    const pp = G.players[(from + i) % 4];
+    if (pp.pendingFlowers && pp.pendingFlowers.length) await supplyPendingFlowers(pp);
+  }
+  if (G.abort) return null;   // 补花可能触发八花齐结算
   // 分轮询问：胡 > 杠=碰 > 吃。先问所有能胡的人，没人胡再问杠/碰，没人碰再问下家吃。
   // 第1轮：胡（最高优先）
   const huers = [];
@@ -2896,7 +2919,7 @@ function confirmNewRound(){
 }
 function newRound(){
   G.history = [];
-  G.handNo = 1; G.roundWind = 0; G.huangfan = 0; G.dealer = 0;
+  G.handNo = 1; G.roundNo = 1; G.roundWind = 0; G.huangfan = 0; G.dealer = 0;
   for (const p of G.players) p.score = 0;
   closeSheet();
   runHand();
@@ -2924,6 +2947,8 @@ function nextHand(dealer){
   G.finished = false; G.result = null;
   for (const p of G.players){ p.settleFan = null; p.settleDi = null; }
   G.dealer = dealer;
+  // v1.2.25：累计局数（不回绕，供左上角「第 N 局」显示）；handNo 仍是风圈内局号（1~4）驱动风圈轮转
+  G.roundNo++;
   G.handNo++;
   if (G.handNo > 4){ G.handNo = 1; G.roundWind = (G.roundWind + 1) % 4; }
   runHand();
@@ -3090,54 +3115,75 @@ function resetAll(){
 
 /* ---------- 规则 ---------- */
 function openRule(){
-  openSheet('<h2><span>上海敲麻 · 规则</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
+  openSheet('<h2><span>一道来麻将 · 规则</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
   '<div class="ru">' +
+
+  '<h3>两种玩法</h3>' +
+  '<p>开局时在设置里选 <b>敲麻</b> 或 <b>清混碰</b>（单机入口弹窗 / 房间等待页由房主设定）。两玩法用同一副 144 张牌，差别在<b>中发白的身份</b>与<b>胡牌门槛</b>：</p>' +
+  '<table><tr><th style="width:22%">规则</th><th>敲麻</th><th>清混碰</th></tr>' +
+  '<tr><td>胡牌资格</td><td><b>必须先敲定</b>（报听）才能胡</td><td><b>免敲</b>：牌型做成即可胡</td></tr>' +
+  '<tr><td>可胡牌型</td><td>平胡（垃圾胡 0 番）兜底，七小对可选，其余番型通用</td><td>只认碰碰胡 / 混一色 / 清一色 / 风一色（含复合）</td></tr>' +
+  '<tr><td>中发白</td><td><b>算花</b>：摸到即补花，每张 1 花</td><td><b>算牌不算花</b>：可碰、可组刻子/将牌</td></tr>' +
+  '<tr><td>吃碰杠</td><td>自由，但敲定后不能再吃碰杠</td><td><b>吃过锁门</b>；<b>碰过数牌后不再给吃</b></td></tr>' +
+  '<tr><td>附加番 / 算分</td><td colspan="2" style="text-align:center">通用（见下方附表）</td></tr></table>' +
+
   '<h3>用牌（144 张）</h3>' +
-  '<p>万/筒/条 各 1-9 各 4 张（108）+ 東南西北 各 4 张（16）+ 花牌 20 张。<b>中发白算花</b>：摸到即亮出补花，不参与组牌。</p>' +
-  '<p>花牌 20 张 = 春夏秋冬梅兰竹菊 8 张 + 中/发/白 各 4 张。</p>' +
-  '<p class="dimc">玩法差异：敲麻按上面规则（中发白算花）；清混碰里<b>中发白算牌不算花</b>——可碰、可组刻子/将牌，作字牌参与混一色 / 风一色。</p>' +
+  '<p>万 / 筒 / 条 各 1-9 各 4 张（108）+ 东南西北 各 4 张（16）= 124 张常备牌。</p>' +
+  '<p><b>敲麻</b>：另有花牌 20 张 = 春夏秋冬梅兰竹菊 8 张 + 中/发/白 各 4 张；摸到即亮出补花，每张 1 花。</p>' +
+  '<p><b>清混碰</b>：中发白按真牌发出（各 4 张，参与组牌），桌面上只有春夏秋冬梅兰竹菊 8 张算花。</p>' +
 
-  '<h3>胡牌牌型（推倒胡不能胡）</h3>' +
+  '<h3>胡牌牌型</h3>' +
+  '<p class="dimc">番数已按线性计分（v1.2.23）：N 番 = 底 × N，下表即实际倍率。</p>' +
   '<table><tr><th>牌型</th><th>说明</th><th class="f">番</th></tr>' +
-  '<tr><td>碰碰胡</td><td>4 组刻子/杠 + 1 对将</td><td class="f">1</td></tr>' +
-  '<tr><td>混一色</td><td>一种花色 + 风牌</td><td class="f">1</td></tr>' +
-  '<tr><td>混碰</td><td>混一色 + 碰碰胡</td><td class="f">2</td></tr>' +
-  '<tr><td>清一色</td><td>单一花色，不含风牌</td><td class="f">3</td></tr>' +
-  '<tr><td>清碰</td><td>清一色 + 碰碰胡</td><td class="f">4</td></tr>' +
-  '<tr><td>风一色</td><td>全风牌（乱风向 / 七对形态）</td><td class="f">4</td></tr>' +
-  '<tr><td>风碰</td><td>全风牌 + 碰碰胡</td><td class="f">8</td></tr></table>' +
+  '<tr><td>碰碰胡</td><td>4 组刻子/杠 + 1 对将</td><td class="f">2</td></tr>' +
+  '<tr><td>混一色</td><td>一种花色 + 字牌（风/中发白）</td><td class="f">2</td></tr>' +
+  '<tr><td>混碰</td><td>混一色 + 碰碰胡</td><td class="f">3</td></tr>' +
+  '<tr><td>清一色</td><td>单一花色，不含字牌</td><td class="f">4</td></tr>' +
+  '<tr><td>清碰</td><td>清一色 + 碰碰胡</td><td class="f">5</td></tr>' +
+  '<tr><td>风一色</td><td>全字牌（含中发白；乱风向七对形态也可）</td><td class="f">5</td></tr>' +
+  '<tr><td>风碰</td><td>全字牌 + 碰碰胡</td><td class="f">9</td></tr>' +
+  '<tr><td>七小对</td><td>7 对子（仅敲麻，设置里可选）</td><td class="f">3</td></tr>' +
+  '<tr><td>垃圾胡 / 平胡</td><td>顺子刻子混打的普通胡（仅敲麻）</td><td class="f">0</td></tr></table>' +
+  '<p class="dimc">清混碰只认上表中的「碰 / 色」系牌型（碰碰胡、混一色、混碰、清一色、清碰、风一色、风碰）；敲麻在平胡 / 七小对兜底下全部可胡。</p>' +
 
-  '<h3>附加番</h3>' +
+  '<h3>附加番（两种玩法通用）</h3>' +
   '<table><tr><th>番种</th><th>说明</th><th class="f">番</th></tr>' +
   '<tr><td>门清</td><td>不吃不碰不明杠</td><td class="f">+1</td></tr>' +
-  '<tr><td>无花果</td><td>胡牌时一张花牌都没有</td><td class="f">+1</td></tr>' +
+  '<tr><td>无花果</td><td>胡牌时一张花都没有</td><td class="f">+1</td></tr>' +
   '<tr><td>大吊车</td><td>4 组副露，单钓一张</td><td class="f">+1</td></tr>' +
   '<tr><td>杠上开花</td><td>杠后补牌自摸</td><td class="f">+1</td></tr>' +
   '<tr><td>海底捞月</td><td>最后一张牌自摸</td><td class="f">+1</td></tr>' +
-  '<tr><td>地胡</td><td>闲家第一次摸牌即成胡（免敲）</td><td class="f">+8</td></tr>' +
-  '<tr><td>天胡</td><td>庄家起手成胡（免敲）</td><td class="f">+8</td></tr></table>' +
+  '<tr><td>地胡</td><td>闲家第一巡自摸成胡（无需敲定）</td><td class="f">+8</td></tr>' +
+  '<tr><td>天胡</td><td>庄家起手成胡（无需敲定）</td><td class="f">+8</td></tr></table>' +
 
   '<h3>底（花）</h3>' +
   '<table><tr><th>来源</th><th class="f">花数</th></tr>' +
-  '<tr><td>每张花牌（季花 / 中发白）</td><td class="f">1</td></tr>' +
+  '<tr><td>花牌（敲麻：季花 + 中发白；清混碰：仅季花）</td><td class="f">每张 1</td></tr>' +
   '<tr><td>数牌明杠 / 暗杠</td><td class="f">1 / 2</td></tr>' +
   '<tr><td>风牌刻子 / 明杠 / 暗杠</td><td class="f">1 / 2 / 3</td></tr>' +
   '<tr><td>底（开局设定）</td><td class="f">' + CFG.base + '</td></tr></table>' +
 
   '<h3>算分</h3>' +
-  '<p>得分 = <b>底（花）</b> × <b>2<sup>番</sup></b> × 每花分值，单份封顶 ' + CFG.lezi + ' 勒（' + (CFG.lezi * 10 * CFG.unit) + ' 分）。</p>' +
+  '<p>得分 = <b>底（花）</b> × <b>总番</b> × 每花分值（线性番：总番 = 牌型番 + 附加番；0 番兜底 ×1）。单份封顶 ' + CFG.lezi + ' 勒（' + (CFG.lezi * 10 * CFG.unit) + ' 分）。</p>' +
   '<ul><li>自摸：三家各付一份</li><li>点炮：点炮者付一份（一炮多响则各付一份）</li>' +
   '<li>开宝（骰子为豹子或 1·4 点）：本局得分与封顶 ×2</li>' +
   '<li>荒番（上一局流局）：得分与封顶 ×2<sup>荒番数</sup>，有人胡后荒番 −1</li></ul>' +
 
-  '<h3>敲麻核心</h3>' +
-  '<ul><li><b>不敲不能胡</b>：必须先报听（敲）才有资格胡牌</li>' +
-  '<li><b>敲后锁定</b>：不能换牌、不能吃碰，摸什么打什么</li>' +
+  '<h3>敲麻规则</h3>' +
+  '<ul><li><b>不敲不能胡</b>：必须先报听（敲）才有资格胡牌；手里有听法时点「敲听」或开自动敲</li>' +
+  '<li><b>敲后锁定</b>：不能再换牌、不能吃碰杠，摸什么打什么（听牌显示在牌背上）</li>' +
   '<li><b>有和必和</b>：敲定后别人打出你的听牌，自动胡</li>' +
   '<li><b>有杠必杠</b>：敲定后摸到可杠的牌，系统自动杠</li>' +
-  '<li><b>漏胡</b>：放弃胡某张牌后，在动牌之前不能再胡同一张</li>' +
-  '<li>机器人一听牌就敲，和真人一个规则</li></ul>' +
-  '<p style="color:#8ba79a">说明：已实现「包三口」「抢杠胡」等进阶规则，其余按上海敲麻主流打法。</p>' +
+  '<li><b>漏胡</b>：放弃胡某张牌后，在动牌之前不能再胡同一张</li></ul>' +
+
+  '<h3>清混碰规则</h3>' +
+  '<ul><li><b>免敲</b>：没有「敲定」步骤，牌型做成后点炮 / 自摸直接弹「胡」</li>' +
+  '<li><b>中发白当字牌</b>：可碰、可组刻子/将牌，参与混一色 / 风一色判定</li>' +
+  '<li><b>吃过即锁门</b>：吃过某花色的顺子后，本局只能再吃 / 碰该花色与字牌</li>' +
+  '<li><b>碰过即不吃</b>：碰 / 杠过任何数牌后，吃按钮不再出现（靠碰做一色 / 碰碰胡）</li>' +
+  '<li><b>只认碰色系</b>：普通顺子刻子混打的牌不能胡（系统不会给「胡」按钮）</li></ul>' +
+
+  '<p style="color:#8ba79a">说明：已实现「包三口」「抢杠胡」等进阶规则，其余按上海主流打法。</p>' +
   '</div><div class="btns"><button class="pri" onclick="closeSheet()">开始打牌</button></div>');
 }
 
@@ -3497,7 +3543,7 @@ function applyView(V){
     G.finished = true;
   }
   G.result = NET.lastSettle ? { dealer: NET.lastSettle.dealer } : null;
-  G.handNo = t.handNo; G.roundWind = t.roundWind;
+  G.handNo = t.handNo; G.roundNo = t.roundNo !== undefined ? t.roundNo : G.handNo; G.roundWind = t.roundWind;
   G.huangfan = t.huangfan; G.kaibao = !!t.kaibao; G.kaibaoType = t.kaibaoType;
   G.dice = t.dice;
   G.turn = remap(t.turn); G.dealer = remap(t.dealer);
