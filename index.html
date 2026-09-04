@@ -140,11 +140,14 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* 空槽占位牌：不可见，只用来撑住这一排的尺寸 */
 .fx .tile.ghost{visibility:hidden}
 /* 吃/碰/明杠来源箭头：指向打出这张牌的那一家（屏幕方向，不随牌旋转） */
-.marrow{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-  width:12px;height:12px;border-radius:50%;background:rgba(255,206,84,.72);
+/* v1.2.25：来源箭头从牌面正中心移到角上——原先 12px 的黄色圆点在牌中心，
+   碰/明杠那组里挂箭头的中间一张，其高亮蓝光被圆点吃掉，看着像「三张只亮了两张」。
+   移到角上后牌面完整，高亮框四周都能看清；指向仍由 svg 自身的 rotate 保证是屏幕方向 */
+.marrow{position:absolute;right:0;bottom:0;transform:none;
+  width:10px;height:10px;border-radius:50%;background:rgba(255,206,84,.92);
   display:flex;align-items:center;justify-content:center;
-  pointer-events:none;z-index:7;box-shadow:0 0 5px rgba(255,206,84,.4)}
-.marrow svg{width:9px;height:9px;display:block}
+  pointer-events:none;z-index:8;box-shadow:0 0 3px rgba(0,0,0,.5)}
+.marrow svg{width:8px;height:8px;display:block}
 .marrow svg path{fill:#5a2b00}
 /* 听牌标记：手牌（牌背）上盖一个醒目的「听」圆章 */
 /* 直径≈左右两家牌背那一竖排的宽度，纯黄圆底不带白边 */
@@ -161,8 +164,12 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .fslot{position:relative;flex:0 0 auto;width:26px;height:19px}
 .fslot .tile{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);margin:0}
 .fslot.r .tile{transform:translate(-50%,-50%) rotate(-90deg)}
-/* 牌河竖排槽（东西家）：占位 = 视觉，避免旋转牌重叠/被裁 */
-.rvslot{position:relative;flex:0 0 auto;width:15px;height:21px}
+/* 牌河竖排槽（东西家）：占位 = 视觉，避免旋转牌重叠/被裁
+   v1.2.25：槽位宽高与 .tile.rv 对调——牌本身是竖长条（14×20），旋转 90° 后
+   在屏幕上呈横躺（视觉 20 宽 × 14 高），这样从东西家自己的视角看仍是竖立瘦长的，
+   与我自己的 xs 牌（16×22）观感一致、只是小一圈。
+   （v1.2.24 把牌做成 20×14 的矮胖盒，旋转后在屏幕上是竖立的，等于从东西家视角看是横躺矮胖） */
+.rvslot{position:relative;flex:0 0 auto;width:21px;height:15px}
 .rvslot .tile{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);margin:0}
 .rvslot.r .tile{transform:translate(-50%,-50%) rotate(-90deg)}
 /* 北家：花/副露排牌面朝上（对着我看清，排列顺序按北家视角从右到左） */
@@ -182,8 +189,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* v1.2.6：牌河牌恢复统一大小（与上下两家一致，撤销 v1.2.5 的缩小）；
    左右牌河（rv）加宽到 48px 放下两列占位槽（23×2+gap），高度定高 13 张并居中，
    两排均衡排布（对应左右家视角的 13×2），桌心圆两侧留白由牌河居中消化 */
-.rv{flex:0 0 48px;width:48px;flex-direction:column;flex-wrap:wrap;justify-content:flex-start;
-  align-content:flex-start;height:calc(13 * 17px + 12px + 4px);align-self:center;padding:1px 0;overflow:hidden}
+/* v1.2.25：槽位宽度 21px → 两列 43px，容器收到 44px（牌变小后不留多余空白） */
+.rv{flex:0 0 44px;width:44px;flex-direction:column;flex-wrap:wrap;justify-content:flex-start;
+  align-content:flex-start;height:calc(13 * 15px + 12px + 4px);align-self:center;padding:1px 0;overflow:hidden}
 /* v1.2.13：rv 实际高度由 fitRivers() 按可用空间实时设置（页面高→加高、矮→缩短），
    行数钳制在 10~17 行；此条是 JS 未运行时的兜底 */
 .rv{height:clamp(170px, calc((100dvh - 430px) * .55), 288px)}
@@ -250,7 +258,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   box-shadow:0 3px 0 #b9b09a,0 4px 5px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.95)}
 .hand .tile.sel{transform:translateY(-10px);z-index:5;
   box-shadow:0 5px 0 #b9b09a,0 7px 10px rgba(0,0,0,.55),0 0 0 2px var(--gold),inset 0 1px 0 rgba(255,255,255,.95)}
-.hand .tile.locked{cursor:default}
+/* v1.2.25：非出牌回合手牌也能点（查看台面同牌），所以光标仍给可点反馈；
+   视觉上「不可打出」由选中态与提示行表达，不再用 cursor:default */
+.hand .tile.locked{cursor:pointer}
 .hand .drawgap{width:7px;flex:0 0 7px}
 .hint{text-align:center;font-size:11px;color:var(--dim);height:15px;line-height:15px;margin-top:2px;flex:0 0 auto}
 .hint b{color:var(--gold)}
@@ -287,9 +297,10 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .tile svg{position:relative;display:block;width:100%;height:100%}
 .tile.sm{--tw:19px;--th:26px;border-radius:4px}
 .tile.xs{--tw:16px;--th:22px;border-radius:3px}
-/* v1.2.25：左右牌河牌——旋转 90° 后视觉 14×20，整体比我的 xs 牌（16×22）略小一圈，
-   跟用户「跟我的牌河牌一样大」的诉求相协调 */
-.tile.rv{--tw:20px;--th:14px;border-radius:2.5px}
+/* v1.2.25：左右牌河牌——牌本身保持竖长条 14×20（比我的 xs 牌 16×22 小一圈），
+   由 .rvslot 负责旋转 90°；旋转后在屏幕上横躺（视觉 20×14），
+   从东西家自己视角看仍是竖立瘦长的，跟他们看自己手牌的观感一致 */
+.tile.rv{--tw:14px;--th:20px;border-radius:2.5px}
 .tile.xxs{--tw:13px;--th:18px;border-radius:2px}
 .tile.fl{background:linear-gradient(178deg,#fffbe8 0%,#fdf3d2 50%,#f2e5b8 100%);border-color:#d6c48c}
 .tile.dimmed{opacity:.5}
@@ -559,7 +570,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer">v1.2.24</div>
+    <div class="hVer" id="hVer">v1.2.25</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby">
@@ -1573,8 +1584,11 @@ function renderHand(){
   arr.forEach((t, k) => {
     const e = tileEl(t, canPick ? '' : 'locked');
     if (SELIDX === k) e.classList.add('sel');
-    if (canPick) e.onclick = () => {
-      if (SELIDX === k){ SEL = null; SELIDX = null; resolvePend(t); }
+    // v1.2.25：任何时候都能点手牌——第一次点击只做「选中 + 台面同牌高亮」，
+    // 方便随时算某张牌还剩几张（含别人打出后要决定吃/碰/杠时）；
+    // 只有轮到自己出牌（canPick）时，再点一次同一张才是「打出」
+    e.onclick = () => {
+      if (canPick && SELIDX === k){ SEL = null; SELIDX = null; resolvePend(t); }
       else { SEL = t; SELIDX = k; renderHand(); renderRiver(); renderMe(); renderSeats(); }
     };
     box.appendChild(e);
@@ -1585,8 +1599,9 @@ function renderHand(){
     box.appendChild(g);
     const e = tileEl(drawn, (canPick ? '' : 'locked') + ' hl');
     if (SELIDX === 'd') e.classList.add('sel');
-    if (canPick) e.onclick = () => {
-      if (SELIDX === 'd'){ SEL = null; SELIDX = null; resolvePend(drawn); }
+    // v1.2.25：同上手牌——非出牌回合也能点摸到的这张查看台面同牌
+    e.onclick = () => {
+      if (canPick && SELIDX === 'd'){ SEL = null; SELIDX = null; resolvePend(drawn); }
       else { SEL = drawn; SELIDX = 'd'; renderHand(); renderRiver(); renderMe(); renderSeats(); }
     };
     box.appendChild(e);
@@ -2010,11 +2025,13 @@ const RV_ROWS_MIN = 10, RV_ROWS_MAX = 17;
 function fitRivers(){
   const row = document.querySelector('.rowmid2');
   if (!row) return;
+  // v1.2.25：行高常量必须与 .rvslot 的槽位高度保持一致（槽位 15px + 1px 间隙 = 16），
+  // 否则算出的行数放不下实际槽位，牌河底部会被 overflow 裁掉
   const avail = row.clientHeight;
-  const rows = Math.max(RV_ROWS_MIN, Math.min(RV_ROWS_MAX, Math.floor((avail - 4) / 18)));
+  const rows = Math.max(RV_ROWS_MIN, Math.min(RV_ROWS_MAX, Math.floor((avail - 4) / 16)));
   for (const id of ['rvE', 'rvW']){
     const el = $(id);
-    if (el) el.style.height = (rows * 18 - 1) + 'px';
+    if (el) el.style.height = (rows * 16 - 1) + 'px';
   }
 }
 /* v1.2.14：手牌记录模块窗口级自适应——按 core 可用高度算行数（0~3）并固定高度。
@@ -2381,10 +2398,12 @@ async function applySelfKong(p, o){
   await sleep(420 / CFG.speed);
 }
 async function collectClaims(tile, from){
-  // v1.2.25：首巡别家还握着起手花（起手花在各自首次出牌时才补）——上家打出第一张、
-  // 我能不能吃碰杠必须先基于补完花之后的完整手牌判断，否则会漏掉补花摸上来的牌
-  for (let i = 1; i < 4; i++){
-    const pp = G.players[(from + i) % 4];
+  // v1.2.25：首巡别家还握着起手花（起手花在各自首次出牌时才补），上家给的可吃碰杠仍走"先补花再出牌"
+  // ——先给 i=1（其 上家 = from）预补花，让判定基于补完花的完整手牌
+  // v1.2.26：下家/对家打出可碰牌时改为「先碰再摸，补花延后到抛后摸牌时」
+  // ——i=2/i=3 不再预补，吃碰杠判定走"先牌后花"（player 的 discardTurn 仍会 supplyPendingFlowers）
+  {
+    const pp = G.players[(from + 1) % 4];
     if (pp.pendingFlowers && pp.pendingFlowers.length) await supplyPendingFlowers(pp);
   }
   if (G.abort) return null;   // 补花可能触发八花齐结算
@@ -2732,6 +2751,8 @@ async function finish(res){
       Math.pow(2, G.huangfan) + '（封顶同步翻倍）</div></div>' +
       scoreTable([0, 0, 0, 0]);
     finishHand(html0, G.dealer, { kind: '流局', winners: [], note: '荒庄 · 下一局荒番 ×' + Math.pow(2, G.huangfan), delta: [0, 0, 0, 0] });
+    // v1.2.25：荒番变化后立即刷新右上角标签与顶部「单份」，否则结算面板遮着时看到的仍是旧倍数
+    renderTop();
     return;
   }
 
@@ -2754,6 +2775,8 @@ async function finish(res){
       fanBreakdownHtml(ev, add, sc, extraNote) + scoreTable(d);
     finishHand(html1, res.idx, { kind: '八花齐', winners: [res.idx], note: ev.type + ' · ' + ev.total + ' 番 · 每家 ' + sc.per + ' 分', delta: d });
     if (G.huangfan) G.huangfan--;
+    // v1.2.25：荒番递减后立即刷新右上角标签与顶部「单份」（否则下一局开局前一直显示旧倍数）
+    renderTop();
     return;
   }
 
@@ -2791,6 +2814,8 @@ async function finish(res){
       note: res.ev.type + ' · ' + res.ev.total + ' 番' + (cb >= 0 ? ' · 包三口(' + G.players[cb].name + '付5份)' : '') + ' · ' + (cb >= 0 ? '收 ' + sc.per * 5 : '每家 ' + sc.per) + ' 分',
       delta: d });
     if (G.huangfan) G.huangfan--;
+    // v1.2.25：荒番递减后立即刷新右上角标签与顶部「单份」（否则下一局开局前一直显示旧倍数）
+    renderTop();
     return;
   }
 
@@ -2824,8 +2849,10 @@ async function finish(res){
   const note = winNames.map((n, k) => n + ' ' + res.wins[k].ev.type + ' ' + res.wins[k].ev.total + '番').join('；');
   finishHand('<h2><span>结算</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
     blocks + scoreTable(d), nextDealer,
-    { kind: winNames.length > 1 ? '一炮多响' : '点炮', winners: res.wins.map(w => w.idx), from: res.from, note: note, delta: d });
+    { kind: winNames.length > 1 ? '一炮多响' : '点炮', winners: res.wins.map(w => w.idx), from: res.from, note: note,       delta: d });
   if (G.huangfan) G.huangfan--;
+  // v1.2.25：荒番递减后立即刷新右上角标签与顶部「单份」（否则下一局开局前一直显示旧倍数）
+  renderTop();
 }
 function tilesRow(tiles, winTile){
   return '<div class="tlist">' + tiles.map(t => {

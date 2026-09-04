@@ -1,5 +1,5 @@
 // 无头验证：collectClaims 分轮顺序（胡 > 杠碰 > 吃）
-const { boot } = require('/workspace/shanghai-knock-mahjong/proto/server/headless.js');
+const { boot } = require('../proto/server/headless.js');
 
 let pass = 0, fail = 0;
 const ok = (n, c) => { if (c) pass++; else { fail++; console.log('  FAIL: ' + n); } };
