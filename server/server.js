@@ -27,7 +27,7 @@ const { handSeed } = require('../proto/server/rng');
 const PORT = Number(process.env.PORT || 8080);
 const ROOT = path.resolve(__dirname, '..');
 
-const ASK_TIMEOUT = 15000;        // 出牌 / 吃碰杠 / 敲 的思考超时（毫秒）
+const ASK_TIMEOUT = 15000;        // 出牌 / 吃碰杠 / 敲 的默认思考超时（毫秒）；v1.2.27 起可被房间规则 cfg.cd（15/30/0 秒）覆盖
 const BOT_NAMES = ['阿强', '阿明', '阿芳', '阿珍'];
 
 // 房间保留与回收
@@ -71,7 +71,8 @@ const CFG_ALLOW = {
   sevenPairs: v => (v === true || v === false || v === 1 || v === 0) ? !!v : null,
   lajiHu:     v => (v === true || v === false || v === 1 || v === 0) ? !!v : null,
   autoKnock:  v => (v === true || v === false || v === 1 || v === 0) ? !!v : null,
-  autoHu:     v => (v === true || v === false || v === 1 || v === 0) ? !!v : null
+  autoHu:     v => (v === true || v === false || v === 1 || v === 0) ? !!v : null,
+  cd:         v => [0, 15, 30].includes(Number(v)) ? Number(v) : null   // v1.2.27 出牌倒计时（秒），0=无限时
 };
 
 /* 房间默认规则（与 index.html 的 CFG 默认值一致）；房主可在等待页改，开局后锁定 */
@@ -79,7 +80,7 @@ function defaultCfg(){
   return {
     base: 2, unit: 1, lezi: 8,
     allowChow: true, sevenPairs: false, lajiHu: true,
-    autoKnock: false, autoHu: false, speed: 1
+    autoKnock: false, autoHu: false, speed: 1, cd: 15
   };
 }
 
@@ -259,6 +260,9 @@ class GameHost {
     this.pending = null;      // { seat, kind, timer }
     this.sched = false;
     this.askDeadline = 0;     // 当前决策的截止时刻（服务端时钟）；0 = 此刻无人需要决策
+    // v1.2.27 出牌倒计时：读房间规则 cfg.cd（15/30 秒，0=无限时），且仅当开局时真人 ≥2 才启用——
+    // 1 真人（单机练习 / 房主带机器人）不限时，视为「无」
+    this.askMs = (room.seats.filter(c => c).length >= 2 && room.cfg.cd > 0) ? room.cfg.cd * 1000 : 0;
     this.ready = new Set();   // 局间「准备下一局」：已准备的真实座位集合
     this.betweenHands = false; // 一局已结算、尚未开下一局的空档
 
@@ -331,13 +335,15 @@ class GameHost {
     const conn = this.room.seats[seat];
     if (this.pending){ clearTimeout(this.pending.timer); this.pending = null; }
     if (conn && conn.online){
-      const deadline = Date.now() + ASK_TIMEOUT;
+      // v1.2.27：时限取开局时算好的 askMs（房间规则 cfg.cd 且真人 ≥2 才有时限；0 = 无限时，不设自动托管定时器）
+      const tmo = this.askMs;
+      const deadline = tmo ? Date.now() + tmo : 0;
       this.askDeadline = deadline;          // 有人在决策 → 全员桌心显示同一个倒计时
       this.broadcastViews();
-      conn.send({ t:'ask', kind: pend.kind, payload: pend.payload, deadline, askLeft: ASK_TIMEOUT });
+      conn.send({ t:'ask', kind: pend.kind, payload: pend.payload, deadline, askLeft: tmo });
       this.pending = {
         seat, kind: pend.kind,
-        timer: setTimeout(() => { this.pending = null; this.autoAct(seat, pend.kind); }, ASK_TIMEOUT + 800)
+        timer: tmo ? setTimeout(() => { this.pending = null; this.autoAct(seat, pend.kind); }, tmo + 800) : null
       };
     } else {
       // 掉线托管：不显示倒计时（AI 500ms 内即决策），稍作停顿保持牌局节奏
@@ -683,13 +689,13 @@ function resumeSeat(room, conn, ws){
         conn.send({ t:'settle', html: host.lastSettle.html, dealer: host.lastSettle.dealer, rec: host.lastSettle.rec });
       }
     }
-    // 若正等着这家决策，按「真实剩余时间」重发询问（不是重新给满 15 秒）
+    // 若正等着这家决策，按「真实剩余时间」重发询问（不是重新给满时限；无限时房间 askLeft=0）
     if (host.pending && host.pending.seat === conn.seat && S_PEND_matches(host, conn.seat)){
       const P = host.S.__state.PEND;
       conn.send({
         t:'ask', kind: P.kind, payload: P.payload,
-        deadline: host.askDeadline || (Date.now() + ASK_TIMEOUT),
-        askLeft: host.askDeadline ? Math.max(0, host.askDeadline - Date.now()) : ASK_TIMEOUT
+        deadline: host.askDeadline || 0,
+        askLeft: host.askDeadline ? Math.max(0, host.askDeadline - Date.now()) : (host.askMs || 0)
       });
     }
   }

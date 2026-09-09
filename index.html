@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#08241b">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<html lang="zh-CN" data-page-node-id="04myVvkVxdQX9KKm6VKC4z">
+<head data-page-node-id="Mzf9szGVl6cg2MCS9Vfelu">
+<meta charset="utf-8" data-page-node-id="qykRCJ5wKWzrL07cXvg3rF">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" data-page-node-id="STOZBxQgH466qyfShFzspM">
+<meta name="theme-color" content="#08241b" data-page-node-id="3RoBbLRa2wQ2hZuENH6UGG">
+<meta name="apple-mobile-web-app-capable" content="yes" data-page-node-id="iCBEIYCTqPcd1buGGjmn1w">
 <title>一道来麻将 · 敲麻 / 清混碰</title>
 <style>
 :root{
@@ -15,7 +15,7 @@
   --txt:#e9f3ee; --dim:#93aaa0; --dim2:#6d8479;
   --gold:#ffcf5c; --red:#ff6f57; --blue:#63b3ff; --green:#4ec98a; --purple:#c08cff;
   --ink:#1f2933; --red2:#b5321f; --blue2:#1f6fd0; --green2:#0f7a52;
-  --tw:24px; --th:33px; --bkSlotW:23px;
+  --tw:24px; --th:33px; --bkSlotW:23px; --pz:1;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#061a13;color:var(--txt);
@@ -24,9 +24,17 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#061a13;colo
 button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer}
 
 /* ---------- 布局 ---------- */
-#app{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 auto;
+/* v1.2.26：高度改按 --pz 等分（缩放后视觉上仍正好铺满窗口）；--pz=1 时与 100dvh 完全等价，手机端零变化 */
+#app{display:flex;flex-direction:column;height:calc(100dvh / var(--pz));max-width:560px;margin:0 auto;
   background:radial-gradient(120% 70% at 50% 0%,#0d3a2b 0%,#061a13 75%);
   padding:calc(env(safe-area-inset-top,0px) + 4px) 5px calc(env(safe-area-inset-bottom,0px) + 4px)}
+
+/* ---------- v1.2.26 PC 自适应整体放大（只等比缩放渲染，不改布局/功能） ----------
+   #pcz 包住 首页+牌桌+浮层，transform:scale 等比放大；transform 不影响任何布局计算值
+   （offsetWidth/clientHeight/style px 全保持原坐标系），游戏内 JS
+   （fitRivers / fitLog / fitBacks / seatToast 视口定位）全部零改动。
+   --pz 由主脚本 CUT 之后的客户端段按窗口设定：贴近 680px 设计高的最大倍率、上限 2 倍、手机恒为 1。 */
+#pcz{height:calc(100dvh / var(--pz));transform:scale(var(--pz));transform-origin:50% 0}
 
 /* ---------- 顶栏 ---------- */
 .topbar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);padding:0 2px 3px;flex:0 0 auto}
@@ -108,7 +116,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .hstack .tile:last-child{margin-right:0}
 .vstack{display:flex;flex-direction:column;align-items:center;min-height:0;max-height:100%;overflow:hidden;padding:calc(var(--th) * .35) 0;position:relative}
 .vslot{position:relative;flex:0 0 auto;width:var(--th);height:calc(var(--tw) - 13px)}
-/* 左右家背牌用 xs 小牌：槽宽按 xs 牌旋转后的视觉宽收窄 */
+/* 左右家背牌用 xs 小牌：槽宽按 xs 牌旋转后的视觉宽收窄；
+   默认槽高 = 牌旋转后视觉高(16px) × 0.875 ≈ 14px——与对家手牌同密度（24px 牌 margin -3px
+   → 中心距 21 = 87.5%），紧拢略叠不留缝（v1.2.29，与 fitBacks 的目标值一致） */
 .vstack .vslot{width:var(--bkSlotW);height:calc(var(--tw) * .58)}
 .vslot .tile{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-90deg);margin:0;
   box-shadow:0 2px 0 #0a3729,0 3px 3px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.22)}
@@ -122,20 +132,28 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .seatN .mrow{min-height:20px}
 .seatS .mrow{min-height:26px}
 /* 花/副露统一牌尺寸 */
-.fx{display:flex;gap:2px;align-items:center;max-width:100%;overflow:hidden;flex-wrap:nowrap}
-.fx .tile{--tw:18px;--th:25px}
+/* v1.2.29：overflow 改 visible——高亮框（.hl 的 box-shadow）不再被容器边裁掉；
+   超长溢出改由 fitFx() 自动缩小（--fxs）兜底，正常永远不溢出 */
+.fx{display:flex;gap:2px;align-items:center;max-width:100%;overflow:visible;flex-wrap:nowrap;--fxs:1}
+/* v1.2.29：牌尺寸乘 --fxs——花/副露太多放不下时 fitFx 自动整体缩小，不再裁剪 */
+.fx .tile{--tw:calc(18px * var(--fxs));--th:calc(25px * var(--fxs))}
 .fx .fg,.fx .mg{display:flex;gap:2px;align-items:center;flex-wrap:nowrap;min-width:0}
 .fx .fg{justify-content:flex-start}
 .fx .mg{justify-content:flex-end}
 /* 东西家竖排：花/副露组也竖排（meld 容器同步竖排） */
 .mcol.fx .fg,.mcol.fx .mg,.mcol.fx .meld{flex-direction:column;justify-content:flex-start}
+/* v1.2.29：左右家花/副露牌改小——旋转后视觉宽 = 牌高（--th），收到 18px 与我这一排同宽；
+   fslot 尺寸从牌变量推导（视觉尺寸 +2px 富余给高亮框），不再用写死的 26×19
+   （原尺寸 > 列宽 21px，牌被容器裁 4~5px、高亮框残缺的根因） */
+.mcol.fx{--tw:calc(13px * var(--fxs));--th:calc(18px * var(--fxs))}
+.mcol.fx .tile{--tw:calc(13px * var(--fxs));--th:calc(18px * var(--fxs))}
 /* 东家：他视角「从左到右」= 屏幕从下到上 → 花组在屏幕下端、副露在上方，组内牌也从下往上 */
 #ml1.fx{flex-direction:column-reverse}
 #ml1.fx .fg,#ml1.fx .mg,#ml1.fx .meld{flex-direction:column-reverse}
-.fx .fxsep{flex:0 0 9px;width:9px;align-self:stretch;position:relative}
+.fx .fxsep{flex:0 0 calc(9px * var(--fxs));width:calc(9px * var(--fxs));align-self:stretch;position:relative}
 .fx .fxsep:after{content:"";position:absolute;left:50%;top:15%;bottom:15%;width:1px;background:rgba(255,255,255,.22)}
 /* 东西家竖排：分隔线随之转 90°（他们视角仍是竖线，我看起来是横线） */
-.mcol.fx .fxsep{flex:0 0 9px;width:auto;height:9px;align-self:center}
+.mcol.fx .fxsep{flex:0 0 calc(9px * var(--fxs));width:auto;height:calc(9px * var(--fxs));align-self:center}
 .mcol.fx .fxsep:after{left:15%;right:15%;top:50%;bottom:auto;width:auto;height:1px}
 /* 空槽占位牌：不可见，只用来撑住这一排的尺寸 */
 .fx .tile.ghost{visibility:hidden}
@@ -144,10 +162,10 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
    碰/明杠那组里挂箭头的中间一张，其高亮蓝光被圆点吃掉，看着像「三张只亮了两张」。
    移到角上后牌面完整，高亮框四周都能看清；指向仍由 svg 自身的 rotate 保证是屏幕方向 */
 .marrow{position:absolute;right:0;bottom:0;transform:none;
-  width:10px;height:10px;border-radius:50%;background:rgba(255,206,84,.92);
+  width:calc(10px * var(--fxs));height:calc(10px * var(--fxs));border-radius:50%;background:rgba(255,206,84,.92);
   display:flex;align-items:center;justify-content:center;
   pointer-events:none;z-index:8;box-shadow:0 0 3px rgba(0,0,0,.5)}
-.marrow svg{width:8px;height:8px;display:block}
+.marrow svg{width:calc(8px * var(--fxs));height:calc(8px * var(--fxs));display:block}
 .marrow svg path{fill:#5a2b00}
 /* 听牌标记：手牌（牌背）上盖一个醒目的「听」圆章 */
 /* 直径≈左右两家牌背那一竖排的宽度，纯黄圆底不带白边 */
@@ -160,8 +178,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   pointer-events:none;z-index:30}
 /* 自己的听章放到手牌堆的垂直中心，不要顶在容器上半空 */
 .hand .ting{top:auto;bottom:calc(var(--th)/2 - var(--bkSlotW)/2);transform:translateX(-50%)}
-/* 竖排（东西家）花/副露槽：牌旋转 90° 后的占位盒 */
-.fslot{position:relative;flex:0 0 auto;width:26px;height:19px}
+/* 竖排（东西家）花/副露槽：牌旋转 90° 后的占位盒
+   v1.2.29：宽高从牌变量推导 = 旋转后视觉尺寸（--th×--tw）+ 2px 高亮富余，随 --fxs 同步缩小 */
+.fslot{position:relative;flex:0 0 auto;width:calc(var(--th) + 2px);height:calc(var(--tw) + 2px)}
 .fslot .tile{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);margin:0}
 .fslot.r .tile{transform:translate(-50%,-50%) rotate(-90deg)}
 /* 牌河竖排槽（东西家）：占位 = 视觉，避免旋转牌重叠/被裁
@@ -193,12 +212,17 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .rv{flex:0 0 44px;width:44px;flex-direction:column;flex-wrap:wrap;justify-content:flex-start;
   align-content:flex-start;height:calc(13 * 15px + 12px + 4px);align-self:center;padding:1px 0;overflow:hidden}
 /* v1.2.13：rv 实际高度由 fitRivers() 按可用空间实时设置（页面高→加高、矮→缩短），
-   行数钳制在 10~17 行；此条是 JS 未运行时的兜底 */
-.rv{height:clamp(170px, calc((100dvh - 430px) * .55), 288px)}
+   行数钳制在 10~17 行；此条是 JS 未运行时的兜底。
+   v1.2.28：宽度也由 fitRivers() 动态设置——两排放不下时自动加宽到三排（67px），
+   此处 44px 仅为两排默认值 */
+.rv{height:clamp(170px, calc((100dvh / var(--pz) - 430px) * .55), 288px)}
 /* 牌河排列方向 = 每个人自己视角的「从左到右」；牌面朝向：
-   东西家牌顶朝桌心（横躺朝他们），北家牌面朝上（对着我看清，排列顺序仍按北家视角） */
-#rvN{flex-direction:row-reverse}
+   东西家牌顶朝桌心（横躺朝他们），北家牌面朝上（对着我看清，排列顺序仍按北家视角）
+   v1.2.29：对家牌河从靠近我的一排开始码（wrap-reverse 行序翻转，行内仍按对家视角从左到右）；
+   左家牌河第一列改靠右家一侧（列内仍按左家视角从上到下）。右家原本就从靠我一侧开始，不动 */
+#rvN{flex-direction:row-reverse;flex-wrap:wrap-reverse}
 #rvE{flex-direction:column-reverse}
+#rvW{flex-wrap:wrap-reverse}
 .rowmid2{flex:1 1 auto;display:flex;gap:3px;min-height:0}
 .core{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;gap:3px;
   min-height:0;padding:6px 3px;overflow:visible;justify-content:center}
@@ -325,7 +349,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* hide：统一的隐藏类（首页面板切换、弹层、开始按钮都用它） */
 .hide{display:none !important}
 .sheet{background:linear-gradient(180deg,#123a2c,#0b291f);border:1px solid var(--line);border-radius:16px;
-  width:100%;max-width:420px;max-height:86dvh;overflow:auto;padding:14px}
+  width:100%;max-width:420px;max-height:calc(86dvh / var(--pz));overflow:auto;padding:14px}
 .sheet h2{margin:0 0 10px;font-size:17px;display:flex;align-items:center;gap:6px}
 .sheet h2 .sp{flex:1}
 .sheet .close{font-size:20px;color:var(--dim);padding:0 4px}
@@ -351,7 +375,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* 历史记录 */
 .sheet h2 .hcnt{font-size:11px;color:var(--dim2);font-weight:400}
 .dimc{text-align:center;color:var(--dim2);font-size:11px;line-height:1.6;margin:10px 0 2px}
-.hlist{max-height:52vh;overflow:auto;margin-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+.hlist{max-height:calc(52vh / var(--pz));overflow:auto;margin-top:10px;border-top:1px solid rgba(255,255,255,.08)}
 .hrow{padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.08);cursor:pointer}
 .hrow:active{background:rgba(255,255,255,.06)}
 .hr1{display:flex;align-items:center;gap:6px}
@@ -430,7 +454,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   -webkit-tap-highlight-color:transparent}
 .logmore:active{opacity:.55}
 /* 本局完整记录 */
-.lglist{max-height:56vh;overflow:auto;margin-top:8px}
+.lglist{max-height:calc(56vh / var(--pz));overflow:auto;margin-top:8px}
 .lgrow{display:flex;gap:7px;padding:5px 2px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.07)}
 .lgi{flex:0 0 20px;color:var(--dim2);font-size:10px;text-align:right;font-variant-numeric:tabular-nums}
 
@@ -455,6 +479,14 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   .fx .tile{--tw:16px;--th:22px}
   .fslot{width:23px;height:17px}
 }
+/* v1.2.30：窄屏手牌溢出——14 张手牌（24px 牌 + 间隙 + 摸牌空位）总宽约 369px，
+   屏幕可用手牌宽度 < 该值时最后一张会被 .hand 的 overflow:hidden 裁掉。
+   只缩手牌自身的牌宽（--tw/--th 局部覆盖），牌河/副露等其他元素尺寸不变。
+   每档可容纳下限：22px→361px 屏宽、21px→347px、20px→333px、18px→305px */
+@media (max-width:389px){ .hand .tile{--tw:22px;--th:30px} }
+@media (max-width:360px){ .hand .tile{--tw:21px;--th:29px} }
+@media (max-width:346px){ .hand .tile{--tw:20px;--th:28px} }
+@media (max-width:318px){ .hand .tile{--tw:18px;--th:25px} }
 @media (max-height:600px){
   .dial{width:min(84px,22vw)}
   .dial .ctr .cd{font-size:min(20px,4.8vw)}
@@ -561,145 +593,147 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .rStatus{margin-top:10px;font-size:11.5px;color:var(--dim);min-height:15px;letter-spacing:.5px}
 </style>
 </head>
-<body>
+<body data-page-node-id="sDZMglh48EQFGwl77bY8If">
+<div id="pcz" data-page-node-id="8IuITdgwbuomNmlvrF7EJR">
 <!-- ========== 首页 / 多人房间 ========== -->
-<div id="home">
+<div id="home" data-page-node-id="Ei6tgwqxZzqaJxGfiFDtT3">
   <!-- 模式选择 -->
-  <div class="homeBox" id="homePick">
-    <div class="hDeco" id="hDeco"></div>
-    <div class="hTitle">一道来麻将<span class="sub">敲麻 / 清混碰</span></div>
-    <button class="hBtn solo" id="hBtnSolo">单机游戏<small>与三家机器人对战 · 无需网络</small></button>
-    <button class="hBtn multi" id="hBtnMulti">多人对战<small>好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer">v1.2.25</div>
+  <div class="homeBox" id="homePick" data-page-node-id="h4FrybP0nIeSFLZdd6FstC">
+    <div class="hDeco" id="hDeco" data-page-node-id="22rGABlOJh2zTxCDDM3XXP"></div>
+    <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
+    <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
+    <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.30</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
-  <div class="homeBox hide" id="homeLobby">
-    <div class="hTitle" style="font-size:26px;letter-spacing:4px">多人对战<span class="sub">创建房间，或输入好友的房间号加入</span></div>
-    <div class="lRow"><span class="lLab">昵称</span><input class="lInput" id="lName" maxlength="6" placeholder="你的名字"></div>
-    <div class="lRow"><span class="lLab">服务器</span><input class="lInput" id="lServer" placeholder="留空 = 自动（用当前页面地址）"></div>
-    <button class="hBtn pri" id="lCreate">创建房间</button>
-    <div class="lRow"><input class="lInput" id="lRoomNo" maxlength="6" inputmode="numeric" placeholder="好友的房间号"><button class="lJoin" id="lJoin">加入</button></div>
-    <div class="lErr" id="lErr"></div>
-    <button class="hBack" id="lBack">← 返回</button>
+  <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
+    <div class="hTitle" style="font-size:26px;letter-spacing:4px" data-page-node-id="Hqf3VS0BWvrcuGGi5o2XKE">多人对战<span class="sub" data-page-node-id="wSgbmvCLMKI5KpnquoLdcy">创建房间，或输入好友的房间号加入</span></div>
+    <div class="lRow" data-page-node-id="ehDGFVu250FcyTOjvv4Nm7"><span class="lLab" data-page-node-id="IU2El3d9TiSNDKN2EzeDC5">昵称</span><input class="lInput" id="lName" maxlength="6" placeholder="你的名字" data-page-node-id="Tf6Tyvxrz4vg3330vbU6MU"></div>
+    <div class="lRow" data-page-node-id="YvAUjfsnXIVMDO4LwkExPU"><span class="lLab" data-page-node-id="wxDR5Mf3OtBUn9bbSZ9XU7">服务器</span><input class="lInput" id="lServer" placeholder="留空 = 自动（用当前页面地址）" data-page-node-id="TEwdiyWSN0Hrry814AlDL7"></div>
+    <button class="hBtn pri" id="lCreate" data-page-node-id="HdloNxJ0u3dUJiIHUyrytt">创建房间</button>
+    <div class="lRow" data-page-node-id="lqGZ49bDWDbyvzEjwbyZ2A"><input class="lInput" id="lRoomNo" maxlength="6" inputmode="numeric" placeholder="好友的房间号" data-page-node-id="ZJ2KvHQzDXKti7cFoe5MsD"><button class="lJoin" id="lJoin" data-page-node-id="gHK5qhExRSiOjExN09TZFY">加入</button></div>
+    <div class="lErr" id="lErr" data-page-node-id="sBZG3SwzT4SUKSAoeCBzJc"></div>
+    <button class="hBack" id="lBack" data-page-node-id="O1itL5YNIKWwDtHiuuHIom">← 返回</button>
   </div>
   <!-- 房间等待 -->
-  <div class="homeBox hide" id="homeRoom">
-    <div class="rNoWrap">
-      <div class="rNoLab">房 间 号</div>
-      <div class="rNo" id="rNoTxt" title="点击复制">······</div>
-      <div class="rNoCopy">（点击数字复制）</div>
-      <div class="rNoHint">告诉朋友：输入房间号加入 · 点空位可换座</div>
+  <div class="homeBox hide" id="homeRoom" data-page-node-id="XIuo4smafvPENg0hfjFvWx">
+    <div class="rNoWrap" data-page-node-id="w9jkU3Vz0tVJfeTOi6EA7H">
+      <div class="rNoLab" data-page-node-id="wJhGYHYVyK6btwxnxADdgr">房 间 号</div>
+      <div class="rNo" id="rNoTxt" title="点击复制" data-page-node-id="aTvj1eGI42Mdk01jNZUukF">······</div>
+      <div class="rNoCopy" data-page-node-id="j9TKKb1LMj54gNijFzAMoH">（点击数字复制）</div>
+      <div class="rNoHint" data-page-node-id="PdXPPRgi5hIEJUwvE6vAn4">告诉朋友：输入房间号加入 · 点空位可换座</div>
     </div>
     <!-- v1.2.4：等待页改简易牌桌：中央迷你桌心圆 + 上下左右四个位置 -->
-    <div class="rBoard" id="rBoard">
-      <div class="rSeatSlot rSeatN" data-seat="0"></div>
-      <div class="rCenter"><div class="rDial">
-        <div class="rDw n">东</div><div class="rDw w">西</div>
-        <div class="rDw e">南</div><div class="rDw s">北</div>
+    <div class="rBoard" id="rBoard" data-page-node-id="UplCQvg3Lknmpo69WqdSfb">
+      <div class="rSeatSlot rSeatN" data-seat="0" data-page-node-id="NbuhFGbSFEZR4LAAG2tlbn"></div>
+      <div class="rCenter" data-page-node-id="8YkKBeH06gCQ4UExcPAcZI"><div class="rDial" data-page-node-id="HngKccH92SQKsXEC4xVnIH">
+        <div class="rDw n" data-page-node-id="Pm9s8H1BmuQ9BXxlZ9Gfv5">东</div><div class="rDw w" data-page-node-id="nc2t3GkJ4nsWwOoxu3cagT">西</div>
+        <div class="rDw e" data-page-node-id="dYIT9sMADJqb7XxeF0E7eH">南</div><div class="rDw s" data-page-node-id="XhLYTruHO0YsQUPQTZFdlX">北</div>
       </div></div>
-      <div class="rSeatSlot rSeatW" data-seat="3"></div>
-      <div class="rSeatSlot rSeatE" data-seat="1"></div>
-      <div class="rSeatSlot rSeatS" data-seat="2"></div>
+      <div class="rSeatSlot rSeatW" data-seat="3" data-page-node-id="sCdssHq6kZC2g4YcybT5dO"></div>
+      <div class="rSeatSlot rSeatE" data-seat="1" data-page-node-id="3EUh4NI0Q4RPSdzIUGKbKC"></div>
+      <div class="rSeatSlot rSeatS" data-seat="2" data-page-node-id="CxZJ5WJCDrWHbtl56PtHG5"></div>
     </div>
-    <div class="rStatus" id="rStatus"></div>
-    <button class="hBtn pri hide" id="rStart">开始游戏</button>
-    <button class="hBtn multi" id="rReady">准备</button>
-    <button class="hBtn hide" id="rCfg">游戏设置</button>
-    <button class="hBtn danger hide" id="rClose">关闭房间</button>
-    <button class="hBack" id="rLeave">退出房间</button>
+    <div class="rStatus" id="rStatus" data-page-node-id="iBrlwimSgb9aUOEXZZbMUg"></div>
+    <button class="hBtn pri hide" id="rStart" data-page-node-id="mbfrJ4ZRiAKlrFcuyRBzLB">开始游戏</button>
+    <button class="hBtn multi" id="rReady" data-page-node-id="eXnEReS2mUd1jp1leqfFRp">准备</button>
+    <button class="hBtn hide" id="rCfg" data-page-node-id="DWBxHgcgB49zJFfjG5h6in">游戏设置</button>
+    <button class="hBtn danger hide" id="rClose" data-page-node-id="oDQ2WAFkc2EPJ7uqTagRFD">关闭房间</button>
+    <button class="hBack" id="rLeave" data-page-node-id="PZolnBY1G4jGq8rGQA4Xz3">退出房间</button>
   </div>
 </div><!-- /#home -->
 
-<div id="app">
-  <div class="topbar">
-    <span class="gname" id="gname">第 1 局</span>
-    <span id="roundinfo">东风 · 庄家 你</span>
-    <span class="sp"></span>
-    <span id="huangfanTag"></span>
-    <button class="iconbtn" id="btnHist" title="历史记录">记</button>
-    <button class="iconbtn" id="btnRule">?</button>
-    <button class="iconbtn" id="btnSet">⚙</button>
+<div id="app" data-page-node-id="keDzkr1sB8bzq5wlIJrGII">
+  <div class="topbar" data-page-node-id="aovWvuvv7ue9Th9aeiVIio">
+    <span class="gname" id="gname" data-page-node-id="RGjdtjsIWWIhaeoNKFK6gw">第 1 局</span>
+    <span id="roundinfo" data-page-node-id="N9AcGEmhubeizLK0xdH5Oa">东风 · 庄家 你</span>
+    <span class="sp" data-page-node-id="lgpIdelU9jtHG2oTkDcfp2"></span>
+    <span id="huangfanTag" data-page-node-id="lJGjSBrvPvLh7ACB7AcO6O"></span>
+    <button class="iconbtn" id="btnHist" title="历史记录" data-page-node-id="B6OufWgedNDb72YCXLdqwz">记</button>
+    <button class="iconbtn" id="btnRule" data-page-node-id="fykiMXDqkESJQwyXlEEn4s">?</button>
+    <button class="iconbtn" id="btnSet" data-page-node-id="4XwiYiZZDlHywKVSmdOTuF">⚙</button>
   </div>
 
-  <div class="hud">
-    <div class="row1">
-      <span class="who"><span class="seat" id="myWind">东</span><span id="myName">你</span></span>
-      <span class="sp"></span>
-      <span class="knockTag off" id="knockTag">未敲 · 不能胡</span>
+  <div class="hud" data-page-node-id="iN4HcKBoQfwapmYkjkEZE7">
+    <div class="row1" data-page-node-id="yqIGzs8sICbb3a58bEWiFa">
+      <span class="who" data-page-node-id="GdCJF0gEMtJRNy0CCYRd8y"><span class="seat" id="myWind" data-page-node-id="I6uDTbDWg6U0hlF4ZiMS2B">东</span><span id="myName" data-page-node-id="BU9zA1QpU5APu6oSJDLyj5">你</span></span>
+      <span class="sp" data-page-node-id="J6fC28SlmFBONq6OJaoilg"></span>
+      <span class="knockTag off" id="knockTag" data-page-node-id="RPfdssz8rQ5jnnzhbmR2Cx">未敲 · 不能胡</span>
     </div>
-    <div class="metrics">
-      <div class="metric di"><div class="k">底（花）</div><div class="v" id="mDi">2</div></div>
-      <div class="metric fan"><div class="k">番</div><div class="v" id="mFan">—</div></div>
-      <div class="metric sc"><div class="k">可得（分）</div><div class="v" id="mScore">—</div></div>
-      <div class="metric cap"><div class="k">封顶</div><div class="v" id="mCap">80</div></div>
+    <div class="metrics" data-page-node-id="ftoX8j7APt5ApYYsGsrPMD">
+      <div class="metric di" data-page-node-id="KoNnqFSVhuBHmeFdcpLQMk"><div class="k" data-page-node-id="YLK9Gm6MsrSNnwNSiY5vgI">底（花）</div><div class="v" id="mDi" data-page-node-id="UEhom4PW7MjDQuJHW9ZNDW">2</div></div>
+      <div class="metric fan" data-page-node-id="1HcdikWFFmQ8sWhIafGCUr"><div class="k" data-page-node-id="JgdkAbYfWz1PmtmFyWrWmi">番</div><div class="v" id="mFan" data-page-node-id="leU9ftgq3DRovvCobmtHGQ">—</div></div>
+      <div class="metric sc" data-page-node-id="ceAGPY6077OAXvqEN2ZtUk"><div class="k" data-page-node-id="6fDBwoc59d6eW8xry36oEM">可得（分）</div><div class="v" id="mScore" data-page-node-id="wNVhbftOA3fhhKuCmk5B3t">—</div></div>
+      <div class="metric cap" data-page-node-id="s25ra7DU9GQS92sLr88M6I"><div class="k" data-page-node-id="Jk0SirZUiTT0CpNfOfLof5">封顶</div><div class="v" id="mCap" data-page-node-id="r6nsVn3tvT0TCyd00mvkCX">80</div></div>
     </div>
   </div>
 
-  <div class="board">
+  <div class="board" data-page-node-id="NnkbHd3xvzmLaj3yK0zRnU">
     <!-- 北 · 对家 -->
-    <div class="seat seatN">
-      <div class="nm" id="nm2"></div>
-      <div class="hstack" id="bk2"></div>
-      <div class="mrow" id="ml2"></div>
+    <div class="seat seatN" data-page-node-id="01IavPhokmQWg0NroD2YSu">
+      <div class="nm" id="nm2" data-page-node-id="OhRKf1AHaFkLntX5T6sSZl"></div>
+      <div class="hstack" id="bk2" data-page-node-id="o0gYd51neQJDjlDLBeKDGs"></div>
+      <div class="mrow" id="ml2" data-page-node-id="PvqXZ4OJ2vD8Q6retiwyNE"></div>
     </div>
 
-    <div class="boardMid">
+    <div class="boardMid" data-page-node-id="iIWXKkQQ4zeAnllSIv1rmb">
       <!-- 西 · 上家 -->
-      <div class="seat seatW">
-        <div class="nmV" id="nm3"></div>
-        <div class="vstack" id="bk3"></div>
-        <div class="mcol" id="ml3"></div>
+      <div class="seat seatW" data-page-node-id="KmLEKbkK816b4j1LCihwVt">
+        <div class="nmV" id="nm3" data-page-node-id="ajAf52U5wP0WfHPTYZtaG9"></div>
+        <div class="vstack" id="bk3" data-page-node-id="L5kdarFYeSEX21zODVTZDp"></div>
+        <div class="mcol" id="ml3" data-page-node-id="oAvlxNpWcF81mxYMDbwEQb"></div>
       </div>
 
       <!-- 中央：牌河 + 桌心 -->
-      <div class="mid">
-        <div class="river rh" id="rvN"></div>
-        <div class="rowmid2">
-          <div class="river rv" id="rvW"></div>
-          <div class="core">
-            <div class="diceline" id="diceLine"></div>
-            <div class="dial">
-              <div class="dw n" id="dwN">东</div>
-              <div class="dw w" id="dwW">东</div>
-              <div class="dw e" id="dwE">东</div>
-              <div class="dw s" id="dwS">东</div>
-              <div class="ctr"><div class="cd" id="cdTxt">——</div></div>
+      <div class="mid" data-page-node-id="ssRarmTD5XfGZLXgbHwCDH">
+        <div class="river rh" id="rvN" data-page-node-id="FoKbrGnUIhphA79KonomFO"></div>
+        <div class="rowmid2" data-page-node-id="MObuB9lEOH6JJP9PYjBTZH">
+          <div class="river rv" id="rvW" data-page-node-id="ijq7waMKYEqnVfRWn8wyOL"></div>
+          <div class="core" data-page-node-id="hLqxEdxO3DFCz1deOvvSRt">
+            <div class="diceline" id="diceLine" data-page-node-id="F0ZR3kgNme0Ne3pFG59373"></div>
+            <div class="dial" data-page-node-id="MZ4qVkOE79FlO0blLE2VUh">
+              <div class="dw n" id="dwN" data-page-node-id="2SUZIlLU5fYWeImwQHDF8m">东</div>
+              <div class="dw w" id="dwW" data-page-node-id="KMnhSAK6tC8zPiO6GiT3Dw">东</div>
+              <div class="dw e" id="dwE" data-page-node-id="QOjPNlmLpEtBGBK8EHY2M0">东</div>
+              <div class="dw s" id="dwS" data-page-node-id="SDWiD15evyvYNsRHqnD0rx">东</div>
+              <div class="ctr" data-page-node-id="0iVKsRLFKMOsPAvo1h7RjU"><div class="cd" id="cdTxt" data-page-node-id="cqxH6pAW28uBm9XTCV7Fcn">——</div></div>
             </div>
-            <div class="logbar">
-              <div class="log" id="log"></div>
-              <span class="logmore" id="btnLog">全部手牌记录</span>
+            <div class="logbar" data-page-node-id="2REbaav9pOMoEXLC4d01lI">
+              <div class="log" id="log" data-page-node-id="nlXHVp8KPPPBv2ES8CaAH5"></div>
+              <span class="logmore" id="btnLog" data-page-node-id="BCWrt5ueLHetll5ICyj2Jq">全部手牌记录</span>
             </div>
           </div>
-          <div class="river rv" id="rvE"></div>
+          <div class="river rv" id="rvE" data-page-node-id="6iK07v0kFRjM24FrCmtVfP"></div>
         </div>
-        <div class="river rh" id="rvS"></div>
+        <div class="river rh" id="rvS" data-page-node-id="VmVlapUpJAVwTPhyZNqFh8"></div>
       </div>
 
       <!-- 东 · 下家 -->
-      <div class="seat seatE">
-        <div class="nmV" id="nm1"></div>
-        <div class="vstack" id="bk1"></div>
-        <div class="mcol" id="ml1"></div>
+      <div class="seat seatE" data-page-node-id="uigzWFTg1XbLhxB0FRYqp2">
+        <div class="nmV" id="nm1" data-page-node-id="Rnjh3NxqKlNM3PyGeFETgq"></div>
+        <div class="vstack" id="bk1" data-page-node-id="fUiER9nMNRYHK8MJyFZHS7"></div>
+        <div class="mcol" id="ml1" data-page-node-id="4kzvfWXvugB9OYzW4JSz5E"></div>
       </div>
     </div>
 
     <!-- 南 · 我 -->
-    <div class="seat seatS">
-      <div class="mrow" id="ml0"></div>
-      <div class="hand" id="hand"></div>
-      <div class="nm" id="nm0"></div>
+    <div class="seat seatS" data-page-node-id="43ybMA9cHcqBkX2CSSA93a">
+      <div class="mrow" id="ml0" data-page-node-id="51y2o8PGFmvKxLwmiWji2X"></div>
+      <div class="hand" id="hand" data-page-node-id="tEIHABZJKedk0sCAHSbExC"></div>
+      <div class="nm" id="nm0" data-page-node-id="yhhDis4TTiDOdI4ibIHCZm"></div>
     </div>
   </div>
 
-  <div class="hint" id="hint"></div>
+  <div class="hint" id="hint" data-page-node-id="iT5a28baCbYH2RMRIMjedB"></div>
   <!-- v1.2.3：听牌时的「听牌中 → xx 牌」挪到这里（页面底部边框下方，与 hint 同列） -->
-  <div class="tingline" id="tingLine"></div>
-  <div class="acts" id="acts"></div>
+  <div class="tingline" id="tingLine" data-page-node-id="Chfr5N4v2CzZoVJri2TryK"></div>
+  <div class="acts" id="acts" data-page-node-id="chySx0rv0Im0ICtaLJYnPr"></div>
 </div>
 
-<div id="toast"></div>
+<div id="toast" data-page-node-id="CP5fFumNIMegbRXKdTKLfZ"></div>
 
-<div class="mask hide" id="mask"><div class="sheet" id="sheet"></div></div>
+<div class="mask hide" id="mask" data-page-node-id="cjAN9nOz7jkYisc8o8yIks"><div class="sheet" id="sheet" data-page-node-id="ghAgiLycE5gLK0NFBGvF2a"></div></div>
+</div><!-- /#pcz -->
 
 <script>
 "use strict";
@@ -1061,6 +1095,7 @@ const CFG = {
   lajiHu: true,        // 垃圾胡（推倒胡/平胡）：非传统敲麻，开着才认普通顺子牌型
   autoKnock: false,
   autoHu: false,       // v1.2.15 自动胡牌：开=能胡就自动胡（含敲定后点炮「有和必和」）；关=自摸/点炮都出「胡/过」按钮自己决定
+  cd: 15,              // v1.2.27 出牌倒计时（秒）：15/30，0=无；联机房规则（房主设定），且开局时真人 ≥2 才生效；1 真人对机器人不限时
   speed: 1        // 0.6 慢 / 1 中 / 1.8 快
 };
 let SETDRAFT = null;   // 等待页房主编辑规则时的暂存草稿；null 表示未在草稿态
@@ -1568,6 +1603,20 @@ function renderHand(){
   box.onclick = (e) => {
     const t = e.target;
     if (t !== box && !(t.classList && (t.classList.contains('drawgap') || t.classList.contains('ting')))) return;
+    // v1.2.30：选中牌抬高 10px 后，牌面下方的「原位置空区」也视作第二次点击 = 打出该牌
+    //（手点空处不再把牌收回去；.tile 有 overflow:hidden，伪元素延伸区会被裁，所以在这里按坐标判定）。
+    // 判定窗口 = 抬高牌视觉底边之下 14px（10px 抬高量 + 手牌底部 4px 余量）、左右不超出牌宽 ±2px
+    if (SEL !== null && canPick && t === box){
+      const sel = box.querySelector('.tile.sel');
+      if (sel){
+        const b = sel.getBoundingClientRect();
+        if (e.clientX >= b.left - 2 && e.clientX <= b.right + 2 && e.clientY > b.bottom && e.clientY <= b.bottom + 14){
+          const v = SEL;
+          SEL = null; SELIDX = null; resolvePend(v);
+          return;
+        }
+      }
+    }
     if (SEL !== null){ SEL = null; SELIDX = null; renderHand(); renderRiver(); renderMe(); renderSeats(); }
   };
   const arr = p.hand.slice();
@@ -1651,7 +1700,10 @@ function renderSeats(){
     const ml = $('ml' + i);
     ml.className = (vert ? 'mcol ' : 'mrow ') + 'fx';
     renderFx(ml, p, vert, i === 1);
+    fitFx(ml);          // v1.2.29：花/副露超长自动缩小
   }
+  // v1.2.28：重建牌背后立即重算槽位高度——点手牌高亮等所有渲染路径都不再产生「展开/收拢」跳动
+  fitBacks();
 }
 // 吃/碰/明杠的来源箭头：屏幕方向指向打出这张牌的那一家
 // 我在下方：对家(seat2)=上，下家(seat1)=右，我(seat0)=下，上家(seat3)=左
@@ -1751,6 +1803,7 @@ function renderMe(){
   const ml = $('ml0');
   ml.className = 'mrow fx';
   renderFx(ml, p, false, false);
+  fitFx(ml);          // v1.2.29：花/副露超长自动缩小
 }
 
 /* ---------- HUD：底 / 番 / 得分 ---------- */
@@ -2002,6 +2055,8 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
     if (a && a.children.length) fitActs();
     fitRivers();   // v1.2.13：窗口尺寸变化时重算左右牌河高度
     fitLog();      // v1.2.14：窗口尺寸变化时重算手牌记录行数
+    fitBacks();    // v1.2.29：左右家手牌槽位随窗口重算
+    for (const i of [0, 1, 2, 3]) fitFx($('ml' + i));   // v1.2.29：花/副露缩放随窗口重算
   });
 }
 function fitBacks(){
@@ -2011,17 +2066,45 @@ function fitBacks(){
       if (!n) continue;
       const tile = bk.children[0].firstChild;       // 牌的实际高度即 --th
       const th = (tile && tile.offsetHeight) || 33; // 上下 padding 各 th/2，合计 th
-      const avail = bk.clientHeight - th - 3;
+      // v1.2.28：可用高度改量座位容器（原来量牌背自身内容高度，会越压越扁、永远重叠）
+      // v1.2.29：槽位目标 18 → 14px——用户反馈左右家手牌展开后「分的有点开」，
+      // 改成与对家同密度：对家 24px 牌 margin -3px（中心距 21 = 87.5%），
+      // xs 牌旋转视觉高 16 × 0.875 = 14px，紧拢略叠；空间不够仍按比例压缩（下限 4）
+      const seat = bk.parentNode;
+      const avail = (seat && seat.clientHeight ? seat.clientHeight : bk.clientHeight) - th - 3;
       if (avail <= 8) continue;
-      const h = Math.max(4, Math.min(15, Math.floor(avail / n)));
+      const h = Math.max(4, Math.min(14, Math.floor(avail / n)));
       for (const s of bk.children) s.style.height = h + 'px';
     }
+  }
+}
+/* v1.2.29：花/吃碰杠排超长自动缩小——量容器可用宽高，按比例压 --fxs（下限 0.5）。
+   每次 render 先复位 1 再测（SEL 高亮等重渲染路径结果稳定）；
+   .fx 的 overflow 已改 visible（高亮框不被裁），溢出防护完全靠这里。
+   压缩因子是「相对当前档位」的乘法下调（单调收敛）——
+   若用绝对比值，内容快放下时比值≈1 会把 scale 又弹回去、来回振荡 */
+function fitFx(box){
+  if (!box || !box.children.length) return;
+  box.style.setProperty('--fxs', 1);
+  if (box.scrollWidth - box.clientWidth <= 1 && box.scrollHeight - box.clientHeight <= 1) return;
+  let cur = 1;
+  for (let k = 0; k < 3; k++){
+    const r = Math.max(0.5, Math.min(
+      box.clientWidth / Math.max(box.scrollWidth, 1),
+      box.clientHeight / Math.max(box.scrollHeight, 1)) - 0.02);
+    cur = Math.max(0.5, Math.floor(cur * r * 100) / 100);
+    box.style.setProperty('--fxs', cur);
+    if (box.scrollWidth - box.clientWidth <= 1 && box.scrollHeight - box.clientHeight <= 1) break;
   }
 }
 /* v1.2.13：左右牌河（rvE/rvW）高度自适应——按 rowmid2 可用高度算行数，
    页面高 → 行数多（上限 RV_ROWS_MAX），页面矮 → 行数少（下限 RV_ROWS_MIN），
    保证不与上下（南北家）牌河重叠；槽高 17px + 1px gap */
 const RV_ROWS_MIN = 10, RV_ROWS_MAX = 17;
+/* v1.2.28：牌河容量目标——单家一局最多要摆下的弃牌数（含吃碰后多打的长局），取 30 留裕量。
+   容量 = 行数 × 排数：两排装不下（PC 布局高度被压低、行数变少时）就自动加宽到三排。
+   三排宽度 = 槽宽 21 × 3 + 列间隙 1 × 2 + 左右边框 2 = 67px */
+const RV_NEED = 30;
 function fitRivers(){
   const row = document.querySelector('.rowmid2');
   if (!row) return;
@@ -2029,9 +2112,38 @@ function fitRivers(){
   // 否则算出的行数放不下实际槽位，牌河底部会被 overflow 裁掉
   const avail = row.clientHeight;
   const rows = Math.max(RV_ROWS_MIN, Math.min(RV_ROWS_MAX, Math.floor((avail - 4) / 16)));
+  // v1.2.28：按当前行数（=左右家视角的牌河长度）与槽位尺寸推算两排是否放得下，放不下自动变三排；
+  // v1.2.30：三排只在宽屏（PC）启用——手机/窄窗口恒两排（屏幕窄，三排既放不下也不好看）
+  const narrow = document.documentElement.clientWidth < 700;
+  const cols = (narrow || rows * 2 >= RV_NEED) ? 2 : 3;
+  const wpx = cols * 21 + (cols - 1) + 2;
   for (const id of ['rvE', 'rvW']){
     const el = $(id);
-    if (el) el.style.height = (rows * 16 - 1) + 'px';
+    if (!el) continue;
+    el.style.height = (rows * 16 - 1) + 'px';
+    el.style.width = wpx + 'px';
+    el.style.flexBasis = wpx + 'px';
+  }
+  // v1.2.30：上下牌河（rvN/rvS）宽度收口——左缘对齐左家牌河内缘、右缘对齐右家牌河内缘
+  //（以我的视角，四家牌河围成方形）；下限 = 两排放满 RV_NEED 张的宽度（保证容量，窄屏触底时退回占满）。
+  // 上下牌河默认被 .mid 拉伸占满整行，PC 上显得过长；这里改成显式宽度 + margin auto 居中
+  const wW = $('rvW'), wE = $('rvE');
+  const span = row.clientWidth - (wW ? wW.offsetWidth : 45) - (wE ? wE.offsetWidth : 45);
+  // 每排放 RV_NEED/2 张：牌进距 = xs 牌 16px + 间隙 1px = 17；内宽 n*17-1，加 padding 4 + 边框 2
+  const capW = Math.ceil(RV_NEED / 2) * 17 - 1 + 6;
+  const rhW = Math.max(span, capW);
+  for (const id of ['rvN', 'rvS']){
+    const el = $(id);
+    if (!el) continue;
+    if (rhW < row.clientWidth - 2){
+      el.style.width = rhW + 'px';
+      el.style.marginLeft = 'auto';
+      el.style.marginRight = 'auto';
+    } else {
+      el.style.width = '';
+      el.style.marginLeft = '';
+      el.style.marginRight = '';
+    }
   }
 }
 /* v1.2.14：手牌记录模块窗口级自适应——按 core 可用高度算行数（0~3）并固定高度。
@@ -2990,8 +3102,9 @@ function seg(id, opts, cur, fn, ro){
       : '<button class="' + (o.v === cur ? 'on' : '') + '" onclick="' + fn + '(' + (typeof o.v === 'number' ? o.v : "'" + o.v + "'") + ')">' + o.l + '</button>'
   ).join('') + '</div>';
 }
-/* 规则项主体：联机时房主可在等待页改，其他情况只读 */
-function cfgRows(ro){
+/* 规则项主体：联机时房主可在等待页改，其他情况只读。
+   v1.2.27：出牌倒计时只在联机房间显示（单机 1 真人不限时，该设置无意义） */
+function cfgRows(ro, inRoom){
   const c = SETDRAFT || CFG;   // 草稿态（等待页房主编辑中）读草稿，否则读已生效规则
   return (
     '<div class="setrow"><div class="lb">底（底花）<small>胡牌时的基础花数</small></div>' +
@@ -3010,6 +3123,10 @@ function cfgRows(ro){
       seg('sgKnock', [{l:'开',v:1},{l:'关',v:0}], c.autoKnock ? 1 : 0, 'setCfg5', ro) + '</div>' +
     '<div class="setrow"><div class="lb">自动胡牌<small>开：能胡就自动胡（含点炮「有和必和」）；关：自摸/点炮都出「胡/过」按钮自己决定</small></div>' +
       seg('sgHu', [{l:'开',v:1},{l:'关',v:0}], c.autoHu ? 1 : 0, 'setCfg9', ro) + '</div>' +
+    (inRoom
+      ? '<div class="setrow"><div class="lb">出牌倒计时<small>轮到你决策时的思考时限，超时自动出牌 / 自动过；无 = 不限时。仅联机且 2 位真人以上时生效，1 真人对机器人不限时</small></div>' +
+        seg('sgCd', [{l:'15秒',v:15},{l:'30秒',v:30},{l:'无',v:0}], c.cd, 'setCfg10', ro) + '</div>'
+      : '') +
     '<div class="setrow"><div class="lb">机器人速度</div>' +
       seg('sgSpeed', [{l:'慢',v:0.6},{l:'中',v:1},{l:'快',v:1.8}], c.speed, 'setCfg6', ro) + '</div>'
   );
@@ -3132,6 +3249,7 @@ function setCfg6(v){ setCfgKey('speed', v, false); }
 function setCfg7(v){ setCfgKey('sevenPairs', !!v, false); }
 function setCfg8(v){ setCfgKey('lajiHu', !!v, true); }
 function setCfg9(v){ setCfgKey('autoHu', !!v, false); }
+function setCfg10(v){ setCfgKey('cd', Number(v), false); }
 function resetAll(){
   closeSheet();
   G.abort = false;
@@ -3220,6 +3338,23 @@ function openRule(){
    投影（view）经 applyView 座位重映射后直接物化进全局 G：
    「我」永远是本地 seat 0（南），1=下家 2=对家 3=上家 —— 渲染层零改动。
    ======================================================================== */
+
+/* ---------------- v1.2.26 PC 自适应整体放大（客户端专属，不进引擎） ----------------
+   按窗口大小算等比放大倍率写入 CSS 变量 --pz：z = min(窗高/680, 窗宽/640, 2)，低于 1 归 1。
+   手机端宽高都小于设计基准 → 恒为 1，渲染与旧版完全一致；PC 上整体放大（最大 2 倍）。
+   transform 缩放不改变任何布局计算值，fitRivers / fitLog / fitBacks / seatToast 零适配。 */
+(function(){
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;   // 服务端 / 单测沙箱无 window，直接跳过
+  function zf(){
+    const w = window.innerWidth, h = window.innerHeight;
+    let z = Math.min(h / 680, w / 640, 2);
+    z = Math.max(1, Math.round(z * 100) / 100);
+    document.documentElement.style.setProperty('--pz', z);
+  }
+  zf();
+  if (typeof window.addEventListener === 'function') window.addEventListener('resize', zf);
+})();
+
 /* 吃/碰/杠/敲：提示落在**当事人自己的牌河区域**正中，一眼就知道是谁干的。
    用 fixed 定位而不是塞进 .river 里 —— .river 有 overflow:hidden，宽高又只有 48~52px，
    直接塞进去会被裁掉。改为量出牌河中心点，浮窗贴上去。
@@ -3499,8 +3634,10 @@ function netLeftSec(){
   const l = NET.askLeft - (Date.now() - NET.askAt);
   return l > 0 ? Math.ceil(l / 1000) : 0;
 }
-/* 圆心倒计时（v1.2.15）：纯数字、黄色高亮，无其他文字；无决策或单机（机器人局）显示「——」。
-   数据源不变：联机 = 服务端下发的剩余毫秒（netLeftSec），四家同一个数 */
+/* 圆心倒计时（v1.2.15）：纯数字、黄色高亮，无其他文字；无决策或单机（机器人局）显示留空。
+   数据源唯一：联机 = 服务端下发的剩余毫秒（netLeftSec），四家同一个数。
+   v1.2.27：出牌倒计时只在「联机且 ≥2 个真人」的房间由服务端执行；1 真人（单机/带机器人）不限时，
+   服务端下发 askLeft=0 → 圆心自然留空，客户端不需要单独的单机倒计时。 */
 function renderTurnClock(){
   const el = $('cdTxt');
   if (!el) return;
@@ -3872,6 +4009,7 @@ window.netCloseRoom = netCloseRoom;
 window.netKick = netKick;
 window.setCfg = setCfg; window.setCfg2 = setCfg2; window.setCfg3 = setCfg3;
 window.setCfg4 = setCfg4; window.setCfg5 = setCfg5; window.setCfg6 = setCfg6; window.setCfg7 = setCfg7; window.setCfg8 = setCfg8; window.setCfg9 = setCfg9;
+window.setCfg10 = setCfg10;
 window.resetAll = resetAll;
 </script>
 </body>
