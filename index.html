@@ -146,7 +146,11 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
    fslot 尺寸从牌变量推导（视觉尺寸 +2px 富余给高亮框），不再用写死的 26×19
    （原尺寸 > 列宽 21px，牌被容器裁 4~5px、高亮框残缺的根因） */
 .mcol.fx{--tw:calc(13px * var(--fxs));--th:calc(18px * var(--fxs))}
-.mcol.fx .tile{--tw:calc(13px * var(--fxs));--th:calc(18px * var(--fxs))}
+/* v1.2.31：圆角随牌等比缩小——基础 .tile 的 5px 圆角是按 18px 宽的牌定的，
+   13px 宽的小牌原样沿用，圆角占比从 28% 涨到 38%，四个角就明显比别家的牌圆。
+   与旋转无关（90° 旋转不改变圆角观感），这里等比缩到 3.5px（≈27%，与我这排一致） */
+.mcol.fx .tile{--tw:calc(13px * var(--fxs));--th:calc(18px * var(--fxs));border-radius:calc(3.5px * var(--fxs))}
+.mcol.fx .tile:before{border-radius:calc(3px * var(--fxs))}
 /* 东家：他视角「从左到右」= 屏幕从下到上 → 花组在屏幕下端、副露在上方，组内牌也从下往上 */
 #ml1.fx{flex-direction:column-reverse}
 #ml1.fx .fg,#ml1.fx .mg,#ml1.fx .meld{flex-direction:column-reverse}
@@ -179,8 +183,11 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* 自己的听章放到手牌堆的垂直中心，不要顶在容器上半空 */
 .hand .ting{top:auto;bottom:calc(var(--th)/2 - var(--bkSlotW)/2);transform:translateX(-50%)}
 /* 竖排（东西家）花/副露槽：牌旋转 90° 后的占位盒
-   v1.2.29：宽高从牌变量推导 = 旋转后视觉尺寸（--th×--tw）+ 2px 高亮富余，随 --fxs 同步缩小 */
-.fslot{position:relative;flex:0 0 auto;width:calc(var(--th) + 2px);height:calc(var(--tw) + 2px)}
+   v1.2.29：宽高从牌变量推导 = 旋转后视觉尺寸（--th×--tw），随 --fxs 同步缩小
+   v1.2.31：去掉原先的 +2px「高亮富余」——每边多出的 1px 叠加 flex gap 2px，
+   实际牌间距变成 4px（我的横排只有 2px），看着明显松散。.fx 已改 overflow:visible，
+   高亮框不会被裁，占位盒等于视觉尺寸即可，间距与我完全一致 */
+.fslot{position:relative;flex:0 0 auto;width:var(--th);height:var(--tw)}
 .fslot .tile{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);margin:0}
 .fslot.r .tile{transform:translate(-50%,-50%) rotate(-90deg)}
 /* 牌河竖排槽（东西家）：占位 = 视觉，避免旋转牌重叠/被裁
@@ -477,7 +484,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   :root{--tw:21px;--th:29px;--bkSlotW:19px}
   .dial{width:min(100px,22vw)}
   .fx .tile{--tw:16px;--th:22px}
-  .fslot{width:23px;height:17px}
+  .fslot{width:22px;height:16px}
 }
 /* v1.2.30：窄屏手牌溢出——14 张手牌（24px 牌 + 间隙 + 摸牌空位）总宽约 369px，
    屏幕可用手牌宽度 < 该值时最后一张会被 .hand 的 overflow:hidden 裁掉。
@@ -501,7 +508,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   :root{--tw:19px;--th:26px}
   .dial{width:min(88px,22vw)}
   .fx .tile{--tw:15px;--th:21px}
-  .fslot{width:22px;height:16px}
+  .fslot{width:21px;height:15px}
 }
 
 /* ---------- 首页 / 多人大厅 / 房间 ---------- */
@@ -603,7 +610,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.30</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.31</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
