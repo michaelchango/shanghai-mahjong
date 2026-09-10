@@ -1,6 +1,6 @@
-// m45：荒番（流局倍数）累积与递减规则（v1.2.25）
-//  规则（README）：上一局流局 → 得分与封顶 ×2^荒番数；有人胡后荒番 −1
-//  本测试用 Node 直接调 finish()，验证各胡牌路径（自摸/点炮/八花齐）后荒番是否按规则递减。
+// m45：荒番（流局倍数）累积与清零规则（v1.2.25 建立 / v1.2.35 修正为「用掉即清零」）
+//  规则（README）：上一局流局 → 得分与封顶 ×2^荒番数；有人胡牌用掉后，下一局清零为 0
+//  本测试用 Node 直接调 finish()，验证各胡牌路径（自摸/点炮/一炮多响）后荒番是否清零。
 //  背景：用户反馈单机下「机器人胡牌时流局倍数没清掉」，此处做可复现断言。
 const fs = require('fs');
 const path = require('path');
@@ -69,13 +69,13 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  FAIL: ' +
   r = await global.__liuju(3);
   ok('荒番封顶 3（不超 HUANG_FAN_MAX）', r.hf === 3, r.hf);
 
-  // 2) 机器人自摸 → 荒番 −1
+  // 2) v1.2.35：机器人自摸 → 荒番清零（不再 −1）
   r = await global.__zimo(1, 2);
-  ok('机器人自摸 → 荒番 2→1', r.hf === 1, r.hf);
+  ok('机器人自摸 → 荒番 2→0（用掉即清零）', r.hf === 0, r.hf);
 
-  // 3) 机器人胡点炮 → 荒番 −1
+  // 3) v1.2.35：机器人胡点炮 → 荒番清零
   r = await global.__dianpao(1, 0, 2);
-  ok('机器人点炮胡 → 荒番 2→1', r.hf === 1, r.hf);
+  ok('机器人点炮胡 → 荒番 2→0（用掉即清零）', r.hf === 0, r.hf);
 
   // 4) 荒番为 0 时胡牌不应变成负数
   r = await global.__zimo(1, 0);
@@ -88,13 +88,13 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  FAIL: ' +
   const per1 = dbl.rec.delta[0];
   ok('荒番 ×2 生效：单份翻倍', per1 === per0 * 2, { per0, per1 });
 
-  // 6) 一炮多响（两家机器人胡）也只 −1
+  // 6) v1.2.35：一炮多响（两家机器人胡）也是「用掉即清零」
   await global.__reset(2);
   await global.__finish({ type:'dianpao',
     wins:[{ idx:1, ev:{ type:'平胡', base:0, total:0 }, tile:4, diaoche:false, robKong:false },
           { idx:2, ev:{ type:'平胡', base:0, total:0 }, tile:4, diaoche:false, robKong:false }],
     from: 0 });
-  ok('一炮多响 → 荒番 2→1（只减一次）', global.__G().huangfan === 1, global.__G().huangfan);
+  ok('一炮多响 → 荒番 2→0（用掉即清零）', global.__G().huangfan === 0, global.__G().huangfan);
 
   console.log(`\n通过 ${pass} / 失败 ${fail}`);
   process.exit(fail ? 1 : 0);
