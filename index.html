@@ -610,7 +610,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.31</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.32</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -2112,45 +2112,60 @@ const RV_ROWS_MIN = 10, RV_ROWS_MAX = 17;
    容量 = 行数 × 排数：两排装不下（PC 布局高度被压低、行数变少时）就自动加宽到三排。
    三排宽度 = 槽宽 21 × 3 + 列间隙 1 × 2 + 左右边框 2 = 67px */
 const RV_NEED = 30;
+/* v1.2.32：牌河尺寸常量——与 .river / .rvslot 的 CSS 一一对应，算宽度时直接用，
+   保证「容器宽 = 整数张牌 + 整数个间隙 + 内边距 + 边框」，码满一排不留零头空白 */
+const RV_GAP = 1;      // .river 的 gap
+const RV_PAD = 2;      // 上下牌河 .river 的 padding（左右牌河 .rv 是 1px 0，左右内边距为 0）
+const RV_BD = 1;       // .river 的 border
+const RV_SLOT_W = 21, RV_SLOT_H = 15;   // 左右牌河槽位 .rvslot
+const RV_TILE_W = 16, RV_TILE_H = 22;   // 上下牌河牌 .tile.xs（开局无牌可量时的兜底）
+/* 整数张 → 容器外框宽：n 张牌 + (n-1) 个间隙 + 左右内边距 + 左右边框 */
+function riverW(n, tileW){
+  return n * tileW + (n - 1) * RV_GAP + 2 * RV_PAD + 2 * RV_BD;
+}
 function fitRivers(){
   const row = document.querySelector('.rowmid2');
   if (!row) return;
   // v1.2.25：行高常量必须与 .rvslot 的槽位高度保持一致（槽位 15px + 1px 间隙 = 16），
   // 否则算出的行数放不下实际槽位，牌河底部会被 overflow 裁掉
+  // v1.2.32：行数与容器高度用同一个公式（内容高 = rows×槽高 + (rows-1)×间隙），
+  // 容器高 = 内容高 + 上下内边距(1×2) + 上下边框(1×2)（全局 box-sizing:border-box）。
+  // 旧写法少算这 4px，导致每行实际少放一张、牌河底部空出约 12px
   const avail = row.clientHeight;
-  const rows = Math.max(RV_ROWS_MIN, Math.min(RV_ROWS_MAX, Math.floor((avail - 4) / 16)));
+  const rows = Math.max(RV_ROWS_MIN, Math.min(RV_ROWS_MAX, Math.floor((avail - 3) / (RV_SLOT_H + RV_GAP))));
   // v1.2.28：按当前行数（=左右家视角的牌河长度）与槽位尺寸推算两排是否放得下，放不下自动变三排；
   // v1.2.30：三排只在宽屏（PC）启用——手机/窄窗口恒两排（屏幕窄，三排既放不下也不好看）
   const narrow = document.documentElement.clientWidth < 700;
   const cols = (narrow || rows * 2 >= RV_NEED) ? 2 : 3;
-  const wpx = cols * 21 + (cols - 1) + 2;
+  // v1.2.32：左右牌河宽 = 列数 × 槽宽 + 列间隙 + 左右边框（.rv 左右内边距为 0）
+  const wpx = cols * RV_SLOT_W + (cols - 1) * RV_GAP + 2 * RV_BD;
   for (const id of ['rvE', 'rvW']){
     const el = $(id);
     if (!el) continue;
-    el.style.height = (rows * 16 - 1) + 'px';
+    el.style.height = (rows * (RV_SLOT_H + RV_GAP) - RV_GAP + 4) + 'px';   // +4 = 上下 padding 2 + 边框 2
     el.style.width = wpx + 'px';
     el.style.flexBasis = wpx + 'px';
   }
-  // v1.2.30：上下牌河（rvN/rvS）宽度收口——左缘对齐左家牌河内缘、右缘对齐右家牌河内缘
-  //（以我的视角，四家牌河围成方形）；下限 = 两排放满 RV_NEED 张的宽度（保证容量，窄屏触底时退回占满）。
-  // 上下牌河默认被 .mid 拉伸占满整行，PC 上显得过长；这里改成显式宽度 + margin auto 居中
-  const wW = $('rvW'), wE = $('rvE');
-  const span = row.clientWidth - (wW ? wW.offsetWidth : 45) - (wE ? wE.offsetWidth : 45);
-  // 每排放 RV_NEED/2 张：牌进距 = xs 牌 16px + 间隙 1px = 17；内宽 n*17-1，加 padding 4 + 边框 2
-  const capW = Math.ceil(RV_NEED / 2) * 17 - 1 + 6;
-  const rhW = Math.max(span, capW);
+  // v1.2.32：上下牌河（rvN/rvS）宽度 = 每排整数张，不再按「内缘对齐」拉伸出一段空白
+  //   每排张数 = min(容量需求 ceil(RV_NEED/行数), 可用宽能放下的最大整数张 nmax)
+  //   宽屏：容量需求 15 张 → 宽度锁 260 居中；窄屏：触到 nmax → 取满宽，仍不留零头
+  //   （v1.2.30 的「四家围成方形」在宽屏让位于「宽度与牌精确匹配」，居中留白由 margin auto 消化）
+  const W = row.clientWidth;
+  // 牌尺寸：优先量真实牌（布局像素，不受 --pz 缩放影响），开局无牌时用常量兜底
+  const probe = document.querySelector('#rvS .tile') || document.querySelector('#rvN .tile');
+  const tw = probe ? probe.offsetWidth : RV_TILE_W;
+  const th = probe ? probe.offsetHeight : RV_TILE_H;
   for (const id of ['rvN', 'rvS']){
     const el = $(id);
     if (!el) continue;
-    if (rhW < row.clientWidth - 2){
-      el.style.width = rhW + 'px';
-      el.style.marginLeft = 'auto';
-      el.style.marginRight = 'auto';
-    } else {
-      el.style.width = '';
-      el.style.marginLeft = '';
-      el.style.marginRight = '';
-    }
+    const inner = el.clientHeight - 2 * RV_PAD - 2 * RV_BD;
+    const lines = Math.max(1, Math.floor((inner + RV_GAP) / (th + RV_GAP)));
+    const nmax = Math.max(6, Math.floor((W - 2 * RV_PAD - 2 * RV_BD + RV_GAP) / (tw + RV_GAP)));
+    const n = Math.min(Math.ceil(RV_NEED / lines), nmax);
+    const rhW = riverW(n, tw);
+    el.style.width = rhW + 'px';
+    el.style.marginLeft = 'auto';
+    el.style.marginRight = 'auto';
   }
 }
 /* v1.2.14：手牌记录模块窗口级自适应——按 core 可用高度算行数（0~3）并固定高度。
