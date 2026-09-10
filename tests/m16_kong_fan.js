@@ -71,11 +71,13 @@ global.__runDianpao = async function(){
   var realFH = finishHand; finishHand = function(h){ capB.html = h; };
   try {
     initGame(); G.kaibao = false; G.huangfan = 0;
-    G.players[0].menqing = true; G.players[0].flowers = []; G.players[0].melds = [];
+    // v1.2.36：给一张花牌——无花果只能自摸，点炮结算不该用无花果的手牌构造
+    G.players[0].menqing = true; G.players[0].flowers = [100]; G.players[0].melds = [];
     G.players[0].hand = [0,0,0, 1,1,1, 2,2,2, 13,13,13, 24, 24];  // 含炮牌 7s
     var ev = tryWin(toCounts(G.players[0].hand), G.players[0]);
     await finish({ type: 'dianpao', wins: [{ idx: 0, ev: ev, tile: 24, robKong: false, diaoche: false }], from: 1 });
-    return { html: capB.html, evType: ev ? ev.type : null, evTotal: ev ? ev.total : null, base: ev ? ev.base : null };
+    var mm = /合计<\\/span><span class="v">(\\d+) 番/.exec(capB.html || '');
+    return { html: capB.html, evType: ev ? ev.type : null, evTotal: mm ? Number(mm[1]) : null, base: ev ? ev.base : null };
   } finally { finishHand = realFH; }
 };
 
@@ -130,39 +132,43 @@ const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  FAIL: ' +
   // v1.2.12：杠算花 → 有杠必破无花果，结算不再给无花果
   ok('结算面板不含「无花果」（杠算花，已被杠破）', !(cap.finishHtml && cap.finishHtml.includes('无花果')));
   const base = res && res.ev ? res.ev.base : -1;
-  ok('牌型为碰碰胡（v1.2.23 线性番 base=2）', base === 2, base);
-  const expectTotal = base === 2 ? (cap.finishHtml && cap.finishHtml.includes('门清') ? 4 : 3) : -1;
-  ok('总番数 = 牌型 + 附加番（杠上开花，无花果已破）', res && res.ev && res.ev.total === expectTotal, res && res.ev && [res.ev.type, res.ev.total, expectTotal]);
-  ok('支付 = 底×番×unit（v1.2.23 线性，未超封顶不截断）', (() => {
-    if (!res || !res.ev) return false;
-    const di = 1 /*CFG.base*/ + (res.ev.flowers || 0);
-    const raw = di * Math.max(1, res.ev.total) * 1 /*CFG.unit*/;
-    return cap.finishHtml.includes('× ' + Math.max(1, res.ev.total)) && cap.finishHtml.includes(String(raw));
+  ok('牌型为碰碰胡（v1.2.36 兜底档：牌型番 1）', base === 1, base);
+  // v1.2.36：总番 = 兜底 1 + 牌型 1 + 附加番（杠上开花 1，门清可能另 +1；杠算花已破无花果）
+  const capFan = (() => { const m = /合计<\/span><span class="v">(\d+) 番/.exec(cap.finishHtml || ''); return m ? Number(m[1]) : null; })();
+  const expectTotal = 2 + 1 + (cap.finishHtml && cap.finishHtml.includes('门清') ? 1 : 0);
+  ok('总番数 = 兜底+牌型+附加番（杠上开花，无花果已破）', capFan === expectTotal, [capFan, expectTotal]);
+  ok('支付 = 底×番×倍数（未超封顶不截断）', (() => {
+    const h = cap.finishHtml || '';
+    const r = /<span class="n">(\d+) × (\d+)(?: ×(\d+)\([^)]*\))?<\/span><span class="v">(\d+)<\/span>/.exec(h);
+    const p = /每家支付<\/span><span class="v">(\d+) 分/.exec(h);
+    if (!r || !p) return false;
+    const di = Number(r[1]), fan = Number(r[2]), mult = r[3] ? Number(r[3]) : 1, raw = Number(r[4]);
+    return raw === di * fan * mult && Number(p[1]) === Math.min(raw, 8 * 10 * 1 * mult);
   })());
 
-  console.log('== Part B：点炮时门清/无花果仍计入 ==');
+  console.log('== Part B：点炮时门清仍计入（无花果只能自摸，另由 m43 覆盖） ==');
   {
     const b = await global.__runDianpao();
     ok('点炮牌型成立（碰碰胡）', b.evType === '碰碰胡', b.evType);
     ok('点炮结算含「门清」', !!(b.html && b.html.includes('门清')));
-    ok('点炮结算含「无花果」', !!(b.html && b.html.includes('无花果')));
+    ok('点炮结算不含「无花果」（该手牌带花）', !!(b.html && !b.html.includes('无花果')));
     ok('点炮结算不含「杠上开花」（自摸专属）', !!(b.html && !b.html.includes('杠上开花')));
-    ok('点炮总番 = 牌型+门清+无花果', b.evTotal === b.base + 2, [b.evType, b.base, b.evTotal]);
+    ok('点炮总番 = 兜底1+牌型1+门清1', b.evTotal === 3, [b.evType, b.base, b.evTotal]);
   }
 
   console.log('== Part C：海底捞月 / 天胡 / 地胡 ctx 番 ==');
   {
     const h = await global.__runCtxFan({ kongDraw: false, haidi: true, dihu: false, tianhu: false });
     ok('海底捞月 +1 进结算', !!(h.html && h.html.includes('海底捞月')));
-    ok('海底捞月合计 = 牌型+1', h.fanShown === h.base + 1, [h.base, h.fanShown]);
+    ok('海底捞月合计 = 兜底1+牌型1+1', h.fanShown === 3, [h.base, h.fanShown]);
 
     const d = await global.__runCtxFan({ kongDraw: false, haidi: false, dihu: true, tianhu: false });
     ok('地胡 +8 进结算', !!(d.html && d.html.includes('地胡')));
-    ok('地胡合计 = 牌型+8', d.fanShown === d.base + 8, [d.base, d.fanShown]);
+    ok('地胡合计 = 兜底1+牌型1+8', d.fanShown === 10, [d.base, d.fanShown]);
 
     const t = await global.__runCtxFan({ kongDraw: false, haidi: false, dihu: false, tianhu: true });
     ok('天胡 +8 进结算', !!(t.html && t.html.includes('天胡')));
-    ok('天胡合计 = 牌型+8', t.fanShown === t.base + 8, [t.base, t.fanShown]);
+    ok('天胡合计 = 兜底1+牌型1+8', t.fanShown === 10, [t.base, t.fanShown]);
   }
 
   console.log('结果: ' + (fail ? '❌ ' + fail + ' 项失败' : '✅ ' + pass + ' 通过 / 0 失败'));

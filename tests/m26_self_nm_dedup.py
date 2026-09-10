@@ -21,10 +21,10 @@ with sync_playwright() as p:
     # 历史去重：netPushSettleRec 重复 rec 不重复入列
     r = page.evaluate("""() => {
       NET.history = [];
-      netPushSettleRec({no:1, wind:'东风', kind:'自摸'});
-      netPushSettleRec({no:1, wind:'东风', kind:'自摸'});   // 重复（重连补发）
-      netPushSettleRec({no:2, wind:'东风', kind:'点炮'});
-      return { len: NET.history.length, recs: NET.history.map(x => x.no + x.wind) };
+      netPushSettleRec({no:1, kind:'自摸'});
+      netPushSettleRec({no:1, kind:'自摸'});   // 重复（重连补发）
+      netPushSettleRec({no:2, kind:'点炮'});
+      return { len: NET.history.length, recs: NET.history.map(x => x.no) };
     }""")
     ok2 = r['len'] == 2
     print('历史去重 len:', r['len'], 'recs:', r['recs'], '| js_errs:', errs if errs else '无')

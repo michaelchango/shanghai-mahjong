@@ -61,7 +61,6 @@ function projectFor(S, seat, online){
       turn: G.turn,
       dealer: G.dealer,
       handNo: G.handNo,
-      roundWind: G.roundWind,
       huangfan: G.huangfan,
       kaibao: !!G.kaibao,
       kaibaoType: G.kaibaoType || null,

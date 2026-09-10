@@ -93,7 +93,7 @@ const PATCHES = [
 const EXPORTS = [
   // 配置与状态
   'CFG', 'G', 'PEND', 'SEL', 'SELIDX', 'HUANG_FAN_MAX',
-  'WIND_NAME', 'SEAT_WIND', 'BOT_NAMES',
+  'SEAT_WIND', 'BOT_NAMES',
   // 牌与工具
   'isFlower', 'isSeason', 'sortTiles', 'tileName', 'flowerChar',
   'toCounts', 'countsToTiles', 'shuffle', 'removeTiles',

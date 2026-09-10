@@ -20,8 +20,8 @@ with sync_playwright() as p:
       G.abort = true; G.running = false;
       const html = '<h2><span>结算</span><span class="sp"></span></h2><div class="result"><div class="winner">你 自摸 · 平胡</div></div>';
       G.history = [
-        { no:1, wind:'东风', kind:'自摸', winners:[0], note:'平胡 · 2 番 · 每家 6 分', delta:[18,-6,-6,-6], html },
-        { no:2, wind:'东风', kind:'点炮', winners:[0], note:'清一色 · 8 番', delta:[30,-10,-10,-10], html }
+        { no:1, kind:'自摸', winners:[0], note:'平胡 · 2 番 · 每家 6 分', delta:[18,-6,-6,-6], html },
+        { no:2, kind:'点炮', winners:[0], note:'清一色 · 8 番', delta:[30,-10,-10,-10], html }
       ];
       openHistory();
     }""")

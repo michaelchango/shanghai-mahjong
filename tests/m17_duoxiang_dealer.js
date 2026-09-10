@@ -57,7 +57,12 @@ deal = function(){
   // 强制敲听 7s，从而能 claim 胡 p0 打出的 7s（上海敲麻规则：没敲不能胡别家）
   // 双响模式（默认）：p1/p2 都敲；单响模式（__duoxiang === false）：只有 p1 敲
   G.players[1].knocked = true; G.players[1].knockWaits = [24];
-  if (global.__duoxiang !== false){ G.players[2].knocked = true; G.players[2].knockWaits = [24]; }
+  // v1.2.36：无花果只能自摸——给两家各一张花，保证这局是「点炮」场景
+  G.players[1].flowers = [100]; G.players[1].pendingFlowers = [];
+  if (global.__duoxiang !== false){
+    G.players[2].knocked = true; G.players[2].knockWaits = [24];
+    G.players[2].flowers = [100]; G.players[2].pendingFlowers = [];
+  }
 };
 async function main(){
   initGame();

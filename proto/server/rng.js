@@ -18,7 +18,7 @@ function mulberry32(seed){
 }
 
 /** 由房间号 + 局号派生种子，保证每局牌都不一样但可复现 */
-function handSeed(roomNo, handNo, roundWind){
+function handSeed(roomNo, handNo, salt){
   let h = 2166136261 >>> 0;                 // FNV-1a 起点
   const mix = n => {
     h ^= (n >>> 0);
@@ -26,7 +26,7 @@ function handSeed(roomNo, handNo, roundWind){
   };
   mix(Number(roomNo) || 0);
   mix(handNo);
-  mix(roundWind);
+  mix(salt);
   return h >>> 0;
 }
 

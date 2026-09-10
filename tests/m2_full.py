@@ -45,7 +45,7 @@ def snap(pg):
                      + ((G.players[0].flowers || []).length)) : 0),
         others: [nm(1), nm(2), nm(3)],
         names: (NET.players || []).map(p => p ? p.name : null),
-        handNo: G.handNo, wind: G.roundWind,
+        handNo: G.handNo,
         finished: G.finished,
         hist: (NET.history || []).map(r => ({ no: r.no, kind: r.kind, scores: r.scores })),
         sheetBtns: Array.from(document.querySelectorAll('#sheet .btns button')).map(b => b.textContent),

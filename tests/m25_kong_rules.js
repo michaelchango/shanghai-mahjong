@@ -53,7 +53,7 @@ global.__extraFanFlowers = function(melds, flowers){ __reset({ 0:{ idx:0, melds:
 global.__robKong = async function(){
   __reset({
     0:{ idx:0, melds:[PUNG(14,1)], hand:[0,1,2,3,4,5,6,7,8,9,10,11,14] },  // p0 碰 5p + 手里第 4 张 5p
-    1:{ idx:1, knocked:true, knockWaits:[14], hand:[0,0,0,1,1,1,2,2,2,11,11,11,14] }  // p1 已敲听 5p
+    1:{ idx:1, knocked:true, knockWaits:[14], hand:[0,0,0,1,1,1,2,2,2,11,11,11,14], flowers:[100] }  // p1 已敲听 5p（v1.2.36：带花，否则无花果不给抢杠）
   });
   await applySelfKong(G.players[0], { k:'chakan', tile:14 });
   return __cap;
