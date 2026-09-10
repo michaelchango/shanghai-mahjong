@@ -610,7 +610,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.32</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.33</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -2239,7 +2239,9 @@ function renderActs(){
       $('hint').innerHTML = '本局已结束 · 等待四家准备下一局';
     } else {
       mkBtn('查看结算', 'hist', () => showResult());
-      mkBtn('下一局', 'pri', () => nextHand(0));
+      // v1.2.33：庄家要跟着本局结果走——原先写死 nextHand(0)，
+      // 机器人胡牌后点底部「下一局」会把庄家变成我，下一局就轮到我先出牌
+      mkBtn('下一局', 'pri', () => nextHand(G.result ? (Number(G.result.dealer) || 0) : 0));
       $('hint').innerHTML = '本局已结束 · 可查看结算';
     }
     return;
@@ -2444,13 +2446,17 @@ function doKnock(waits){
   logMsg('你敲了');
   render();
 }
-async function discardTurn(p, drawn, kongDraw){
+async function discardTurn(p, drawn, kongDraw, chakanTile){
   await supplyPendingFlowers(p);
   if (G.abort) return null;
   // v1.2.12：未敲真人，轮到出牌时手牌可杠（暗杠/加杠）就得问；
   // 摸牌后已问过（p.kongAsked=true）则不重复；选杠 → 返回 {kong}，由 runHand 走补牌
-  if (!p.knocked && !p.isBot && !p.kongAsked && !kongDraw){
-    const ko = selfKongOptions(p);
+  // v1.2.33：刚碰完这一轮（chakanTile = 碰的那张牌）额外再问一次——
+  //   一轮只能做一个动作，以前碰完就没机会给这组补第 4 张了，只能等下一轮摸牌。
+  //   这里只放开「给刚碰的这组加杠」，不放开暗杠（暗杠仍要自己摸牌后才能杠）。
+  if (!p.knocked && !p.isBot && !kongDraw && (!p.kongAsked || chakanTile !== undefined)){
+    let ko = selfKongOptions(p);
+    if (chakanTile !== undefined) ko = ko.filter(o => o.k === 'chakan' && o.tile === chakanTile);
     if (ko.length){
       const r = await ask('selfkong', { options: ko, tile: ko[0].tile, source: 'preDiscard' }, p.idx);
       if (G.abort) return null;
@@ -2757,7 +2763,8 @@ async function runHand(){
         G.turn = p.idx;   // 碰牌后轮到碰的人出牌，罗盘指针同步指向他
         toast(p.name + ' 碰！', 'gold', p.idx);   // 带座位：服务端广播后客户端定位到对应牌河
         render(); await waitBot();
-        incoming = await discardTurn(p, null, false);
+        // v1.2.33：把「碰的这张」传下去——出牌前还能给它补第 4 张（加杠），不用等下一轮
+        incoming = await discardTurn(p, null, false, tile);
         if (G.abort) return;
         if (incoming && incoming.kong){ pendingKong = true; mode = 'draw'; continue; }
         from = p.idx; mode = 'claim';
