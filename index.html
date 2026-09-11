@@ -60,7 +60,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .hud .knockTag{font-size:10px;padding:2px 7px;border-radius:6px;background:linear-gradient(180deg,#ff7a5e,#e8432c);
   color:#fff;font-weight:700;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hud .knockTag.off{background:rgba(255,255,255,.12);color:var(--dim)}
-.metrics{display:flex;gap:5px;margin-top:5px}
+/* v1.2.43：整条可点 —— 点开看「底 / 番 是怎么算出来的」 */
+.metrics{display:flex;gap:5px;margin-top:5px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.metrics:active .metric{filter:brightness(1.14)}
 .metric{flex:1;background:rgba(0,0,0,.30);border-radius:8px;padding:4px 2px 5px;text-align:center;
   border:1px solid rgba(255,255,255,.07)}
 .metric .k{font-size:9px;color:var(--dim2);letter-spacing:.5px}
@@ -629,7 +631,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.42</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.43</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -686,7 +688,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
       <span class="sp" data-page-node-id="J6fC28SlmFBONq6OJaoilg"></span>
       <span class="knockTag off" id="knockTag" data-page-node-id="RPfdssz8rQ5jnnzhbmR2Cx">未敲 · 不能胡</span>
     </div>
-    <div class="metrics" data-page-node-id="ftoX8j7APt5ApYYsGsrPMD">
+    <div class="metrics" data-page-node-id="ftoX8j7APt5ApYYsGsrPMD" onclick="openHudWhy()" title="点这里看底 / 番 是怎么算出来的">
       <div class="metric di" data-page-node-id="KoNnqFSVhuBHmeFdcpLQMk"><div class="k" data-page-node-id="YLK9Gm6MsrSNnwNSiY5vgI">底（花）</div><div class="v" id="mDi" data-page-node-id="UEhom4PW7MjDQuJHW9ZNDW">—</div></div>
       <div class="metric fan" data-page-node-id="1HcdikWFFmQ8sWhIafGCUr"><div class="k" data-page-node-id="JgdkAbYfWz1PmtmFyWrWmi">番</div><div class="v" id="mFan" data-page-node-id="leU9ftgq3DRovvCobmtHGQ">—</div></div>
       <div class="metric sc" data-page-node-id="ceAGPY6077OAXvqEN2ZtUk"><div class="k" data-page-node-id="6fDBwoc59d6eW8xry36oEM">可得（分）</div><div class="v" id="mScore" data-page-node-id="wNVhbftOA3fhhKuCmk5B3t">—</div></div>
@@ -2100,6 +2102,49 @@ function hudReady(){
   if (p.pendingFlowers && p.pendingFlowers.length) return false;  // 起手花待补，牌不齐
   if (!G.finished && !(p.discards && p.discards.length) && G.turn !== 0) return false;
   return true;
+}
+// v1.2.43：顶部四栏「为什么是这个数」——点一下就地展开本手牌的口径明细。
+//   与 analyzeMe / scoreOf 同源推导，把 底 和 番 的每个组成部分列出来
+//   （尤其是「沾勒子 → 底固定 10 花」这条最容易看不懂的规则）。
+function hudBreakdown(){
+  const p = G.players[0];
+  const a = analyzeMe();
+  const flowers = a.flowers || 0;
+  let typeName = '', lzParts = null, ev = null;
+  if (a.best && a.best.ev){                       // 已听牌：按最佳听口
+    ev = a.best.ev; typeName = ev.type; lzParts = leziTotal(p, ev).parts;
+  } else {
+    const cur = evaluateShape(toCounts(p.hand), p.melds, { flowerCount: flowers });
+    if (cur){ ev = cur; typeName = cur.type; lzParts = leziTotal(p, cur).parts; }
+    else { lzParts = leziTotal(p, {}).parts; }    // 还没成型：只可能有无花果 / 大吊车
+  }
+  const lz = lzParts.reduce((s, x) => s + x[1], 0);
+  const rows = [];
+  rows.push('<div class="li"><span class="n">玩法</span><span class="v">' + (CFG.lajiHu ? '敲麻' : '清混碰') + '</span></div>');
+  rows.push('<div class="li"><span class="n">花数（' + (CFG.lajiHu ? '季花 + 中发白 + 风刻/杠 + 杠' : '季花 + 风刻/杠 + 杠') + '）</span><span class="v">' + flowers + '</span></div>');
+  if (lz){
+    rows.push('<div class="li"><span class="n">沾勒子 → 底固定 10 花</span><span class="v">10 花</span></div>');
+    for (const x of lzParts) rows.push('<div class="li"><span class="n">　勒子 · ' + x[0] + '</span><span class="v">' + x[1] + ' 勒</span></div>');
+    rows.push('<div class="li"><span class="n">番 = 勒子合计</span><span class="v">' + lz + '</span></div>');
+  } else {
+    rows.push('<div class="li"><span class="n">没沾勒子 → 底 = 底设置 ' + CFG.base + ' + 花 ' + flowers + '</span><span class="v">' + (CFG.base + flowers) + ' 花</span></div>');
+    if (CFG.lajiHu) rows.push('<div class="li"><span class="n">兜底（仅敲麻）</span><span class="v">1</span></div>');
+    if (typeName) rows.push('<div class="li"><span class="n">牌型 · ' + typeName + '</span><span class="v">' + (ev ? ev.base : 0) + ' 番</span></div>');
+    else rows.push('<div class="li"><span class="n">牌型</span><span class="v">还没成型</span></div>');
+  }
+  for (const x of (a.add || [])) rows.push('<div class="li"><span class="n">附加番 · ' + x[0] + '</span><span class="v">+' + x[1] + '</span></div>');
+  const mult = (G.kaibao ? 2 : 1) * Math.pow(2, G.huangfan || 0);
+  rows.push('<div class="li tot"><span class="n">合计</span><span class="v">底 ' + a.di + ' × 番 ' + a.fan + '</span></div>');
+  rows.push('<div class="li"><span class="n">' + a.di + ' × ' + Math.max(1, a.fan) + ' × 每花 ' + CFG.unit +
+            (mult > 1 ? ' × 倍数 ' + mult : '') + '</span><span class="v">' + (a.di * Math.max(1, a.fan) * CFG.unit * mult) + '</span></div>');
+  if (a.score != null) rows.push('<div class="li tot"><span class="n">可得（含封顶）</span><span class="v">' + a.score + ' 分</span></div>');
+  return '<div class="fanbreak">' + rows.join('') + '</div>';
+}
+function openHudWhy(){
+  if (!G.running && !G.finished) return;
+  openSheet('<h2><span>顶部四栏怎么算的</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
+    '<p class="dimc">本手牌当前的实时口径（与结算面板同一套算法）</p>' + hudBreakdown() +
+    '<div class="btns"><button class="pri" onclick="closeSheet()">知道了</button></div>');
 }
 function renderHUD(){
   const p = G.players[0];

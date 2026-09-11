@@ -105,7 +105,7 @@ const EXPORTS = [
   'wuGuoHuaAt', 'isWuGuoHua', 'isDaDiaoChe', 'specialLezi', 'leziOf', 'leziTotal',
   'claimedBanTile', 'banKindName', 'hudReady',
   'claimOptions', 'selfKongOptions', 'potentialKnocks', 'capValue',
-  'playerDiFan', 'scoreOf', 'fanBreakdownHtml',
+  'playerDiFan', 'scoreOf', 'fanBreakdownHtml', 'analyzeMe', 'diFanOf', 'typeDiFan', 'capValue', 'LEZI_DI', 'hudBreakdown',
   // 牌局流程
   'mkPlayer', 'initGame', 'buildWall', 'drawFront', 'drawTail', 'wallLeft',
   'seenCount', 'deal', 'buildWall', 'drawFront', 'drawTail', 'runHand', 'knockCheck', 'doKnock', 'discardTurn',

@@ -144,7 +144,6 @@ function boot(opts){
     openHandLog = function(){};
     openSet     = function(){};
     openRule    = function(){};
-    analyzeMe   = function(){};
     showTip     = function(){};
     viewHist    = function(){};
     var LAST_SHEET = '';
