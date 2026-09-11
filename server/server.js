@@ -182,6 +182,9 @@ class Conn {
     }
     this.ws = ws; this.online = true;
     if (this.takeoverTimer){ clearTimeout(this.takeoverTimer); this.takeoverTimer = null; }
+    // v1.2.40：等待室掉线会给座位挂 5 分钟保留定时器；人回来了就撤掉，
+    // 免得计时到点把刚复座的玩家再次踢出房间
+    if (this.graceTimer){ clearTimeout(this.graceTimer); this.graceTimer = null; }
     bindWs(ws, this);
   }
   /* 主动退出（点「离开房间 / 回到首页」）：立即释放座位；房间没人了就当场销毁 */
@@ -639,14 +642,17 @@ wss.on('connection', ws => {
       const room = rooms.get(String(m.roomNo || ''));
       if (!room){ ws.send(JSON.stringify({ t:'err', msg:'房间不存在，检查房间号' })); return; }
       const name = cleanName(m.name);
-      // 牌局进行中：允许用同一昵称顶替掉线（托管中）的座位回去继续打
+      // v1.2.40：重进房间时若已有同名座位，一律复用，避免「掉线后重新进入 → 房间里有两个我」。
+      //   · 等待室：不管原座位是在线还是掉线，都复用（rebind 会给旧页面发 kicked 让它退回首��）
+      //   · 牌局进行中：只允许接管「掉线」座位（防止用同名把在线玩家挤下去）
+      const same = room.seats.find(c => c && c.name === name);
+      if (same && (room.state !== 'playing' || !same.online)){
+        log(`房 ${room.no} 座位 ${same.seat}（${name}）重新进入，复用原座位（原状态 ${same.online ? '在线' : '掉线'}）`);
+        resumeSeat(room, same, ws);
+        return;
+      }
       if (room.state === 'playing'){
-        const seat = room.seats.find(c => c && !c.online && c.name === name);
-        if (!seat){
-          ws.send(JSON.stringify({ t:'err', msg:'牌局进行中，等这一局结束后再进' }));
-          return;
-        }
-        resumeSeat(room, seat, ws);
+        ws.send(JSON.stringify({ t:'err', msg:'牌局进行中，等这一局结束后再进' }));
         return;
       }
       const conn = room.addPlayer(ws, name);

@@ -63,9 +63,9 @@ const PATCHES = [
     neo: `  if (r === 'knock') doKnock(waits, p.idx);`
   },
   {
-    why: 'discardTurn：出牌询问带上座位',
-    old: `    d = await ask('discard');`,
-    neo: `    d = await ask('discard', null, p.idx);`
+    why: 'discardTurn：出牌询问带上座位（v1.2.40：payload 带「吃/碰禁打同张」的 ban）',
+    old: `    d = await ask('discard', ban == null ? null : { ban, banKind: banKindName(p) });`,
+    neo: `    d = await ask('discard', ban == null ? null : { ban, banKind: banKindName(p) }, p.idx);`
   },
   {
     why: 'runHand 支持 G.abort 中途作废（玩家在局中点「返回首页」时，旧循环安静退出、不打流局结算；单机正常对局 G.abort 恒为假，行为不变）',
@@ -103,6 +103,7 @@ const EXPORTS = [
   'evaluateShape', 'typeLabel', 'typeBaseFan',
   'calcFlowers', 'extraFan', 'tryWin', 'canKnock', 'getWaits', 'getWaitsHand',
   'wuGuoHuaAt', 'isWuGuoHua', 'isDaDiaoChe', 'specialLezi', 'leziOf', 'leziTotal',
+  'claimedBanTile', 'banKindName', 'hudReady',
   'claimOptions', 'selfKongOptions', 'potentialKnocks', 'capValue',
   'playerDiFan', 'scoreOf', 'fanBreakdownHtml',
   // 牌局流程

@@ -292,6 +292,10 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* v1.2.25：非出牌回合手牌也能点（查看台面同牌），所以光标仍给可点反馈；
    视觉上「不可打出」由选中态与提示行表达，不再用 cursor:default */
 .hand .tile.locked{cursor:pointer}
+/* v1.2.40：刚吃/碰进、本次不能打出的牌——压暗 + 加一道斜线，点它会弹提示 */
+.hand .tile.ban{filter:grayscale(.55) brightness(.72);cursor:not-allowed}
+.hand .tile.ban::after{content:'';position:absolute;left:0;right:0;top:50%;height:2px;
+  background:rgba(255,90,90,.85);transform:rotate(-14deg);box-shadow:0 0 3px rgba(0,0,0,.5)}
 .hand .drawgap{width:7px;flex:0 0 7px}
 .hint{text-align:center;font-size:11px;color:var(--dim);height:15px;line-height:15px;margin-top:2px;flex:0 0 auto}
 .hint b{color:var(--gold)}
@@ -610,7 +614,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.39</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.40</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -668,10 +672,10 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
       <span class="knockTag off" id="knockTag" data-page-node-id="RPfdssz8rQ5jnnzhbmR2Cx">未敲 · 不能胡</span>
     </div>
     <div class="metrics" data-page-node-id="ftoX8j7APt5ApYYsGsrPMD">
-      <div class="metric di" data-page-node-id="KoNnqFSVhuBHmeFdcpLQMk"><div class="k" data-page-node-id="YLK9Gm6MsrSNnwNSiY5vgI">底（花）</div><div class="v" id="mDi" data-page-node-id="UEhom4PW7MjDQuJHW9ZNDW">2</div></div>
+      <div class="metric di" data-page-node-id="KoNnqFSVhuBHmeFdcpLQMk"><div class="k" data-page-node-id="YLK9Gm6MsrSNnwNSiY5vgI">底（花）</div><div class="v" id="mDi" data-page-node-id="UEhom4PW7MjDQuJHW9ZNDW">—</div></div>
       <div class="metric fan" data-page-node-id="1HcdikWFFmQ8sWhIafGCUr"><div class="k" data-page-node-id="JgdkAbYfWz1PmtmFyWrWmi">番</div><div class="v" id="mFan" data-page-node-id="leU9ftgq3DRovvCobmtHGQ">—</div></div>
       <div class="metric sc" data-page-node-id="ceAGPY6077OAXvqEN2ZtUk"><div class="k" data-page-node-id="6fDBwoc59d6eW8xry36oEM">可得（分）</div><div class="v" id="mScore" data-page-node-id="wNVhbftOA3fhhKuCmk5B3t">—</div></div>
-      <div class="metric cap" data-page-node-id="s25ra7DU9GQS92sLr88M6I"><div class="k" data-page-node-id="Jk0SirZUiTT0CpNfOfLof5">封顶</div><div class="v" id="mCap" data-page-node-id="r6nsVn3tvT0TCyd00mvkCX">80</div></div>
+      <div class="metric cap" data-page-node-id="s25ra7DU9GQS92sLr88M6I"><div class="k" data-page-node-id="Jk0SirZUiTT0CpNfOfLof5">封顶</div><div class="v" id="mCap" data-page-node-id="r6nsVn3tvT0TCyd00mvkCX">—</div></div>
     </div>
   </div>
 
@@ -904,6 +908,18 @@ function specialLezi(){
 function isWuGuoHua(p){ return calcFlowers(p, null) === 0; }
 // 大吊车：四副露全在手外（单钓将）
 function isDaDiaoChe(p){ return (p.melds || []).length === 4; }
+// v1.2.40：吃 / 碰 进的是哪张，本次出牌就不能立刻打出同一张（两种玩法通用）。
+//   必须等到下次出手（过一圈，或再吃/碰别人重新拿到出牌权）。
+//   唯一例外：吃/碰 之后已经形成「大吊车」（4 副露单钓），这时允许立刻打出同一张。
+//   p.noDiscard 记刚吃/碰进的那张（出牌后清空），p.noDiscardKind 记「吃」/「碰」用于提示。
+function claimedBanTile(p){
+  const t = (p && p.noDiscard != null) ? p.noDiscard : null;
+  if (t == null || t < 0) return null;
+  if (isDaDiaoChe(p)) return null;                       // 大吊车例外
+  if (!(p.hand || []).some(x => x !== t)) return null;   // 手里只剩这一张，无法限制
+  return t;
+}
+function banKindName(p){ return (p && p.noDiscardKind === 'pung') ? '碰' : '吃'; }
 function evaluateShape(handCounts, melds, opts){
   const need = 4 - melds.length;
   const stdWin = isWinShape(handCounts, need);
@@ -1476,9 +1492,11 @@ function dangerScore(t, p){
   if (t >= 27) d = Math.max(0, d - 1);
   return d;
 }
-function aiChooseDiscard(p){
+// v1.2.40：ban = 本次出牌不能打的牌（刚吃/碰进的那张，大吊车时传 null）
+function aiChooseDiscard(p, ban){
   const hc = toCounts(p.hand);
-  const uniq = [...new Set(p.hand)];
+  const uniq = [...new Set(p.hand)].filter(t => t !== ban);
+  if (!uniq.length) return p.hand[p.hand.length - 1];
   let best = null;
   const t0 = Date.now();
   for (const t of uniq){
@@ -1682,6 +1700,12 @@ function toast(text, cls, seat){
 
 let SEL = null;   // 玩家选中的手牌（牌 ID，逻辑用）
 let SELIDX = null; // 选中位置（区分手里相同的牌）
+// v1.2.40：点了刚吃/碰进、本次不能打出的牌 → 提示为什么打不了
+function banToast(payload){
+  const kind = (payload && payload.banKind) || '吃/碰';
+  const t = payload ? payload.ban : -1;
+  toast('刚' + kind + '进的 ' + (t >= 0 ? tileName(t) : '这张') + ' 不能立刻打出', 'red');
+}
 function renderHand(){
   const p = G.players[0];
   const box = $('hand');
@@ -1714,16 +1738,20 @@ function renderHand(){
   } else drawn = null;
   arr.sort((a, b) => a - b);
   const canPick = PEND && PEND.kind === 'discard';
+  // v1.2.40：刚吃/碰进的牌本次不能打出（大吊车时服务端不下发 ban）
+  const banTile = (canPick && PEND.payload && PEND.payload.ban != null) ? PEND.payload.ban : -1;
   const n = arr.length + (drawn !== null ? 1 : 0);
   const gap = n >= 14 ? 2 : 1;
   box.style.gap = gap + 'px';
   arr.forEach((t, k) => {
-    const e = tileEl(t, canPick ? '' : 'locked');
-    if (SELIDX === k) e.classList.add('sel');
+    const banned = canPick && t === banTile;
+    const e = tileEl(t, (canPick && !banned ? '' : 'locked') + (banned ? ' ban' : ''));
+    if (SELIDX === k && !banned) e.classList.add('sel');
     // v1.2.25：任何时候都能点手牌——第一次点击只做「选中 + 台面同牌高亮」，
     // 方便随时算某张牌还剩几张（含别人打出后要决定吃/碰/杠时）；
     // 只有轮到自己出牌（canPick）时，再点一次同一张才是「打出」
     e.onclick = () => {
+      if (banned){ banToast(PEND.payload); return; }
       if (canPick && SELIDX === k){ SEL = null; SELIDX = null; resolvePend(t); }
       else { SEL = t; SELIDX = k; renderHand(); renderRiver(); renderMe(); renderSeats(); }
     };
@@ -1733,10 +1761,12 @@ function renderHand(){
     const g = document.createElement('div');
     g.className = 'drawgap';
     box.appendChild(g);
-    const e = tileEl(drawn, (canPick ? '' : 'locked') + ' hl');
-    if (SELIDX === 'd') e.classList.add('sel');
+    const dBanned = canPick && drawn === banTile;
+    const e = tileEl(drawn, (canPick && !dBanned ? '' : 'locked') + ' hl' + (dBanned ? ' ban' : ''));
+    if (SELIDX === 'd' && !dBanned) e.classList.add('sel');
     // v1.2.25：同上手牌——非出牌回合也能点摸到的这张查看台面同牌
     e.onclick = () => {
+      if (dBanned){ banToast(PEND.payload); return; }
       if (canPick && SELIDX === 'd'){ SEL = null; SELIDX = null; resolvePend(drawn); }
       else { SEL = drawn; SELIDX = 'd'; renderHand(); renderRiver(); renderMe(); renderSeats(); }
     };
@@ -2042,11 +2072,22 @@ function potentialKnocks(p){
 function capValue(){
   return CFG.lezi * 10 * CFG.unit * (G.kaibao ? 2 : 1) * Math.pow(2, G.huangfan);
 }
+// v1.2.40：顶部四栏是否该显示数字。
+// deal() 会先把起手花摘到 pendingFlowers，等轮到本人首次出牌时才补回来（上海敲麻规则）。
+// 这期间手牌张数不足（摘走几张花就少几张），算出来的底/番/得分没有意义 —— 牌不齐就显示「—」。
+function hudReady(){
+  const p = G.players && G.players[0];
+  if (!p) return false;
+  if (!p.hand || !p.hand.length) return false;                    // 还没发牌
+  if (p.pendingFlowers && p.pendingFlowers.length) return false;  // 起手花待补，牌不齐
+  return true;
+}
 function renderHUD(){
   const p = G.players[0];
   const a = analyzeMe();
-  $('mDi').textContent = a.di;
-  $('mCap').textContent = capText(capValue());
+  const ready = hudReady();
+  $('mDi').textContent = ready ? a.di : '—';
+  $('mCap').textContent = ready ? capText(capValue()) : '—';
   $('myWind').textContent = SEAT_WIND[(0 - G.dealer + 4) % 4];
   const knocks = CFG.lajiHu && !p.knocked && !NET.autoKnock && p.hand.length % 3 === 2 ? potentialKnocks(p) : [];
   const kt = $('knockTag');
@@ -2094,8 +2135,8 @@ function renderHUD(){
   // v1.2.11：顶部「番 / 单份」实时计算，不再锁在已敲分支——
   // 听牌取最佳听口番，未听取当前牌型番（analyzeMe 两个分支都给出真番）
   // v1.2.37：得分同样走 hudScore()（与结算 scoreOf 同源），不再自己写一遍乘法
-  $('mFan').textContent = a.fan;
-  $('mScore').textContent = a.score == null ? '—' : a.score;
+  $('mFan').textContent = ready ? a.fan : '—';
+  $('mScore').textContent = (!ready || a.score == null) ? '—' : a.score;
 }
 // 骰子点面（CSS 绘制）
 function dieHtml(n){
@@ -2388,6 +2429,11 @@ function renderActs(){
         setHint('点击一张牌 <b>选中</b>，再点一次 <b>打出</b>');
       }
     }
+    // v1.2.40：吃/碰 进的那张本次不能打出——提示行最后覆盖，优先级最高
+    const banP = PEND.payload;
+    if (banP && banP.ban != null){
+      $('hint').innerHTML = '刚' + (banP.banKind || '吃/碰') + '进的 <b>' + tileName(banP.ban) + '</b> 不能立刻打出';
+    }
     return;
   }
   if (PEND.kind === 'knock'){
@@ -2551,6 +2597,8 @@ function doKnock(waits){
 async function discardTurn(p, drawn, kongDraw){
   await supplyPendingFlowers(p);
   if (G.abort) return null;
+  // v1.2.40：吃/碰 进的那张，本次出牌不能立刻打出来（大吊车除外）
+  const ban = claimedBanTile(p);
   // v1.2.12：未敲真人，轮到出牌时手牌可杠（暗杠/加杠）就得问；
   // 摸牌后已问过（p.kongAsked=true）则不重复；选杠 → 返回 {kong}，由 runHand 走补牌
   // v1.2.34（回归 v1.2.12 规则）：一轮只能做一个动作——
@@ -2572,20 +2620,27 @@ async function discardTurn(p, drawn, kongDraw){
   let d;
   if (p.knocked){
     if (drawn !== null && drawn !== undefined) d = drawn;
-    else d = aiChooseDiscard(p);
+    else d = aiChooseDiscard(p, ban);
     await sleep(560 / CFG.speed);
   } else if (p.isBot){
     // v1.2.18：摸牌后出牌前重估做牌方向——「边打边判断」：碰/吃改变牌型进度后，
     // 该转混一色/清一色/碰碰胡都在这里实时切换，而不是开局定死一路走到黑
     p.target = aiTargetOf(p);
-    d = aiChooseDiscard(p);
+    d = aiChooseDiscard(p, ban);
     await waitBot();
   } else {
     SEL = null; SELIDX = null;
     renderHand();
-    d = await ask('discard');
+    d = await ask('discard', ban == null ? null : { ban, banKind: banKindName(p) });
     if (G.abort) return null;          // 中途退出/返回首页：不再打这一张
   }
+  // v1.2.40：兜底（老客户端 / 异常路径下仍要打刚吃碰进的牌）→ 改打手里另一张，
+  // 保证「吃碰禁打同张」在服务端权威执行，不会被绕过
+  if (ban != null && d === ban){
+    const alt = (p.hand || []).find(x => x !== ban);
+    if (alt !== null && alt !== undefined) d = alt;
+  }
+  p.noDiscard = null; p.noDiscardKind = null;   // 出完这张，限制解除
   const i = p.hand.indexOf(d);
   if (i >= 0) p.hand.splice(i, 1);
   p.hand = sortTiles(p.hand);
@@ -2726,6 +2781,7 @@ async function runHand(){
     p.knocked = false; p.knockWaits = []; p.menqing = true; p.drawn = null;
     p.missHu = new Set(); p.drawnCount = 0; p.noPromptSig = ''; p.target = null;
     p.settleFan = null; p.settleDi = null;
+    p.noDiscard = null; p.noDiscardKind = null;   // v1.2.40：吃/碰禁打同张（每局重置）
   }
   G.lastDiscard = null; G.lastFrom = -1; G.logs = [];
 
@@ -2868,6 +2924,8 @@ async function runHand(){
         render(); await waitBot();
         // v1.2.34：一轮一个动作，碰完直接出牌，不再问加杠
         p.kongAsked = true;                     // 本轮已确定动作（碰），出牌前不再问任何杠
+        // v1.2.40：碰进哪张，本次出牌就不能打哪张（大吊车除外）
+        p.noDiscard = tile; p.noDiscardKind = 'pung';
         incoming = await discardTurn(p, null, false);
         if (G.abort) return;
         if (incoming && incoming.kong){ pendingKong = true; mode = 'draw'; continue; }
@@ -2888,6 +2946,8 @@ async function runHand(){
         G.turn = p.idx;   // 吃牌后轮到吃的人出牌，罗盘指针同步指向他
         toast(p.name + ' 吃！', 'gold', p.idx);
         render(); await waitBot();
+        // v1.2.40：吃进哪张，本次出牌就不能打哪张（大吊车除外）
+        p.noDiscard = tile; p.noDiscardKind = 'chow';
         incoming = await discardTurn(p, null, false);
         if (G.abort) return;
         if (incoming && incoming.kong){ pendingKong = true; mode = 'draw'; continue; }
@@ -3491,6 +3551,11 @@ function openRule(){
   '<ul><li>自摸：三家各付一份</li><li>点炮：点炮者付一份（一炮多响则各付一份）</li>' +
   '<li>开宝（骰子为豹子或 1·4 点）：本局得分与封顶 ×2</li>' +
   '<li>荒番（上一局流局）：得分与封顶 ×2<sup>荒番数</sup>，一旦有人胡牌用掉，下一局清零</li></ul>' +
+
+  '<h3>出牌限制（两种玩法通用）</h3>' +
+  '<ul><li><b>吃 / 碰 进什么，本次不能打出什么</b>：刚吃（或碰）进的那张牌，这一次出牌<b>不能打同一张</b>，必须等到下次出手（过一圈，或再吃 / 碰别人重新拿到出牌权）</li>' +
+  '<li><b>唯一例外 · 大吊车</b>：吃 / 碰 之后已经凑成 <b>4 组副露 + 单钓</b>（大吊车），这时<b>可以</b>立刻打出同一张</li></ul>' +
+  '<p class="dimc">例：上家打 2 万，你手里有 2、3、4 万，吃了这一口 → 这次出牌<b>不能打 2 万</b>（牌面会压暗并划一道红线，点了会提示）；打别的牌后，下次出手就可以打 2 万了。碰牌同理。</p>' +
 
   '<h3>敲麻规则</h3>' +
   '<ul><li><b>不敲不能胡</b>：必须先报听（敲）才有资格胡牌；手里有听法时点「敲听」或开自动敲</li>' +

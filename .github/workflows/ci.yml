@@ -23,7 +23,7 @@ jobs:
         run: npm install
       - name: 抽取引擎（退出码须为 0）
         run: node proto/tools/extract.js
-      - name: 引擎单元测试 62 项
+      - name: 引擎单元测试 63 项
         run: node tests/unit.js
       - name: 无头仿真 200 局（零和/可复现/无死循环/可见性裁剪）
         run: node proto/server/simulate.js 200
@@ -34,7 +34,11 @@ jobs:
           for f in tests/m13_priority.js tests/m16_kong_fan.js tests/m17_duoxiang_dealer.js \
                    tests/m19_start_flower.js tests/m23_chengbao.js tests/m25_kong_rules.js \
                    tests/m30_next_hand.js tests/m33_autohu_waits.js tests/m36_qinghunpeng.js \
-                   tests/m37_qhp_game.js tests/m39_zhongfabai.js tests/m41_suit_lock.js tests/m4_recycle.js; do
+                   tests/m37_qhp_game.js tests/m39_zhongfabai.js tests/m41_suit_lock.js \
+                   tests/m42_qxd_huangfan.js tests/m43_noknock.js tests/m43_scoring.js \
+                   tests/m45_direction.js tests/m45_huangfan.js tests/m46_hud_fan.js \
+                   tests/m47_wuguo_dadiaoche_lezi.js tests/m48_lezi_e2e.js \
+                   tests/m49_rejoin_seat.js tests/m51_chowpung_ban.js tests/m4_recycle.js; do
             node "$f" || exit 1
           done
 
