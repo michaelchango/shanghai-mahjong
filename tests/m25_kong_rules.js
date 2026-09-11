@@ -49,7 +49,8 @@ global.__reset = function(state){
 const PUNG = (t, from) => ({ type:'pung', tiles:[t,t,t], tile:t, concealed:false, from: from });
 global.__PUNG = PUNG;
 global.__kongOpts = function(melds, hand){ __reset({ 0:{ idx:0, melds: melds, hand: hand } }); return selfKongOptions(G.players[0]); };
-global.__extraFanFlowers = function(melds, flowers){ __reset({ 0:{ idx:0, melds: melds, flowers: flowers } }); const add = extraFan(G.players[0], {}); return add.some(x => x[0] === '无花果'); };
+// v1.2.37：无花果已从附加番改为勒子牌型（敲麻 2 勒），判定改用 isWuGuoHua()
+global.__extraFanFlowers = function(melds, flowers){ __reset({ 0:{ idx:0, melds: melds, flowers: flowers } }); return isWuGuoHua(G.players[0]); };
 global.__robKong = async function(){
   __reset({
     0:{ idx:0, melds:[PUNG(14,1)], hand:[0,1,2,3,4,5,6,7,8,9,10,11,14] },  // p0 碰 5p + 手里第 4 张 5p

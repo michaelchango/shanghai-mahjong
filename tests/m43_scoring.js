@@ -53,8 +53,9 @@ const HAND_MIX     = ['1m','2m','3m','4m','5m','6m','7m','8m','9m','E','E','E','
   ok('敲麻 碰碰胡（3 花）= 底5 × 番2（兜底1+牌型1）', sc.di === 5 && sc.fan === 2 && sc.per === 10, [sc.di, sc.fan, sc.per]);
   sc = S.scoreOf({ type: '垃圾胡', base: 0, lezi: 0, flowers: 1 }, {}, mkP({ flowers: [100] }), 1);
   ok('敲麻 垃圾胡（1 花）= 底3 × 番1（兜底）', sc.di === 3 && sc.fan === 1 && sc.per === 3, [sc.di, sc.fan, sc.per]);
+  // v1.2.37：无花果改成勒子牌型（敲麻 2 勒）——0 花的手牌走勒子档（底 10 花、番 = 勒子数）
   sc = S.scoreOf({ type: '垃圾胡', base: 0, lezi: 0, flowers: 0 }, {}, mkP({}), 1);
-  ok('敲麻 垃圾胡零花 = 底2 × 番2（兜底+无花果）', sc.di === 2 && sc.fan === 2, [sc.di, sc.fan]);
+  ok('敲麻 垃圾胡零花（无花果 2 勒）= 底10 × 番2 = 20', sc.di === 10 && sc.fan === 2 && sc.per === 20, [sc.di, sc.fan, sc.per]);
   // 清混碰：无兜底
   CFG.lajiHu = false;
   sc = S.scoreOf({ type: '碰碰胡', base: 1, lezi: 0, flowers: 3 }, {}, mkP({ flowers: [100,101,102] }), 1);
@@ -80,9 +81,11 @@ const HAND_MIX     = ['1m','2m','3m','4m','5m','6m','7m','8m','9m','E','E','E','
 
   console.log('== C) 复算规则文档例题 ==');
   CFG.base = 1; CFG.lajiHu = true;
+  // v1.2.37：大吊车改判「4 副露」→ 本例只有 1 个暗杠，不再算大吊车（原来靠 ctx.diaoche 硬传）
+  //   番 = 兜底1 + 混一色1 + 门清1 + 海底1 = 4；底 = 底1 + 花6（3 花牌 + 风暗杠 3 花）= 7
   const p1 = mkP({ flowers: [100,101,102], melds: [{ type:'kong', tile:27, concealed:true, from:-1 }], menqing: true });
-  sc = S.scoreOf({ type: '混一色', base: 1, lezi: 0, flowers: S.calcFlowers(p1, null) }, { diaoche: true, haidi: true }, p1, 1);
-  ok('例1 敲麻：底7 × 番5 × 3 家 = 105', sc.di === 7 && sc.fan === 5 && sc.per * 3 === 105, [sc.di, sc.fan, sc.per]);
+  sc = S.scoreOf({ type: '混一色', base: 1, lezi: 0, flowers: S.calcFlowers(p1, null) }, { haidi: true }, p1, 1);
+  ok('例1 敲麻：底7 × 番4 × 3 家 = 84', sc.di === 7 && sc.fan === 4 && sc.per * 3 === 84, [sc.di, sc.fan, sc.per]);
   CFG.lajiHu = false;
   const p2 = mkP({ flowers: [], melds: [{ type:'pung', tile:27, concealed:false, from:1 }] });
   sc = S.scoreOf({ type: '风碰', base: 0, lezi: 4, flowers: S.calcFlowers(p2, null) }, { haidi: true }, p2, 1);
@@ -105,9 +108,13 @@ const HAND_MIX     = ['1m','2m','3m','4m','5m','6m','7m','8m','9m','E','E','E','
   ok('风暗刻算花 → 破无花果', S.wuGuoHuaAt(windHand, T['4m']) === false, S.wuGuoHuaAt(windHand, T['4m']));
   const coW = S.claimOptions(windHand, T['4m'], 3, true);
   ok('风刻破无花果后可点炮胡（混碰）', coW.some(o => o.k === 'hu' && o.ev.type === '混碰'), JSON.stringify(coW.map(o => o.k)));
-  // 自摸：0 花仍给无花果 +1
-  const add = S.extraFan(noFlower, {});
-  ok('自摸路径：0 花仍计「无花果 +1」', add.some(x => x[0] === '无花果' && x[1] === 1), JSON.stringify(add));
+  // v1.2.37：无花果不再是 +1 附加番，而是独立的勒子来源（敲麻 2 勒 / 清混碰 1 勒）
+  //   番 = 勒子数（清碰4 + 无花果2 = 6）+ 附加番（此手 menqing → 门清 +1）= 7
+  const scNo = S.scoreOf({ type: '清碰', base: 0, lezi: 4, flowers: 0 }, {}, noFlower, 1);
+  ok('自摸路径：0 花走勒子档（清碰4 + 无花果2 = 6 勒子）', scNo.lezi === 6 && scNo.di === 10, [scNo.lezi, scNo.di, scNo.fan]);
+  ok('0 花勒子档番 = 勒子6 + 门清1 = 7', scNo.fan === 7, scNo.fan);
+  ok('无花果 不在附加番里了', !S.extraFan(noFlower, {}).some(x => x[0] === '无花果'), JSON.stringify(S.extraFan(noFlower, {})));
+  ok('无花果 勒子明细含「无花果 2」', (scNo.leziParts || []).some(x => x[0] === '无花果' && x[1] === 2), JSON.stringify(scNo.leziParts));
   // 抢杠：0 花不给抢；带花可抢
   const tryRob = (robber) => {
     let captured = null;

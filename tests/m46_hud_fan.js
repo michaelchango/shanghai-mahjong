@@ -78,8 +78,10 @@ const CASES = [
   p.hand = mk(['1m','2m','3m','4m','5m','6m','7m','8m','9m','9m','9m','2m','2m']);
   p.melds = []; p.flowers = []; p.menqing = true; p.knocked = true; G.running = true;
   const a = vm.runInContext('analyzeMe()', S);
-  ok('清一色 底=10 番=4（非 40）', a.di === 10 && a.fan === 4, { di: a.di, fan: a.fan });
-  ok('清一色 得分 = 10×4 = 40', a.score === 40, a.score);
+  // v1.2.37：0 花的清一色 = 清一色 2 勒 + 无花果 2 勒 = 4 勒子；番 = 4 + 门清 1 = 5；底 = 10 → 50
+  ok('清一色+无花果 = 4 勒子、番 5（非 50）', a.di === 10 && a.fan === 5, { di: a.di, fan: a.fan });
+  ok('清一色 得分 = 10 × 5 = 50', a.score === 50, a.score);
+  ok('番 ≠ 底 × 番（回归乘积 bug）', a.fan !== a.di * a.fan, a.fan);
 
   // renderHUD 只是把 analyzeMe() 的 di/fan/score 原样写进 DOM 三个栏位
   // （见 index.html renderHUD：$('mDi')=a.di、$('mFan')=a.fan、$('mScore')=a.score），

@@ -8,7 +8,8 @@ js = js.slice(0, cut);
 eval(js + `
 global.T = {isWinShape,isPungShape,isSevenPairs,evaluateShape,shantenStd,shantenPung,shantenColor,
  shantenWindOnly,evalAll,getWaitsHand,toCounts,countsToTiles,calcFlowers,extraFan,claimOptions,
- tryWin,selfKongOptions,canKnock,PLAYCNT,isFlower,tileName,aiChooseDiscard,G,CFG,mkPlayer,buildWall,drawFront,wallLeft,deal,initGame};
+ tryWin,selfKongOptions,canKnock,PLAYCNT,isFlower,tileName,aiChooseDiscard,G,CFG,mkPlayer,buildWall,drawFront,wallLeft,deal,initGame,
+ isWuGuoHua,isDaDiaoChe,specialLezi,leziOf,leziTotal,scoreOf};
 `);
 const T = global.T;
 let pass = 0, fail = 0;
@@ -87,7 +88,9 @@ ok('风明杠+2', T.calcFlowers(fp([], [{type:'kong',tile:E,concealed:false}]), 
 ok('风暗杠+3', T.calcFlowers(fp([], [{type:'kong',tile:E,concealed:true}]), null) === 3);
 ok('风碰+1', T.calcFlowers(fp([], [{type:'pung',tile:E,concealed:false}]), null) === 1);
 ok('手牌风暗刻+1', T.calcFlowers(fp([], []), T.toCounts([E,E,E,m(1)])) === 1);
-ok('门清+无花+杠开=3', T.extraFan({menqing:true,flowers:[]}, {kongDraw:true}).reduce((a,b)=>a+b[1],0) === 3);
+// v1.2.37：无花果改勒子牌型，不再进附加番（门清1 + 杠开1 = 2）
+ok('门清+杠开=2（无花果已移出附加番）', T.extraFan({menqing:true,flowers:[]}, {kongDraw:true}).reduce((a,b)=>a+b[1],0) === 2);
+ok('无花果判定：0 花 = true', T.isWuGuoHua({menqing:true,flowers:[]}) === true);
 ok('非门清有花=0', T.extraFan({menqing:false,flowers:[100]}, {}).length === 0);
 
 console.log('== 6. 听牌判定 getWaitsHand ==');

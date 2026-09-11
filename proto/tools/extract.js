@@ -102,8 +102,9 @@ const EXPORTS = [
   'isWinShape', 'isPungShape', 'isSevenPairs', 'formSets', 'formPungs',
   'evaluateShape', 'typeLabel', 'typeBaseFan',
   'calcFlowers', 'extraFan', 'tryWin', 'canKnock', 'getWaits', 'getWaitsHand',
+  'wuGuoHuaAt', 'isWuGuoHua', 'isDaDiaoChe', 'specialLezi', 'leziOf', 'leziTotal',
   'claimOptions', 'selfKongOptions', 'potentialKnocks', 'capValue',
-  'playerDiFan', 'scoreOf',
+  'playerDiFan', 'scoreOf', 'fanBreakdownHtml',
   // 牌局流程
   'mkPlayer', 'initGame', 'buildWall', 'drawFront', 'drawTail', 'wallLeft',
   'seenCount', 'deal', 'runHand', 'knockCheck', 'doKnock', 'discardTurn',
