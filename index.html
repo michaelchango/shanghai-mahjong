@@ -371,6 +371,21 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .hide{display:none !important}
 .sheet{background:linear-gradient(180deg,#123a2c,#0b291f);border:1px solid var(--line);border-radius:16px;
   width:100%;max-width:420px;max-height:calc(86dvh / var(--pz));overflow:auto;padding:14px}
+/* v1.2.45：弹窗统一「头尾固定、中间滚动」（结构由 openSheet → sheetLayout 自动重排）
+   .sBody 是唯一的滚动区；头（h2 + 提示）和尾（.btns）永远固定可见 */
+.sheet.sheetFlex{display:flex;flex-direction:column;overflow:hidden;padding:0}
+.sheetFlex > h2{flex:0 0 auto;margin:0;padding:14px 14px 10px;
+  border-bottom:1px solid rgba(255,255,255,.08)}
+.sheetFlex > .dimc{flex:0 0 auto;margin:9px 14px 0}
+.sheetFlex > .sBody{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:12px 14px;-webkit-overflow-scrolling:touch}
+.sheetFlex > .sBody:empty{padding:0}          /* 没有中间内容时不占多余高度 */
+.sheetFlex > .sBody > :first-child{margin-top:0}
+/* 中间区已经是滚动区了，列表不要再单独封顶（否则出现嵌套双滚动条） */
+.sheetFlex .sBody .hlist{max-height:none;overflow:visible}
+.sheetFlex > .btns{flex:0 0 auto;margin:0;padding:11px 14px 14px;
+  border-top:1px solid rgba(255,255,255,.08)}
+.sheetFlex > .btns ~ .dimc{flex:0 0 auto;margin:0 14px 12px}
 .sheet h2{margin:0 0 10px;font-size:17px;display:flex;align-items:center;gap:6px}
 .sheet h2 .sp{flex:1}
 .sheet .close{font-size:20px;color:var(--dim);padding:0 4px}
@@ -642,7 +657,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.44</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.45</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -3375,8 +3390,44 @@ function newRound(){
 /* ========================================================================
    弹层
    ======================================================================== */
+/* v1.2.45：弹窗统一「头尾固定、中间滚动」。
+   约定（所有弹窗都按这套 HTML 写，无需各自处理）：
+     头 = <h2>标题 + 关闭叉</h2>，以及紧随其后的 .dimc 提示行（如有）
+     尾 = 从**最后一个** .btns 起、直到末尾（按钮后面可能还跟着一句脚注 .dimc，
+          例如「历史记录」就是 `…<div class="btns">…</div><p class="dimc">记录按轮累计…</p>`）
+     中间其余内容 → 自动包进 .sBody 滚动区
+   这样加 .sheetFlex 后：头尾永远可见，只有中间滚，按钮再也不用先滚到底。
+   这里做的是 DOM 结构重排，所以 16 个 openSheet 调用点一行都不用改。 */
+function sheetLayout(host){
+  const kids = Array.prototype.slice.call(host.children);
+  if (!kids.length) return;
+  const has = (el, cls) => !!(el && el.classList && el.classList.contains(cls));
+  // 头：<h2> 本身
+  let i = (kids[0] && kids[0].tagName === 'H2') ? 1 : 0;
+  // 头：紧随标题的提示行（最多连续两行，避免把正文误当提示）
+  let hg = 0;
+  while (i + hg < kids.length && hg < 2 && has(kids[i + hg], 'dimc')) hg++;
+  i += hg;
+  // 尾：最后一个 .btns 起（含其后所有节点）
+  let fi = -1;
+  for (let k = kids.length - 1; k >= i; k--) if (has(kids[k], 'btns')){ fi = k; break; }
+  const end = (fi >= 0) ? fi - 1 : kids.length - 1;
+  const body = kids.slice(i, end + 1);
+  const box = document.createElement('div');
+  box.className = 'sBody';
+  if (body.length){
+    host.insertBefore(box, body[0]);
+    for (const n of body) box.appendChild(n);
+  } else {
+    host.insertBefore(box, kids[i] || null);   // 无中间内容也占位，保持结构统一
+  }
+  host.classList.add('sheetFlex');
+}
 function openSheet(html){
-  $('sheet').innerHTML = html;
+  const host = $('sheet');
+  host.className = 'sheet';            // 复位（上一次可能是别的形态）
+  host.innerHTML = html;
+  sheetLayout(host);
   $('mask').classList.remove('hide');
 }
 function closeSheet(){ $('mask').classList.add('hide'); renderActs(); }
