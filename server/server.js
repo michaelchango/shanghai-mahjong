@@ -80,7 +80,7 @@ function defaultCfg(){
   return {
     base: 2, unit: 1, lezi: 8,
     allowChow: true, sevenPairs: false, lajiHu: true,
-    autoKnock: false, autoHu: false, speed: 1, cd: 15
+    autoKnock: false, autoHu: false, speed: 1, cd: 0
   };
 }
 

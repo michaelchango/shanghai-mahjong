@@ -108,7 +108,7 @@ const EXPORTS = [
   'playerDiFan', 'scoreOf', 'fanBreakdownHtml',
   // 牌局流程
   'mkPlayer', 'initGame', 'buildWall', 'drawFront', 'drawTail', 'wallLeft',
-  'seenCount', 'deal', 'runHand', 'knockCheck', 'doKnock', 'discardTurn',
+  'seenCount', 'deal', 'buildWall', 'drawFront', 'drawTail', 'runHand', 'knockCheck', 'doKnock', 'discardTurn',
   'collectClaims', 'applySelfKong', 'finish', 'finishHand', 'nextHand',
   'newRound', 'render',
   // 玩家输入/AI

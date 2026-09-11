@@ -72,6 +72,30 @@ with sync_playwright() as p:
     }""")
     print('补花后:', restored)
 
+    # v1.2.41：发完牌、还没轮到我第一手 → 四栏全为 —
+    a = pg.evaluate("""()=>{
+      G.dealer = 1; G.turn = 1; G.running = true; G.finished = false;
+      const p = G.players[0];
+      p.hand = [0,1,2,3,4,5,6,7,8,9,9,10,11]; p.pendingFlowers = [];
+      p.discards = []; p.flowers = [100];
+      renderHUD();
+      return { mDi: $('mDi').textContent.trim(), mFan: $('mFan').textContent.trim(),
+               mSc: $('mScore').textContent.trim(), mCap: $('mCap').textContent.trim() };
+    }""")
+    print('未轮到我:', a)
+    # 轮到我 → 出数字
+    bturn = pg.evaluate("""()=>{
+      G.turn = 0; renderHUD();
+      return { mDi: $('mDi').textContent.trim(), mFan: $('mFan').textContent.trim() };
+    }""")
+    print('轮到我:', bturn)
+    # 出过牌 → 出数字
+    cdis = pg.evaluate("""()=>{
+      G.turn = 2; G.players[0].discards = [5]; renderHUD();
+      return { mDi: $('mDi').textContent.trim(), mFan: $('mFan').textContent.trim() };
+    }""")
+    print('已出过牌:', cdis)
+
     def is_dash(v): return v == '—' or v == '-'
 
     checks = {
@@ -85,6 +109,12 @@ with sync_playwright() as p:
         '牌不齐→封顶为—':      is_dash(blanked['mCap']),
         '补花后数字恢复':      restored['mDi'].isdigit() and restored['mFan'].isdigit() and restored['mScore'].isdigit(),
         '补花后封顶恢复':      restored['mCap'] not in ('', '—'),
+        '未轮到我→底为—':      is_dash(a['mDi']),
+        '未轮到我→番为—':      is_dash(a['mFan']),
+        '未轮到我→得分为—':    is_dash(a['mSc']),
+        '未轮到我→封顶为—':    is_dash(a['mCap']),
+        '轮到我→出数字':       bturn['mDi'].isdigit() and bturn['mFan'].isdigit(),
+        '出过牌→出数字':       cdis['mDi'].isdigit() and cdis['mFan'].isdigit(),
     }
     print('\n--- 校验 ---')
     allok = True
