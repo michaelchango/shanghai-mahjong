@@ -34,7 +34,10 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
    （offsetWidth/clientHeight/style px 全保持原坐标系），游戏内 JS
    （fitRivers / fitLog / fitBacks / seatToast 视口定位）全部零改动。
    --pz 由主脚本 CUT 之后的客户端段按窗口设定：贴近 680px 设计高的最大倍率、上限 2 倍、手机恒为 1。 */
-#pcz{height:calc(100dvh / var(--pz));transform:scale(var(--pz));transform-origin:50% 0}
+#pcz{height:calc(100dvh / var(--pz));transform:scale(var(--pz));transform-origin:50% 0;
+  /* v1.2.42：will-change 让这层独立合成、并按 transform 的实际倍率栅格化 ——
+     否则部分 GPU 路径会按布局尺寸栅格化再由合成器放大，牌面/文字发糊；
+     #pcz 本来就有 transform（已是 fixed 后代的包含块），所以不会引入新的定位副作用 */ will-change:transform}
 
 /* ---------- 顶栏 ---------- */
 .topbar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);padding:0 2px 3px;flex:0 0 auto}
@@ -262,7 +265,10 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 /* 轮到谁：在方位块外侧挂一枚向外指的三角指针（转盘指针的感觉），比只换个底色醒目得多 */
 .dial .dw.cur::after{content:'';position:absolute;width:0;height:0;
   filter:drop-shadow(0 0 6px rgba(255,207,92,.95));animation:dialPtr 1.1s ease-in-out infinite;z-index:6}
-@keyframes dialPtr{0%,100%{opacity:.85;transform:scale(1)}50%{opacity:1;transform:scale(1.12)}}
+/* v1.2.42：只动 opacity，不再动 transform:scale ——
+   带 drop-shadow 滤镜的元素如果每帧都改几何尺寸，浏览器必须每帧重算阴影并
+   重栅格化所在图层，这正是「平时发糊、重绘瞬间变清晰」的来源 */
+@keyframes dialPtr{0%,100%{opacity:.72}50%{opacity:1}}
 /* 指针：半宽 8px（总底 16，< 方位块宽 30，更协调），伸出 12px（穿过圆边向外戳） */
 .dial .dw.n.cur::after{bottom:100%;left:50%;margin-left:-8px;border-width:0 8px 12px;border-style:solid;border-color:transparent transparent var(--gold) transparent;transform-origin:50% 100%}
 .dial .dw.s.cur::after{top:100%;left:50%;margin-left:-8px;border-width:12px 8px 0;border-style:solid;border-color:var(--gold) transparent transparent transparent;transform-origin:50% 0}
@@ -329,7 +335,9 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   box-shadow:0 2px 0 #c6bdA6,0 3px 4px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.95)}
 .tile:before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:4px;
   background:linear-gradient(152deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,0) 44%,rgba(0,0,0,.045) 100%)}
-.tile svg{position:relative;display:block;width:100%;height:100%}
+.tile svg{position:relative;display:block;width:100%;height:100%;
+  /* v1.2.42：明确要求矢量按几何精度渲染，避免小尺寸牌面被栅格化时走「速度优先」的近似路径 */
+  shape-rendering:geometricPrecision}
 .tile.sm{--tw:19px;--th:26px;border-radius:4px}
 .tile.xs{--tw:16px;--th:22px;border-radius:3px}
 /* v1.2.25：左右牌河牌——牌本身保持竖长条 14×20（比我的 xs 牌 16×22 小一圈），
@@ -621,7 +629,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.41</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.42</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
