@@ -530,6 +530,10 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   background:radial-gradient(130% 90% at 50% 18%,#0e4030 0%,#061a13 72%);
   overflow:hidden;touch-action:pan-y}
 .homeBox{width:min(360px,90vw);text-align:center;animation:hIn .28s ease}
+/* v1.2.43：等待页（房间）在极矮屏上允许内部滚动 —— #home 是 overflow:hidden，
+   内容高于视口时上下两头会被截断；给盒子一个 100dvh 上限 + 自身滚动，保证
+   「房间号」和「退出房间」永远够得着 */
+#homeRoom{max-height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding:6px 2px}
 @keyframes hIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .hTitle{font-size:36px;font-weight:900;color:var(--gold);letter-spacing:8px;margin:6px 0 2px;
   text-shadow:0 3px 16px rgba(0,0,0,.55),0 0 1px rgba(255,207,92,.8)}
@@ -573,9 +577,16 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   text-shadow:0 2px 14px rgba(0,0,0,.5);cursor:pointer}
 .rNoHint{font-size:11px;color:var(--dim2);margin-top:2px}
 /* v1.2.4：等待页简易牌桌：中央迷你桌心圆 + 上下左右四个位置
-   v1.2.41：整体放大（300→352 / 78vw→90vw），四個座位框更宽，长昵称不截断 */
-.rBoard{margin-top:14px;width:min(352px,90vw);aspect-ratio:1;margin-left:auto;margin-right:auto;
-  display:grid;grid-template-columns:1fr 88px 1fr;grid-template-rows:1fr 88px 1fr;gap:8px;
+   v1.2.41：整体放大（300→352 / 78vw→90vw），四個座位框更宽，长昵称不截断
+   v1.2.43：牌桌再按**可用高度**封顶 —— 手机上浏览器地址栏/工具栏吃掉高度后可用视口常只有 ~640px，
+   而牌桌以外的内容固定约 385px，352px 的牌桌会把「房间号」和「退出房间」顶出屏幕
+   （#home 是 position:fixed + overflow:hidden，超出部分直接被截断，必须全屏才看得见）。
+   高屏上不影响（仍取 90vw/352px），矮屏自动缩小；极矮屏再由 .homeBox 的滚动兜底。 */
+.rBoard{margin-top:14px;width:min(352px, 90vw, calc(100dvh - 412px));min-width:150px;aspect-ratio:1;
+  margin-left:auto;margin-right:auto;
+  /* v1.2.43：列必须用 minmax(0,1fr) —— 普通 1fr 带最小内容宽度，会把 JS 设定的窄宽度撑回去，
+     导致「按可用高度收窄牌桌」失效 */
+  display:grid;grid-template-columns:minmax(0,1fr) 88px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 88px minmax(0,1fr);gap:8px;
   align-items:center;justify-items:center;position:relative}
 .rSeatSlot{min-width:0;width:100%;height:100%;border:1px dashed rgba(255,255,255,.18);border-radius:11px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -631,7 +642,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.43</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.44</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -4087,6 +4098,7 @@ function showRoom(){
   $('homePick').classList.add('hide');
   $('homeLobby').classList.add('hide');
   $('homeRoom').classList.remove('hide');
+  fitRoomBoard();          // v1.2.43：切到等待页时按可用高度定牌桌大小
 }
 function showLobby(){
   $('homePick').classList.add('hide');
@@ -4164,6 +4176,30 @@ function bindHome(){
    与进牌局后的方位完全一致——点哪个空位，就是坐到牌桌的那一侧 */
 const POS_OF_REL = ['rSeatS', 'rSeatE', 'rSeatN', 'rSeatW'];   // 视角位 0我 / 1右家 / 2对家 / 3左家
 const REL_LABEL = ['我', '右家', '对家', '左家'];
+/* v1.2.43：等待页牌桌按**可用高度**自适应。
+   手机浏览器有地址栏/工具栏时可用高度常只有 560~640px，而牌桌以外内容约 385~430px。
+   固定尺寸的牌桌会把「房间号」和「退出房间」顶出屏幕（#home 是 fixed + overflow:hidden，直接截断，
+   必须手动全屏才看得见）。这里从「宽屏上限」开始逐步收窄，直到内容不再溢出。
+   极矮屏（<520px）即使收到下限也放不下时，由 #homeRoom 自身的滚动兜底，保证两头都够得着。 */
+const ROOM_BOARD_MIN = 150;
+function fitRoomBoard(){
+  const box = $('homeRoom'), board = $('rBoard');
+  if (!box || !board || box.classList.contains('hide')) return;
+  const vh = window.innerHeight || 0;
+  if (!vh) return;
+  let w = Math.min(352, Math.round(window.innerWidth * 0.9));
+  board.style.width = w + 'px';
+  let guard = 0;
+  while (box.scrollHeight > box.clientHeight + 1 && w > ROOM_BOARD_MIN && guard++ < 60){
+    w -= 6;
+    board.style.width = w + 'px';
+  }
+}
+// 窗口尺寸变化 / 手机横竖屏切换后重算（顶层副作用，Node 单测沙箱里没有 window，必须守卫）
+if (typeof window !== 'undefined' && window.addEventListener){
+  window.addEventListener('resize', () => { try{ fitRoomBoard(); }catch(e){} });
+  window.addEventListener('orientationchange', () => { setTimeout(() => { try{ fitRoomBoard(); }catch(e){} }, 260); });
+}
 function renderRoom(){
   const box = $('rBoard');
   if (!box) return;
@@ -4231,6 +4267,7 @@ function renderRoom(){
   }
   const me = NET.players[NET.mySeat];
   $('rReady').textContent = (me && me.ready) ? '取消准备' : '准备';
+  fitRoomBoard();          // v1.2.43：内容填完后按可用高度定牌桌大小
 }
 /* 客户端发送换座请求 */
 function netMoveSeat(seat){
