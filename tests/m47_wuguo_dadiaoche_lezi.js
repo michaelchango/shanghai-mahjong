@@ -95,5 +95,52 @@ const df = S.playerDiFan(hudP);
 ok('playerDiFan 走勒子档（底 10）', df.di === 10, df);
 ok('playerDiFan 番含无花果（≥2）', df.fan >= 2, df);
 
+console.log('== 6) 统一逻辑：用户给的 4 个标准例题（敲麻）==');
+// 规则：只要沾勒子（牌型勒子 或 无花果 或 大吊车），底一律拉满 10 花，
+//       其余（勒子数 + 附加番）全部加在番乘区。
+CFG.lajiHu = true; CFG.base = 2; CFG.unit = 1; CFG.lezi = 8;
+{
+  // 1) 垃圾胡 + 无花果 → 2 勒子 → 10 × 2 = 20
+  const s1 = S.scoreOf({ type:'垃圾胡', base:0, lezi:0, flowers:0 }, {}, mkP({}), 1);
+  ok('例1 垃圾胡+无花果 = 10×2 = 20', s1.di === 10 && s1.fan === 2 && s1.per === 20, [s1.di, s1.fan, s1.per]);
+  ok('例1 兜底不加（沾勒子）', s1.fan === 2, s1.fan);
+
+  // 2) 清一色 + 无花果 → 4 勒子 → 10 × 4 = 40
+  const s2 = S.scoreOf({ type:'清一色', base:0, lezi:2, flowers:0 }, {}, mkP({}), 1);
+  ok('例2 清一色+无花果 = 10×4 = 40', s2.di === 10 && s2.fan === 4 && s2.per === 40, [s2.di, s2.fan, s2.per]);
+  ok('例2 勒子 = 2+2', s2.lezi === 4, s2.leziParts);
+
+  // 3) 清一色 + 无花果 + 门清 → 4 勒子 + 1 番 = 5 番 → 50
+  const s3 = S.scoreOf({ type:'清一色', base:0, lezi:2, flowers:0 }, {}, mkP({ menqing:true }), 1);
+  ok('例3 清一色+无花果+门清 = 10×5 = 50', s3.di === 10 && s3.fan === 5 && s3.per === 50, [s3.di, s3.fan, s3.per]);
+
+  // 4) 清一色 + 无花果 + 门清 + 杠上开花 → 4 勒子 + 2 番 = 6 番 → 60
+  const s4 = S.scoreOf({ type:'清一色', base:0, lezi:2, flowers:0 }, { kongDraw:true }, mkP({ menqing:true }), 1);
+  ok('例4 再+杠上开花 = 10×6 = 60', s4.di === 10 && s4.fan === 6 && s4.per === 60, [s4.di, s4.fan, s4.per]);
+}
+
+console.log('== 7) 「沾勒子 ⇒ 底拉满 10」对普通牌型也成立 ==');
+{
+  CFG.base = 3; CFG.unit = 2;
+  // 9 张花 + 底 3 ⇒ 没沾勒子时底 = 12
+  const plain = S.scoreOf({ type:'碰碰胡', base:1, lezi:0, flowers:9 }, {}, mkP({ flowers:[100,101,102,103,104,105,106,107,108] }), 1);
+  ok('没沾勒子：底 = 底3 + 花9 = 12', plain.di === 12, [plain.di, plain.fan]);
+  // 同一手若换成无花果（0 花）⇒ 底被拉满为 10（即使花多也不叠）
+  const lez = S.scoreOf({ type:'垃圾胡', base:0, lezi:0, flowers:0 }, {}, mkP({}), 1);
+  ok('沾勒子：底固定 10（不叠底设置与花数）', lez.di === 10, lez.di);
+  CFG.base = 2; CFG.unit = 1;
+}
+
+console.log('== 8) 前 5 种牌型只影响「番」，不动底 ==');
+{
+  for (const [t, base] of [['垃圾胡',0],['碰碰胡',1],['混一色',1],['混碰',1],['七小对',1]]){
+    const p = mkP({ flowers:[100] });                 // 1 花 ⇒ 不是无花果，不会误触勒子
+    const sc = S.scoreOf({ type:t, base, lezi:0, flowers:1 }, {}, p, 1);
+    const wantDi = CFG.base + 1, wantFan = base + 1;  // 敲麻兜底 +1
+    ok(t + ' 底 = 底设置2 + 花1 = 3', sc.di === wantDi, sc.di);
+    ok(t + ' 番 = 牌型' + base + ' + 兜底1 = ' + wantFan, sc.fan === wantFan, sc.fan);
+  }
+}
+
 console.log('\n结果: ' + (fail ? '❌ ' : '✅ ') + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail ? 1 : 0);

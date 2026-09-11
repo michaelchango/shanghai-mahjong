@@ -610,7 +610,7 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.38</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.39</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -2906,6 +2906,11 @@ async function runHand(){
 // 普通牌型（底 = 底设置 + 花数、番 = 兜底番（仅敲麻）+ 牌型番 + 附加番）。
 // 开宝 / 荒番仍是外部倍数，只作用于理论分与封顶。
 // v1.2.37：无花果 / 大吊车 也改成勒子牌型，勒子数与色牌型**相加**（见 leziTotal）。
+// v1.2.38（统一口径）：基础公式 =（底 + 花）×（兜底 + 番 + 附加番）× 额外倍数。
+//   牌型有且只有一个（9 种：垃圾胡/碰碰胡/混一色/混碰/七小对 走「番」；清一色/清碰/风一色/风碰 走「勒子」）；
+//   附加番可有可无、可多个（无花果/大吊车 记 2 勒（敲麻）/1 勒（清混碰），其余直接加番）。
+//   「沾勒子」= 牌型勒子 > 0 或 无花果/大吊车 成立 ⇒ 底一律拉满 LEZI_DI(10)，
+//   其余（勒子数 + 附加番）全部加进番乘区 —— 即下面 if(lezi) 分支。
 function scoreOf(ev, ctx, p, mult){
   const add = extraFan(p, ctx || {});
   // v1.2.37：勒子总数 = 色牌型勒子 + 无花果勒子 + 大吊车勒子（相加）
@@ -3434,32 +3439,12 @@ function openRule(){
   '<p><b>敲麻</b>：另有花牌 20 张 = 春夏秋冬梅兰竹菊 8 张 + 中/发/白 各 4 张；摸到即亮出补花，每张 1 花。</p>' +
   '<p><b>清混碰</b>：中发白按真牌发出（各 4 张，参与组牌），桌面上只有春夏秋冬梅兰竹菊 8 张算花。</p>' +
 
-  '<h3>胡牌牌型</h3>' +
-  '<p class="dimc">分两档：<b>兜底档</b>按番算（敲麻另有 1 番兜底，垃圾胡 0 番就是靠它起步）；<b>勒子档</b>按勒子算（1 勒子 = 10 花 × 1 番）。</p>' +
-  '<table><tr><th>牌型</th><th>说明</th><th class="f">敲麻</th><th class="f">清混碰</th></tr>' +
-  '<tr><td>垃圾胡 / 平胡</td><td>顺子刻子混打的普通胡（仅敲麻）</td><td class="f">0 番<br><small>+1 兜底</small></td><td class="f">—</td></tr>' +
-  '<tr><td>碰碰胡</td><td>4 组刻子/杠 + 1 对将</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
-  '<tr><td>混一色</td><td>一种花色 + 字牌（风/中发白）</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
-  '<tr><td>混碰</td><td>混一色 + 碰碰胡</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
-  '<tr><td>七小对</td><td>7 对子（设置里可选，默认关）</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
-  '<tr><td>清一色</td><td>单一花色，不含字牌</td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
-  '<tr><td>清碰</td><td>清一色 + 碰碰胡</td><td class="f">4 勒子</td><td class="f">2 勒子</td></tr>' +
-  '<tr><td>风一色</td><td>全字牌（含中发白；乱风向七对形态也可）</td><td class="f">4 勒子</td><td class="f">2 勒子</td></tr>' +
-  '<tr><td>风碰</td><td>全字牌 + 碰碰胡</td><td class="f">8 勒子</td><td class="f">4 勒子</td></tr>' +
-  '<tr><td>无花果</td><td>胡牌时一张花都没有（花牌、风牌明碰/暗刻/明杠/暗杠都算花）<b>，且只能自摸</b></td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
-  '<tr><td>大吊车</td><td>4 组副露全亮出，单钓最后一张</td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr></table>' +
-  '<p class="dimc"><b>勒子牌型怎么算</b>：1 勒子 = 10 花 × 1 番，所以勒子牌型的<b>底固定 10 花</b>、勒子数记在<b>番</b>里——例如风一色（敲麻 4 勒子）就是 10 花 × 4 番；若再有海底捞月等附加番，直接加在番上（10 花 × 5 番）。普通牌型的底则是「底设置 + 花数」。</p>' +
-  '<p class="dimc"><b>勒子可叠加</b>：一手牌同时满足多个勒子来源时，勒子数<b>相加</b>——清一色（2）+ 无花果（2）= 4 勒子；无花果（2）+ 大吊车（2）= 4 勒子；清碰（4）+ 无花果（2）+ 大吊车（2）= 8 勒子。</p>' +
-  '<p class="dimc">清混碰只认上表里「碰 / 色」系的牌型（碰碰胡、混一色、混碰、清一色、清碰、风一色、风碰，外加开启七小对）；敲麻在垃圾胡兜底下全部可胡。</p>' +
-
-  '<h3>附加番（两种玩法通用）</h3>' +
-  '<table><tr><th>番种</th><th>说明</th><th class="f">番</th></tr>' +
-  '<tr><td>门清</td><td>不吃不碰不明杠（暗杠不破门清）</td><td class="f">+1</td></tr>' +
-  '<tr><td>杠上开花</td><td>杠后补牌自摸</td><td class="f">+1</td></tr>' +
-  '<tr><td>海底捞月</td><td>最后一张牌自摸</td><td class="f">+1</td></tr>' +
-  '<tr><td>抢杠</td><td>别人加杠的那张牌被你胡（被抢者付 3 倍）</td><td class="f">+1</td></tr>' +
-  '<tr><td>地胡</td><td>闲家第一巡自摸成胡（无需敲定）</td><td class="f">+8</td></tr>' +
-  '<tr><td>天胡</td><td>庄家起手成胡（无需敲定）</td><td class="f">+8</td></tr></table>' +
+  '<h3>算分</h3>' +
+  '<p>基础公式：<b>（底 + 花）×（兜底 + 番 + 附加番）× 额外倍数</b>。</p>' +
+  '<table><tr><th style="width:28%">这手牌…</th><th>底 + 花</th><th>番乘区</th></tr>' +
+  '<tr><td><b>没沾勒子</b></td><td>底设置 + 花数</td><td>兜底 + 牌型番 + 附加番</td></tr>' +
+  '<tr><td><b>沾了勒子</b></td><td><b>固定 10 花</b></td><td>勒子数 + 附加番</td></tr></table>' +
+  '<p class="dimc">「沾勒子」＝ 牌型是色牌型（清一色 / 清碰 / 风一色 / 风碰），或附加番里有 <b>无花果 / 大吊车</b>。只要沾上，底一律拉满 <b>10 花</b>，其余不管是勒子数还是附加番，全部加在番上（1 勒子 = 10 花 × 1 番）。<br>敲麻的普通牌型另有 <b>1 番兜底</b>（垃圾胡 0 番就靠它起步），清混碰没有兜底。</p>' +
 
   '<h3>底（花）</h3>' +
   '<table><tr><th>来源</th><th class="f">花数</th></tr>' +
@@ -3468,9 +3453,40 @@ function openRule(){
   '<tr><td>风牌刻子 / 明杠 / 暗杠</td><td class="f">1 / 2 / 3</td></tr>' +
   '<tr><td>底（开局设定）</td><td class="f">' + CFG.base + '</td></tr></table>' +
 
-  '<h3>算分</h3>' +
-  '<p><b>普通牌型</b>：得分 = <b>（底设置 + 花数）</b> × <b>（兜底 + 牌型番 + 附加番）</b> × 每花分值；敲麻有 1 番兜底（垃圾胡 0 番就靠它起步），清混碰没有兜底。<br>' +
-  '<b>勒子牌型</b>：得分 = <b>10 花</b> × <b>（勒子数 + 附加番）</b> × 每花分值（1 勒子 = 10 花 × 1 番）。</p>' +
+  '<h3>牌型（有且只有一个）</h3>' +
+  '<p class="dimc">前 5 种只算番；后 4 种按勒子算（同时把底拉满 10 花）。</p>' +
+  '<table><tr><th>牌型</th><th>说明</th><th class="f">敲麻</th><th class="f">清混碰</th></tr>' +
+  '<tr><td>垃圾胡 / 平胡</td><td>顺子刻子混打的普通胡</td><td class="f">0 番<br><small>+1 兜底</small></td><td class="f">—</td></tr>' +
+  '<tr><td>碰碰胡</td><td>4 组刻子/杠 + 1 对将</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
+  '<tr><td>混一色</td><td>一种花色 + 字牌</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
+  '<tr><td>混碰</td><td>混一色 + 碰碰胡</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
+  '<tr><td>七小对</td><td>7 对子（设置里可选，默认关）</td><td class="f">1 番<br><small>+1 兜底</small></td><td class="f">1 番</td></tr>' +
+  '<tr><td>清一色</td><td>单一花色，不含字牌</td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
+  '<tr><td>清碰</td><td>清一色 + 碰碰胡</td><td class="f">4 勒子</td><td class="f">2 勒子</td></tr>' +
+  '<tr><td>风一色</td><td>全字牌（含中发白；乱风向七对形态也可）</td><td class="f">4 勒子</td><td class="f">2 勒子</td></tr>' +
+  '<tr><td>风碰</td><td>全字牌 + 碰碰胡</td><td class="f">8 勒子</td><td class="f">4 勒子</td></tr></table>' +
+  '<p class="dimc">清混碰只认「碰 / 色」系（碰碰胡、混一色、混碰、清一色、清碰、风一色、风碰，外加开启七小对）；敲麻在垃圾胡兜底下全部可胡。</p>' +
+
+  '<h3>附加番（可没有，也可多个叠加）</h3>' +
+  '<table><tr><th>番种</th><th>说明</th><th class="f">敲麻</th><th class="f">清混碰</th></tr>' +
+  '<tr><td>无花果</td><td>胡牌时一张花都没有（花牌、风牌明碰/暗刻/明杠/暗杠都算花）<b>，且只能自摸</b></td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
+  '<tr><td>大吊车</td><td>4 组副露都在手外，单钓最后一张</td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
+  '<tr><td>门清</td><td>不吃不碰不明杠（暗杠不破门清）</td><td class="f">+1 番</td><td class="f">+1 番</td></tr>' +
+  '<tr><td>杠上开花</td><td>杠后补牌自摸</td><td class="f">+1 番</td><td class="f">+1 番</td></tr>' +
+  '<tr><td>海底捞月</td><td>最后一张牌自摸</td><td class="f">+1 番</td><td class="f">+1 番</td></tr>' +
+  '<tr><td>抢杠</td><td>胡别家加杠的那张（被抢者付 3 倍）</td><td class="f">+1 番</td><td class="f">+1 番</td></tr>' +
+  '<tr><td>地胡</td><td>闲家第一巡自摸成胡</td><td class="f">+8 番</td><td class="f">+8 番</td></tr>' +
+  '<tr><td>天胡</td><td>庄家起手成胡</td><td class="f">+8 番</td><td class="f">+8 番</td></tr></table>' +
+  '<p class="dimc"><b>勒子相加</b>：牌型勒子与无花果 / 大吊车同时成立时，勒子数<b>相加</b>——清一色(2) + 无花果(2) = 4 勒子；无花果(2) + 大吊车(2) = 4 勒子；清碰(4) + 无花果(2) + 大吊车(2) = 8 勒子。</p>' +
+
+  '<h3>算例（敲麻）</h3>' +
+  '<table><tr><th>这手牌</th><th class="f">勒子</th><th class="f">番</th><th class="f">每家付</th></tr>' +
+  '<tr><td>垃圾胡 + 无花果</td><td class="f">2</td><td class="f">2</td><td class="f">10 × 2 = 20</td></tr>' +
+  '<tr><td>清一色 + 无花果</td><td class="f">2+2 = 4</td><td class="f">4</td><td class="f">10 × 4 = 40</td></tr>' +
+  '<tr><td>清一色 + 无花果 + 门清</td><td class="f">4</td><td class="f">4+1 = 5</td><td class="f">10 × 5 = 50</td></tr>' +
+  '<tr><td>清一色 + 无花果 + 门清 + 杠上开花</td><td class="f">4</td><td class="f">4+2 = 6</td><td class="f">10 × 6 = 60</td></tr>' +
+  '<tr><td>碰碰胡，带 1 张花（没沾勒子）</td><td class="f">—</td><td class="f">1+1 兜底 = 2</td><td class="f">(2+1) × 2 = 6</td></tr></table>' +
+
   '<p>单份封顶 ' + (CFG.lezi >= 99 ? '<b>不封顶</b>' : CFG.lezi + ' 勒（' + (CFG.lezi * 10 * CFG.unit) + ' 分）') + '：封顶值 = 勒子数 × 10 花 × 每花分值 × 倍数，理论分超过就按封顶值算。</p>' +
   '<ul><li>自摸：三家各付一份</li><li>点炮：点炮者付一份（一炮多响则各付一份）</li>' +
   '<li>开宝（骰子为豹子或 1·4 点）：本局得分与封顶 ×2</li>' +
