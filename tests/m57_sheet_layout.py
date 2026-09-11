@@ -47,7 +47,8 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={'width': 400, 'height': 620})
     errs = []
     pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto('http://localhost:8099/', wait_until='load')
+    import os
+    pg.goto(os.environ.get('SHEET_URL','http://localhost:8099/'), wait_until='load')
     pg.wait_for_timeout(500)
 
     ok = True
