@@ -889,10 +889,21 @@ const LEZI_DI = 10;        // 1 勒子 = 10 花
 const DUI_FAN = 1;         // 敲麻兜底番
 const LEZI_TBL = { '清一色': 2, '清碰': 4, '风一色': 4, '风碰': 8 };      // 敲麻：勒子数
 const LEZI_TBL_QHP = { '清一色': 1, '清碰': 2, '风一色': 2, '风碰': 4 };  // 清混碰：勒子数
+// v1.2.37：无花果 / 大吊车 也改成勒子牌型——敲麻 2 勒子、清混碰 1 勒子。
+// 它们与上面的「色牌型」互不取代，勒子数**相加**（例：敲麻 清一色 + 无花果 = 2 + 2 = 4 勒子）。
+// 注意：无花果 / 大吊车 对任何手牌都可能成立，所以不再进 LEZI_TBL 查表，而是单独算。
 function leziOf(type){
   if (!type) return 0;
   return (CFG.lajiHu ? LEZI_TBL : LEZI_TBL_QHP)[type] || 0;
 }
+// 无花果 / 大吊车 的勒子数（按玩法：敲麻 2 / 清混碰 1）
+function specialLezi(){
+  return CFG.lajiHu ? 2 : 1;
+}
+// 无花果：花数为 0（花牌、风牌明碰/暗刻/明杠/暗杠都算花）——v1.2.12 起杠算花
+function isWuGuoHua(p){ return calcFlowers(p, null) === 0; }
+// 大吊车：四副露全在手外（单钓将）
+function isDaDiaoChe(p){ return (p.melds || []).length === 4; }
 function evaluateShape(handCounts, melds, opts){
   const need = 4 - melds.length;
   const stdWin = isWinShape(handCounts, need);
@@ -976,15 +987,26 @@ function wuGuoHuaAt(p, tile){
 }
 function extraFan(p, ctx){
   const add = [];
+  // v1.2.37：无花果 / 大吊车 已改为「勒子牌型」（敲麻 2 勒 / 清混碰 1 勒），
+  //   不再作为 +1 附加番出现在这里——见 specialLezi() / leziTotal()。
   if (p.menqing) add.push(['门清', 1]);
-  if (calcFlowers(p, null) === 0) add.push(['无花果', 1]);   // v1.2.12：杠算花，暗杠/加杠都会破无花果
-  if (ctx.diaoche) add.push(['大吊车', 1]);
   if (ctx.kongDraw) add.push(['杠上开花', 1]);
   if (ctx.haidi) add.push(['海底捞月', 1]);
   if (ctx.robKong) add.push(['抢杠', 1]);
   if (ctx.tianhu) add.push(['天胡', 8]);
   if (ctx.dihu) add.push(['地胡', 8]);
   return add;
+}
+// v1.2.37：本手牌的全部勒子数 = 色牌型勒子（清一色/清碰/风一色/风碰）+ 无花果勒子 + 大吊车勒子。
+// 三者可同时成立且**相加**（用户确认：勒子数相加）。返回 { total, parts } 便于结算面板展示明细。
+function leziTotal(p, ev){
+  const parts = [];
+  const t = leziOf(ev && ev.type);
+  if (t) parts.push([(ev && ev.type) || '色牌型', t]);
+  if (p && isWuGuoHua(p)) parts.push(['无花果', specialLezi()]);
+  if (p && isDaDiaoChe(p)) parts.push(['大吊车', specialLezi()]);
+  const total = parts.reduce((s, x) => s + x[1], 0);
+  return { total, parts };
 }
 
 /* ---------------- 向听数 ---------------- */
@@ -1118,18 +1140,21 @@ function typeBaseFan(t){
 // v1.2.36：牌型强弱（排序/比较用）——勒子牌型按勒子数，普通牌型按牌型番
 function shapeValue(ev){ return (ev && (ev.lezi || ev.base)) || 0; }
 // v1.2.37：预览口径——已知胡牌评估 ev 时返回 {di, fan}。
-// 口径必须与结算 scoreOf() 完全一致（番 = 兜底 + 牌型番/勒子数 + 附加番），否则顶部「番/得分」与
-// 结算面板对不上。附加番由 extraFan() 统一算，调用方不要再自己拼 addFan。
-function diFanOf(ev, flowers, addFan){
-  const lezi = ev.lezi || 0;
+// 口径必须与结算 scoreOf() 完全一致（番 = 兜底 + 勒子数/牌型番 + 附加番），否则顶部「番/得分」与
+// 结算面板对不上。附加番由 extraFan() 统一算，勒子总数走 leziTotal()（含无花果 / 大吊车）。
+function diFanOf(ev, flowers, addFan, p){
+  const lezi = p ? leziTotal(p, ev).total : (ev.lezi || 0);
   if (lezi) return { di: LEZI_DI, fan: lezi + addFan };                 // 勒子牌型：底 10 花
   return { di: CFG.base + (flowers || 0), fan: (CFG.lajiHu ? DUI_FAN : 0) + (ev.base || 0) + addFan };
 }
-// v1.2.37：只看得到「牌型名」（没有完整 ev）时的粗估。
-// 勒子牌型按牌型名查表（清一色/清碰/风一色/风碰），普通牌型按牌型番 + 兜底。
-function typeDiFan(t, flowers, addFan){
+// v1.2.37：只看得到「牌型名」（没有完整 ev）时的粗估。勒子数同样含无花果 / 大吊车。
+function typeDiFan(t, flowers, addFan, p){
   const name = typeLabel(t).replace(/\(.*\)$/, '');
-  const lz = leziOf(name);
+  let lz = leziOf(name);
+  if (p){
+    if (isWuGuoHua(p)) lz += specialLezi();
+    if (isDaDiaoChe(p)) lz += specialLezi();
+  }
   if (lz) return { di: LEZI_DI, fan: lz + addFan };
   return { di: CFG.base + (flowers || 0), fan: (CFG.lajiHu ? DUI_FAN : 0) + typeBaseFan(t) + addFan };
 }
@@ -1906,7 +1931,7 @@ function playerDiFan(p){
       tenpai = true;
       let best = null, bv = -1;
       for (const x of w){
-        const r = diFanOf(x.ev, calcFlowers(p, null), addFan);
+        const r = diFanOf(x.ev, calcFlowers(p, null), addFan, p);
         const v = r.di * r.fan;                 // 用「底 × 番」比较，勒子牌型的底不同也能比
         if (v > bv){ bv = v; best = r; }
       }
@@ -1915,7 +1940,7 @@ function playerDiFan(p){
   }
   if (fan === null){
     const cur = evaluateShape(hc, p.melds, { flowerCount: calcFlowers(p, null) });
-    const r = cur ? diFanOf(cur, calcFlowers(p, null), addFan) : typeDiFan(evalAll(hc, p.melds.length).bestType, calcFlowers(p, null), addFan);
+    const r = cur ? diFanOf(cur, calcFlowers(p, null), addFan, p) : typeDiFan(evalAll(hc, p.melds.length).bestType, calcFlowers(p, null), addFan, p);
     fan = r.fan; di2 = r.di;
   }
   return { di: di2 != null ? di2 : di, fan, tenpai };
@@ -1959,19 +1984,19 @@ function analyzeMe(){
     // v1.2.37：听口比较用「底 × 番」，但存进 out 的必须是真番与真底（原来把乘积当番存了）
     let bw = null, bv = -1, bdi = di;
     for (const w of waits){
-      const r = diFanOf(w.ev, flowers, addFan);
+      const r = diFanOf(w.ev, flowers, addFan, p);
       const v = r.di * r.fan;               // 勒子牌型的底不同，用「底 × 番」选最优听口
       if (v > bv){ bv = v; bw = w; bdi = r.di; }
     }
     out.waits = waits; out.best = bw; out.di = bdi;
-    out.fan = diFanOf(bw.ev, flowers, addFan).fan;
+    out.fan = diFanOf(bw.ev, flowers, addFan, p).fan;
   } else {
     const ev = evalAll(hc, p.melds.length);
     out.shanten = ev.best; out.target = ev.bestType;
     // v1.2.37：未听牌时也按「当前手牌的真实牌型」算，不再用 bestType 粗估
     // （bestType 只看向听方向，可能把清一色算成清碰/清一色之外的档，导致番对不上）
     const cur = evaluateShape(hc, p.melds, { flowerCount: flowers });
-    const r = cur ? diFanOf(cur, flowers, addFan) : typeDiFan(ev.bestType, flowers, addFan);
+    const r = cur ? diFanOf(cur, flowers, addFan, p) : typeDiFan(ev.bestType, flowers, addFan, p);
     out.fan = r.fan; out.di = r.di;
   }
   // v1.2.37：顶部「可得（分）」直接给出来，renderHUD 不再自己乘（与结算 scoreOf 同源）
@@ -2880,9 +2905,12 @@ async function runHand(){
 // v1.2.36：统一算分——勒子牌型（底固定 10 花、番 = 勒子数 + 附加番）；
 // 普通牌型（底 = 底设置 + 花数、番 = 兜底番（仅敲麻）+ 牌型番 + 附加番）。
 // 开宝 / 荒番仍是外部倍数，只作用于理论分与封顶。
+// v1.2.37：无花果 / 大吊车 也改成勒子牌型，勒子数与色牌型**相加**（见 leziTotal）。
 function scoreOf(ev, ctx, p, mult){
   const add = extraFan(p, ctx || {});
-  const lezi = ev.lezi || 0;
+  // v1.2.37：勒子总数 = 色牌型勒子 + 无花果勒子 + 大吊车勒子（相加）
+  const lz = leziTotal(p, ev);
+  const lezi = lz.total;
   let di, fan;
   if (lezi){
     di = LEZI_DI;                       // 勒子自带 10 花（不再叠底设置与花牌）
@@ -2894,13 +2922,18 @@ function scoreOf(ev, ctx, p, mult){
   for (const x of add) fan += x[1];
   const raw = di * Math.max(1, fan) * CFG.unit * mult;
   const cap = CFG.lezi * 10 * CFG.unit * mult;
-  return { di, fan, add, lezi, raw, cap, per: Math.min(raw, cap) };
+  return { di, fan, add, lezi, leziParts: lz.parts, raw, cap, per: Math.min(raw, cap) };
 }
 function fanBreakdownHtml(ev, add, sc, extraNote){
   const rows = [];
   if (sc.lezi){
     rows.push('<div class="li"><span class="n">勒子（' + sc.lezi + ' 勒子 = 10 花 × ' + sc.lezi + ' 番）</span><span class="v">' + sc.di + ' 花</span></div>');
-    rows.push('<div class="li"><span class="n">' + ev.type + '</span><span class="v">' + sc.lezi + ' 番</span></div>');
+    // v1.2.37：逐项列出勒子来源（色牌型 / 无花果 / 大吊车 可相加）
+    if (sc.leziParts && sc.leziParts.length){
+      for (const x of sc.leziParts) rows.push('<div class="li"><span class="n">' + x[0] + '</span><span class="v">' + x[1] + ' 勒子</span></div>');
+    } else {
+      rows.push('<div class="li"><span class="n">' + ev.type + '</span><span class="v">' + sc.lezi + ' 番</span></div>');
+    }
   } else {
     rows.push('<div class="li"><span class="n">底（底 ' + CFG.base + ' + 花 ' + (sc.di - CFG.base) + '）</span><span class="v">' + sc.di + ' 花</span></div>');
     if (CFG.lajiHu) rows.push('<div class="li"><span class="n">兜底</span><span class="v">+1</span></div>');
@@ -3412,15 +3445,16 @@ function openRule(){
   '<tr><td>清一色</td><td>单一花色，不含字牌</td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
   '<tr><td>清碰</td><td>清一色 + 碰碰胡</td><td class="f">4 勒子</td><td class="f">2 勒子</td></tr>' +
   '<tr><td>风一色</td><td>全字牌（含中发白；乱风向七对形态也可）</td><td class="f">4 勒子</td><td class="f">2 勒子</td></tr>' +
-  '<tr><td>风碰</td><td>全字牌 + 碰碰胡</td><td class="f">8 勒子</td><td class="f">4 勒子</td></tr></table>' +
+  '<tr><td>风碰</td><td>全字牌 + 碰碰胡</td><td class="f">8 勒子</td><td class="f">4 勒子</td></tr>' +
+  '<tr><td>无花果</td><td>胡牌时一张花都没有（花牌、风牌明碰/暗刻/明杠/暗杠都算花）<b>，且只能自摸</b></td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
+  '<tr><td>大吊车</td><td>4 组副露全亮出，单钓最后一张</td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr></table>' +
   '<p class="dimc"><b>勒子牌型怎么算</b>：1 勒子 = 10 花 × 1 番，所以勒子牌型的<b>底固定 10 花</b>、勒子数记在<b>番</b>里——例如风一色（敲麻 4 勒子）就是 10 花 × 4 番；若再有海底捞月等附加番，直接加在番上（10 花 × 5 番）。普通牌型的底则是「底设置 + 花数」。</p>' +
+  '<p class="dimc"><b>勒子可叠加</b>：一手牌同时满足多个勒子来源时，勒子数<b>相加</b>——清一色（2）+ 无花果（2）= 4 勒子；无花果（2）+ 大吊车（2）= 4 勒子；清碰（4）+ 无花果（2）+ 大吊车（2）= 8 勒子。</p>' +
   '<p class="dimc">清混碰只认上表里「碰 / 色」系的牌型（碰碰胡、混一色、混碰、清一色、清碰、风一色、风碰，外加开启七小对）；敲麻在垃圾胡兜底下全部可胡。</p>' +
 
   '<h3>附加番（两种玩法通用）</h3>' +
   '<table><tr><th>番种</th><th>说明</th><th class="f">番</th></tr>' +
   '<tr><td>门清</td><td>不吃不碰不明杠（暗杠不破门清）</td><td class="f">+1</td></tr>' +
-  '<tr><td>无花果</td><td>胡牌时一张花都没有（花牌、风牌明碰/暗刻/明杠/暗杠都算花）<b>，且只能自摸</b>——不能被点炮、不能抢杠</td><td class="f">+1</td></tr>' +
-  '<tr><td>大吊车</td><td>4 组副露，单钓一张</td><td class="f">+1</td></tr>' +
   '<tr><td>杠上开花</td><td>杠后补牌自摸</td><td class="f">+1</td></tr>' +
   '<tr><td>海底捞月</td><td>最后一张牌自摸</td><td class="f">+1</td></tr>' +
   '<tr><td>抢杠</td><td>别人加杠的那张牌被你胡（被抢者付 3 倍）</td><td class="f">+1</td></tr>' +
