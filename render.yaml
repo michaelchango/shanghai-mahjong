@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: yidaolai-mahjong
+    runtime: node
+    plan: free
+    branch: master
+    buildCommand: npm install && node proto/tools/extract.js
+    startCommand: node server/server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production

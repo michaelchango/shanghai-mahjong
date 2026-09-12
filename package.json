@@ -1,12 +1,14 @@
 {
   "name": "shanghai-knock-mahjong",
-  "version": "1.0.0",
-  "description": "一个**单文件 HTML** 的上海敲麻麻将游戏，手机上用浏览器直接打开就能玩。",
-  "main": "index.js",
+  "version": "1.2.45",
+  "description": "上海敲麻（一道来敲麻）：单机 + 多人联机麻将，Node + WebSocket 服务器权威架构。",
+  "main": "server/server.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
+    "start": "node server/server.js",
+    "build": "node proto/tools/extract.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
