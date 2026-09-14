@@ -697,7 +697,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.48</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.49</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -4012,6 +4012,8 @@ const NET = {
   lastView: null,
   reconnecting: false, // 重连流程进行中
   reconnectTries: 0,   // 重连退避计数
+  lastPingAt: 0,       // v1.2.49 最近一次发出心跳的时刻
+  hbMiss: 0,           // v1.2.49 连续几次心跳没收到任何服务端消息（看门狗用）
   lastMsgAt: 0,        // 最近一次收到服务端消息的时间（探活用）
   askLeft: 0,          // 服务端下发的决策剩余毫秒（全局倒计时唯一数据源）
   askAt: 0,            // 收到 askLeft 的本地时刻
@@ -4019,6 +4021,24 @@ const NET = {
   kicked: false,       // 本页座位被别处顶替：不再自动重连，避免两个页面互相抢座位
   readySeats: []       // 局间「准备下一局」：已准备的真实座位列表（服务端下发）
 };
+/* v1.2.49：心跳 + 看门狗。服务端收到 {t:'ping'} 会回 {t:'pong'}，
+   任何服务端消息都会刷新 NET.lastMsgAt。连续 2 个心跳周期（约 50s）毫无消息 = 连接已死，
+   主动断开重连 —— 否则前台静默断线时玩家会一直盯着一张永不更新的牌桌。 */
+function netStartHb(){
+  clearInterval(NET.hb);
+  NET.lastPingAt = 0; NET.hbMiss = 0;
+  NET.hb = setInterval(() => {
+    if (NET.lastMsgAt < NET.lastPingAt) NET.hbMiss++; else NET.hbMiss = 0;
+    NET.lastPingAt = Date.now();
+    netSend({ t:'ping' });
+    if (NET.hbMiss >= 2){
+      NET.hbMiss = 0;
+      try{ if (NET.ws){ NET.ws.onclose = null; NET.ws.onerror = null; NET.ws.close(); } }catch(e){}
+      NET.ws = null;
+      netTryReconnect();
+    }
+  }, 25000);
+}
 function netSend(o){
   try{ if (NET.ws && NET.ws.readyState === 1){ NET.ws.send(JSON.stringify(o)); return true; } }catch(e){}
   return false;
@@ -4069,20 +4089,20 @@ function netConnect(server, onOk){
     try{ m = JSON.parse(e.data); }catch(err){ return; }
     netHandle(m);
   };
-  clearInterval(NET.hb);
-  NET.hb = setInterval(() => netSend({ t:'ping' }), 25000);
+  netStartHb();
 }
-/* 断线退避重连：1.8s/2.6s/…最长 6s，8 次后放弃并提示 */
+/* 断线退避重连：v1.2.49 放宽到 20 次≈2 分钟 —— Render 免费层冷启动要约 1 分钟，
+   原来 8 次≈35s 经常在服务器活过来前就放弃，玩家只能停在最后渲染的牌桌上（「看到最新状态然后卡住」） */
 function netTryReconnect(){
   if (!NET.active && !NET.tableOn) return;   // 已离开对局，不重连
   if (NET.reconnecting) return;              // 已在重连流程
-  if (NET.reconnectTries >= 8){
+  if (NET.reconnectTries >= 20){
     NET.reconnectTries = 0;
     toast('重连失败，请回到首页后重新进入房间', 'red');
     return;
   }
   NET.reconnectTries++;
-  const delay = Math.min(1000 + 800 * NET.reconnectTries, 6000);
+  const delay = Math.min(1000 + 500 * NET.reconnectTries, 8000);
   toast('与服务器断开，正在重连(' + NET.reconnectTries + ')…', 'red');
   setTimeout(() => {
     if (!NET.active && !NET.tableOn) return;
@@ -4104,8 +4124,7 @@ function netReconnect(){
   try{ NET.ws = new WebSocket(url); }catch(e){ NET.reconnecting = false; netTryReconnect(); return; }
   NET.ws.onopen = () => {
     netSend({ t:'reconnect', roomNo: NET.roomNo, token: NET.token });
-    clearInterval(NET.hb);
-    NET.hb = setInterval(() => netSend({ t:'ping' }), 25000);
+    netStartHb();
   };
   NET.ws.onclose = () => {
     clearInterval(NET.hb);

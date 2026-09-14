@@ -40,6 +40,12 @@ const SCAN_INTERVAL      = ms('SCAN_INTERVAL',      60 * 60 * 1000);  // 扫描�
 const OFFLINE_GRACE      = ms('OFFLINE_GRACE',      5 * 60 * 1000);   // 等待中掉线：座位保留 5 分钟
 const ROOM_IDLE_TIMEOUT  = ms('ROOM_IDLE_TIMEOUT',  2 * 60 * 60 * 1000); // 空闲超时：2 小时（三种情形统一）
 const STATS_INTERVAL     = ms('STATS_INTERVAL',     30 * 60 * 1000);  // 房间数日志间隔
+// v1.2.49 掉线检测：手机锁屏/切网/杀后台经常不产生 close 事件（半开连接），
+// 只靠 close 判掉线会让座位一直「显示在线」→ 不托管、询问发进黑洞、全桌卡死。
+const PING_EVERY         = ms('PING_EVERY',         15 * 1000);       // 连接探活间隔（协议层 ping 保活）
+const DEAD_AFTER         = ms('DEAD_AFTER',         60 * 1000);       // 超过该时长没有任何入站消息 → 判定掉线
+const PEND_GUARD         = ms('PEND_GUARD',         90 * 1000);       // 无限时房间决策兜底：超时自动托管
+const STALE_AFTER        = ms('STALE_AFTER',        60 * 1000);       // 牌局中同名重进：座位失联超时也允许复座
 
 /* ========================================================================
    工具
@@ -169,6 +175,7 @@ class Conn {
     this.name = name || ('玩家' + (seat + 1));
     this.token = token();
     this.online = true;
+    this.lastSeen = Date.now();   // v1.2.49 最近一次入站消息时刻（探活用）
     // v1.2.47 语音音色（'m' 男 / 'f' 女 / 'none' 不要语音）：个人设置，广播给全房间
     this.gender = 'f';
     bindWs(ws, this);
@@ -239,6 +246,14 @@ function onDisconnect(conn){
       if (room.host) room.host.broadcastViews();
       log(`房 ${room.no} 座位 ${conn.seat} 已托管`);
     }, 60000);
+    // v1.2.49：掉线时正好轮到这家决策 → 8 秒后交给托管 AI（期间回来则作废，继续等本人）
+    if (room.host && room.host.pending && room.host.pending.seat === conn.seat){
+      const seat = conn.seat, kind = room.host.pending.kind;
+      setTimeout(() => {
+        if (conn.online) return;                      // 已重连回来，询问已在等本人
+        if (room.host && !room.host.dead) room.host.autoAct(seat, kind);
+      }, 8000);
+    }
     // 若牌局中所有人都离线：
     //   · 一局已结算（betweenHands，等人准备下一局）→ 不中止牌局，保留结算数据等人重连回来；
     //     一直没人回来则由 2 小时空闲回收兜底
@@ -343,7 +358,8 @@ class GameHost {
     const conn = this.room.seats[seat];
     if (this.pending){ clearTimeout(this.pending.timer); this.pending = null; }
     if (conn && conn.online){
-      // v1.2.27：时限取开局时算好的 askMs（房间规则 cfg.cd 且真人 ≥2 才有时限；0 = 无限时，不设自动托管定时器）
+      // v1.2.27：时限取开局时算好的 askMs（房间规则 cfg.cd 且真人 ≥2 才有时限；0 = 无限时）
+      // v1.2.49：无限时也有 PEND_GUARD 兜底 —— 之前 cd=0 时该定时器为 null，掉线座位的询问会永久挂起，全桌卡死
       const tmo = this.askMs;
       const deadline = tmo ? Date.now() + tmo : 0;
       this.askDeadline = deadline;          // 有人在决策 → 全员桌心显示同一个倒计时
@@ -351,7 +367,8 @@ class GameHost {
       conn.send({ t:'ask', kind: pend.kind, payload: pend.payload, deadline, askLeft: tmo });
       this.pending = {
         seat, kind: pend.kind,
-        timer: tmo ? setTimeout(() => { this.pending = null; this.autoAct(seat, pend.kind); }, tmo + 800) : null
+        timer: setTimeout(() => { this.pending = null; this.autoAct(seat, pend.kind); },
+          tmo ? tmo + 800 : PEND_GUARD)
       };
     } else {
       // 掉线托管：不显示倒计时（AI 500ms 内即决策），稍作停顿保持牌局节奏
@@ -492,9 +509,10 @@ class GameHost {
    消息路由
    ======================================================================== */
 function handle(conn, m){
+  conn.lastSeen = Date.now();          // v1.2.49 任何入站消息都算活跃
   if (conn.room) conn.room.touch();
   switch (m.t){
-    case 'ping': break;
+    case 'ping': conn.send({ t:'pong' }); break;   // v1.2.49：回复客户端探活（之前不回，客户端回前台探活只能靠运气）
     /* v1.2.47 语音音色（纯个人设置，不属房间规则）：'m' 男 / 'f' 女 / 'none' 不要语音 */
     case 'voice': {
       const room = conn.room;
@@ -659,8 +677,11 @@ wss.on('connection', ws => {
       //   · 等待室：不管原座位是在线还是掉线，都复用（rebind 会给旧页面发 kicked 让它退回首��）
       //   · 牌局进行中：只允许接管「掉线」座位（防止用同名把在线玩家挤下去）
       const same = room.seats.find(c => c && c.name === name);
-      if (same && (room.state !== 'playing' || !same.online)){
-        log(`房 ${room.no} 座位 ${same.seat}（${name}）重新进入，复用原座位（原状态 ${same.online ? '在线' : '掉线'}）`);
+      // v1.2.49：牌局中同名重进放宽 —— 座位「掉线」或「失联超 STALE_AFTER」（半开连接，服务端尚未判死）都允许复座，
+      // 否则掉线玩家拿不回座位，牌局又卡在他的回合上
+      const stale = same && (Date.now() - (same.lastSeen || 0) > STALE_AFTER);
+      if (same && (room.state !== 'playing' || !same.online || stale)){
+        log(`房 ${room.no} 座位 ${same.seat}（${name}）重新进入，复用原座位（原状态 ${same.online ? (stale ? '在线但失联' : '在线') : '掉线'}）`);
         resumeSeat(room, same, ws);
         return;
       }
@@ -683,6 +704,25 @@ wss.on('connection', ws => {
     }
   });
 });
+
+/* ========================================================================
+   连接探活（v1.2.49）：定时发协议层 ping 保活；「超过 DEAD_AFTER 没有任何入站消息」
+   的连接直接断开 → 走正常 onDisconnect（托管 / 释放座位）。解决半开连接永不离线的问题。
+   ======================================================================== */
+setInterval(() => {
+  const now = Date.now();
+  for (const room of rooms.values()){
+    for (const c of room.seats){
+      if (!c || !c.online) continue;
+      if (now - c.lastSeen > DEAD_AFTER){
+        log(`房 ${room.no} 座位 ${c.seat}（${c.name}）${Math.round((now - c.lastSeen) / 1000)}s 无任何响应，判定掉线`);
+        try{ c.ws.terminate(); }catch(e){}          // 触发 close → onDisconnect（托管 / 释放）
+      } else if (c.ws.readyState === 1){
+        try{ c.ws.ping(); }catch(e){}
+      }
+    }
+  }
+}, PING_EVERY).unref();
 
 /* 断线后回到牌局：发齐 welcome/名单/牌面/当前询问 */
 function resumeSeat(room, conn, ws){
@@ -754,7 +794,7 @@ function scanRooms(){
 }
 
 server.listen(PORT, () => {
-  log(`一道来敲麻 v1.2.23 服务端已启动: http://0.0.0.0:${PORT}`);
+  log(`一道来敲麻 v1.2.49 服务端已启动: http://0.0.0.0:${PORT}`);
   log('手机浏览器访问上面的地址 → 多人对战 → 创建房间');
   setInterval(scanRooms, SCAN_INTERVAL).unref();
   setInterval(() => {
