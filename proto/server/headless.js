@@ -165,6 +165,14 @@ function boot(opts){
     vm.runInContext(`toast = function(){};`, sandbox);
   }
 
+  // sfx：语音/音效事件（出牌报牌+敲击 / 吃碰杠 / 胡 / 自摸）→ 由 GameHost 广播给各家
+  if (opts.onSfx){
+    sandbox.__onSfx = opts.onSfx;
+    vm.runInContext(`sfx = function(k, s, t){ __onSfx(k, s, t); };`, sandbox);
+  } else {
+    vm.runInContext(`sfx = function(){};`, sandbox);
+  }
+
   // openSheet：结算面板出现
   if (opts.onSheet){
     sandbox.__onSheet = opts.onSheet;

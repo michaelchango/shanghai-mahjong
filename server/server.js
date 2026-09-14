@@ -134,7 +134,8 @@ class Room {
       name: c.name,
       ready: !!this.ready[i],
       online: !!c.online,
-      host: this.hostSeat() === i
+      host: this.hostSeat() === i,
+      gender: c.gender
     } : null);
     for (const c of this.seats) if (c && c.online){
       c.send({ t:'room', players, cfg: this.cfg });
@@ -168,6 +169,8 @@ class Conn {
     this.name = name || ('玩家' + (seat + 1));
     this.token = token();
     this.online = true;
+    // v1.2.47 语音音色（'m' 男 / 'f' 女 / 'none' 不要语音）：个人设置，广播给全房间
+    this.gender = 'f';
     bindWs(ws, this);
   }
   send(o){ try{ if (this.ws.readyState === 1) this.ws.send(JSON.stringify(o)); }catch(e){} }
@@ -278,7 +281,9 @@ class GameHost {
       onRender: () => this.scheduleView(),
       onToast: (text, cls, seat) => this.broadcast({ t:'toast', text, cls, seat }),
       onSheet: () => {},
-      onSettle: (html, dealer, rec) => this.onSettle(html, dealer, rec)
+      onSettle: (html, dealer, rec) => this.onSettle(html, dealer, rec),
+      // v1.2.47 语音/音效：引擎 emitSfx → 广播全房间（各客户端按该座位音色播放）
+      onSfx: (kind, seat, tile) => this.broadcast({ t: 'sfx', kind, seat, tile })
     });
     const S = this.S;
     // 引擎 ask() 的服务端路由（patch 钩子）：谁要做决定 → GameHost.onAsk
@@ -490,6 +495,14 @@ function handle(conn, m){
   if (conn.room) conn.room.touch();
   switch (m.t){
     case 'ping': break;
+    /* v1.2.47 语音音色（纯个人设置，不属房间规则）：'m' 男 / 'f' 女 / 'none' 不要语音 */
+    case 'voice': {
+      const room = conn.room;
+      const g = m.gender;
+      if (g === 'm' || g === 'f' || g === 'none') conn.gender = g;
+      if (room) room.broadcastRoom();
+      break;
+    }
     case 'ready': {
       const room = conn.room;
       if (!room || room.state !== 'wait') return;

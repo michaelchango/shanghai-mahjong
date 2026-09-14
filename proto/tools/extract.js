@@ -39,23 +39,17 @@ const PATCHES = [
   {
     why: 'doKnock 支持任意座位（1.0 写死 seat0「你」）；座位为空时保持单机行为',
     old: `function doKnock(waits){
-  const p = G.players[0];
-  p.knocked = true;
-  p.knockWaits = waits.map(w => w.t);
-  p.noPromptSig = '';
-  toast('敲！已锁定听牌', 'gold', 0);
-  logMsg('你敲了');
-  render();
-}`,
+  const p = G.players[0];`,
     neo: `function doKnock(waits, seat){
-  const p = G.players[seat == null ? 0 : seat];
-  p.knocked = true;
-  p.knockWaits = waits.map(w => w.t);
-  p.noPromptSig = '';
-  toast('敲！已锁定听牌', 'gold', seat == null ? 0 : seat);
-  logMsg((seat == null ? '你' : p.name) + ' 敲了');
-  render();
-}`
+  const p = G.players[seat == null ? 0 : seat];`
+  },
+  {
+    // 只替换函数体内的两行，避免「整函数替换」被函数中间的其它改动（如 emitSfx）打断
+    why: 'doKnock 的 toast/日志也按座位（拆分片段，中间新增代码不影响补丁）',
+    old: `  toast('敲！已锁定听牌', 'gold', 0);
+  logMsg('你敲了');`,
+    neo: `  toast('敲！已锁定听牌', 'gold', seat == null ? 0 : seat);
+  logMsg((seat == null ? '你' : p.name) + ' 敲了');`
   },
   {
     why: 'knockCheck：敲定调用带上座位',
@@ -63,9 +57,9 @@ const PATCHES = [
     neo: `  if (r === 'knock') doKnock(waits, p.idx);`
   },
   {
-    why: 'discardTurn：出牌询问带上座位（v1.2.40：payload 带「吃/碰禁打同张」的 ban）',
-    old: `    d = await ask('discard', ban == null ? null : { ban, banKind: banKindName(p) });`,
-    neo: `    d = await ask('discard', ban == null ? null : { ban, banKind: banKindName(p) }, p.idx);`
+    why: 'discardTurn：出牌询问带上座位（v1.2.47f：payload 带「吃/碰禁打」的 ban + bans 清单）',
+    old: `    d = await ask('discard', bans.length ? { ban: bans[0], bans: bans, banKind: banKindName(p) } : null);`,
+    neo: `    d = await ask('discard', bans.length ? { ban: bans[0], bans: bans, banKind: banKindName(p) } : null, p.idx);`
   },
   {
     why: 'runHand 支持 G.abort 中途作废（玩家在局中点「返回首页」时，旧循环安静退出、不打流局结算；单机正常对局 G.abort 恒为假，行为不变）',
@@ -103,12 +97,13 @@ const EXPORTS = [
   'evaluateShape', 'typeLabel', 'typeBaseFan',
   'calcFlowers', 'extraFan', 'tryWin', 'canKnock', 'getWaits', 'getWaitsHand',
   'wuGuoHuaAt', 'isWuGuoHua', 'isDaDiaoChe', 'specialLezi', 'leziOf', 'leziTotal',
-  'claimedBanTile', 'banKindName', 'hudReady',
+  'banKindName', 'hudReady',
   'claimOptions', 'selfKongOptions', 'potentialKnocks', 'capValue',
   'playerDiFan', 'scoreOf', 'fanBreakdownHtml', 'analyzeMe', 'diFanOf', 'typeDiFan', 'capValue', 'LEZI_DI', 'hudBreakdown',
   // 牌局流程
   'mkPlayer', 'initGame', 'buildWall', 'drawFront', 'drawTail', 'wallLeft',
   'seenCount', 'deal', 'buildWall', 'drawFront', 'drawTail', 'runHand', 'knockCheck', 'doKnock', 'discardTurn',
+  'banTilesOf',
   'collectClaims', 'applySelfKong', 'finish', 'finishHand', 'nextHand',
   'newRound', 'render',
   // 玩家输入/AI
