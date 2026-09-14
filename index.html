@@ -2735,7 +2735,7 @@ async function knockCheck(p){
   if (p.isBot){
     p.knocked = true;
     p.knockWaits = waits.map(w => w.t);
-    emitSfx('knock', p.idx);          // v1.2.47b：敲听喊「听牌！」
+    emitSfx('knock', p.idx);          // v1.2.47b：敲听喊「我听牌了！」
     toast(p.name + ' 敲！', 'gold', p.idx);
     logMsg(p.name + ' 敲了');
     render();
@@ -2755,7 +2755,7 @@ function doKnock(waits){
   p.knocked = true;
   p.knockWaits = waits.map(w => w.t);
   p.noPromptSig = '';
-  emitSfx('knock', p.idx);            // v1.2.47b：敲听喊「听牌！」
+  emitSfx('knock', p.idx);            // v1.2.47b：敲听喊「我听牌了！」
   toast('敲！已锁定听牌', 'gold', 0);
   logMsg('你敲了');
   render();
@@ -3638,7 +3638,7 @@ function voiceRows(inRoom){
     return '<div class="setrow"><div class="lb">我的音色<small>同桌其他人听到的「你的声音」：选「不要」则你不出声（敲台声不受影响）</small></div>' +
       seg('sgVoNet', [{ l: '男声', v: 'm' }, { l: '女声', v: 'f' }, { l: '不要', v: 'none' }], VOICE_CFG.net, 'setVoiceNet', false) + '</div>';
   }
-  let h = '<div class="setrow"><div class="lb">语音播报<small>出牌喊牌名 + 敲台声、吃碰杠、敲听喊「听牌」、胡/自摸喊话（默认关）</small></div>' +
+  let h = '<div class="setrow"><div class="lb">语音播报<small>出牌喊牌名 + 敲台声、吃碰杠、敲听喊「我听牌了！」、胡/自摸喊话（默认关）</small></div>' +
     seg('sgVoOn', YN, VOICE_CFG.on ? 1 : 0, 'setVoiceOn', false) + '</div>';
   if (VOICE_CFG.on){
     const nm = ['下家', '对家', '上家'];
