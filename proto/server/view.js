@@ -45,7 +45,8 @@ function projectFor(S, seat, online){
       base.canKnock = S.canKnock ? S.canKnock(p) : false;
       base.missHu = Array.from(p.missHu || []);   // 自己的漏胡状态（UI 提示用）
     } else {
-      base.hand = null;                  // 明确置空，避免误渲染
+      // v1.2.48：本局已有人胡牌 → 手牌公开（翻开展示）；其余时刻永不下发
+      base.hand = (G.reveal && p.hand) ? p.hand.slice() : null;
       base.drawn = null;
       base.waits = null;
       base.canKnock = null;
@@ -66,6 +67,7 @@ function projectFor(S, seat, online){
       kaibaoType: G.kaibaoType || null,
       dice: G.dice || null,
       wallLeft,                          // ★ 只给剩余张数，牌墙内容永不外发
+      reveal: !!G.reveal,                // v1.2.48：本局胡牌后亮牌（客户端据此把手牌翻正面）
       lastDiscard: G.lastDiscard,
       lastFrom: G.lastFrom,
       finished: !!G.finished,

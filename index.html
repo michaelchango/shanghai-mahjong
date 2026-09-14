@@ -99,6 +99,14 @@ html[data-felt="blue"]{--felt:#1d6396;--felt2:#134a72;--felt3:#0c3552;--felt4:#0
 html[data-felt="red"]{--felt:#96363c;--felt2:#6e2229;--felt3:#4f151b;--felt4:#320c11;--felt5:#5c1a22;--sheetA:#571920;--sheetB:#3a0e13;--priHi:#b04848;--priLo:#7e2b2b;--priGlow:255,150,150}
 html[data-felt="brown"]{--felt:#7a5a38;--felt2:#5d422b;--felt3:#432f1d;--felt4:#2a1d11;--felt5:#4a3522;--sheetA:#453120;--sheetB:#2b1e12;--priHi:#a5763f;--priLo:#6e4b26;--priGlow:235,195,130}
 
+/* v1.2.48：主题色由脚本按本机设置应用（sjm_felt）。脚本在 body 之后才开始执行，
+   若不加处理，浏览器会先把「默认绿色」整套画出来、脚本再改色 —— 首屏会闪一下绿色。
+   这里在 html 还没拿到 data-felt 之前先不绘制内容（页面底为中性深灰，不显眼），
+   最后一条 1.5s 兜底动画保证即使脚本异常也一定会显示出来。 */
+html:not([data-felt]){background:#101014}
+html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forwards}
+@keyframes sjmThemed{to{visibility:visible}}
+
 /* 座位通用 */
 .seat{display:flex;align-items:center;justify-content:center;min-height:0;min-width:0}
 .seatN{flex-direction:column;gap:2px;flex:0 0 auto}
@@ -482,6 +490,12 @@ html[data-felt="brown"]{--felt:#7a5a38;--felt2:#5d422b;--felt3:#432f1d;--felt4:#
 /* 结算里的牌展示（v1.2.4：缩小一档，弹窗里能多显示几排也不挤） */
 .tlist .tile{--tw:25px;--th:34px;border-radius:3.5px}
 .tlist .tile.sm{--tw:21px;--th:28px}
+/* v1.2.48：结算面板里的「亮牌」——胡牌后四家手牌翻开展示 */
+.rlvbox{margin-top:10px;padding-top:9px;border-top:1px dashed rgba(255,255,255,.15)}
+.rlvhd{font-size:11px;color:var(--dim);margin-bottom:6px;letter-spacing:.5px}
+.rlvrow{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.rlvrow .tlist{flex:1 1 auto;margin:0;padding:5px 6px;justify-content:flex-start}
+.rlvnm{flex:0 0 54px;font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tlist{gap:2px}
 
 /* Toast */
@@ -683,7 +697,7 @@ html[data-felt="brown"]{--felt:#7a5a38;--felt2:#5d422b;--felt3:#432f1d;--felt4:#
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.47</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.48</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -829,6 +843,25 @@ html[data-felt="brown"]{--felt:#7a5a38;--felt2:#5d422b;--felt3:#432f1d;--felt4:#
    v1.2.17：敲麻玩法下中发白按 108-119 发（算花，不组牌）；清混碰下按 31-33 发
    （算牌不算花，可碰可组刻）。编码空间只有一套，墙里发哪套由 buildWall 按玩法决定。
    ========================================================================= */
+
+/* ---------------- 台面主题：尽早应用（v1.2.48） ----------------
+   脚本位于 body 之后，DOM 到这里已解析好；越早把 data-felt 写上去，
+   配合 CSS 的「未应用前不绘制内容」，首屏就不会先闪一下默认绿色。
+   数据源仍是下面的 FELT / applyFelt，这里只是把时机提前。 */
+const FELT_BG = { green:'#072a1f', blue:'#072437', red:'#320c11', brown:'#2a1d11' };  // 与 :root --felt4 对应（theme-color 同步）
+(function feltEarly(){
+  try{
+    if (typeof document === 'undefined') return;      // 服务端引擎 / 单测 eval 下跳过
+    const r = document.documentElement;
+    let saved = {};                                    // 读不到（隐私模式/受限环境）就用默认绿
+    try{ saved = JSON.parse(localStorage.getItem('sjm_felt') || '{}') || {}; }catch(e){}
+    const color = FELT_BG[saved.color] ? saved.color : 'green';
+    r.dataset.felt = color;
+    r.dataset.print = saved.print || 'none';           // 无论如何都写，保证 CSS 守卫一定解除（不会白屏）
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.content = FELT_BG[color];
+  }catch(e){}
+})();
 
 /* ---------------- 基础工具 ---------------- */
 const RANK_CH = ['一','二','三','四','五','六','七','八','九'];
@@ -984,7 +1017,7 @@ function isWuGuoHua(p){ return calcFlowers(p, null) === 0; }
 function isDaDiaoChe(p){ return (p.melds || []).length === 4; }
 // v1.2.40：吃 / 碰 进的是哪张，本次出牌就不能立刻打出同一张（两种玩法通用）。
 //   必须等到下次出手（过一圈，或再吃/碰别人重新拿到出牌权）。
-// v1.2.47f/h：禁打范围扩展 —— 以「吃进的那张牌 X」为锚，同花色中与它**相隔 3 张**的牌
+// v1.2.48：禁打范围 —— 以「吃进的那张牌 X」为锚，**只有连成 4 张连片时**，同花色中与它相隔 3 张的牌
 //   （X-3 / X+3）也不能立刻打出。
 //   例：吃进 6 条 → 手里的 3 条、9 条本次都不能打；与 6 相邻的 5 条 / 7 条不受限。
 //   由来：吃 X 时 X 可能与你手里的两张连成 X-2..X 或 X..X+2 的一整片，这片的最外端是
@@ -1002,12 +1035,22 @@ function banTilesOf(p){
   const ban = [];
   const push = (x) => { if (ban.indexOf(x) < 0) ban.push(x); };
   push(t);                                               // 原规则：同一张
-  // v1.2.47h：只有「吃」才牵连；范围为「吃进的这张 X」同花色中相隔 3 张的牌（X±3）。
-  //   不跨花色，字牌（27-33）无此概念。
+  // v1.2.48：只有「吃」才牵连；且**必须真的连成 4 张连片**才禁 X±3。
+  //   前提 = 中间那两张（X+1/X+2 或 X-2/X-1）在你手上或这副顺子里。
+  //   例：吃 4 万 + 手里 5、6（+这副顺子）= 4-5-6 成片 → 7 万禁打；
+  //       吃 4 万 + 手里只有 3、5（顺子 3-4-5，够不到 7）→ 7 万照常可打。
+  //   不跨花色；字牌（27-33）无此概念。
   if (p.noDiscardKind === 'chow' && t < 27){
     const suit = Math.floor(t / 9);
-    for (const n of [t - 3, t + 3]){
-      if (n >= 0 && n < 27 && Math.floor(n / 9) === suit) push(n);
+    const own = hand.slice();
+    const cm = (p.melds || []).find ? (p.melds || []).find(m => m.type === 'chow' && m.tile === t) : null;
+    if (cm) for (const x of (cm.tiles || [])) own.push(x);
+    const held = (x) => own.indexOf(x) >= 0;
+    for (const d of [-3, 3]){
+      const n = t + d;
+      if (n < 0 || n >= 27 || Math.floor(n / 9) !== suit) continue;
+      const mid1 = t + (d > 0 ? 1 : -2), mid2 = t + (d > 0 ? 2 : -1);
+      if (held(mid1) && held(mid2)) push(n);          // 连片成立才牵连
     }
   }
   const real = ban.filter(x => hand.indexOf(x) >= 0);    // 只保留手里真有的
@@ -1308,6 +1351,7 @@ const G = {
   lastDiscard: null, lastFrom: -1, lastDiscardEl: null,
   running: false, logs: [], totalHands: 16,
   finished: false,        // 本局已结算、等待「下一局」
+  reveal: false,          // v1.2.48：有人胡牌 → 亮出四家手牌（流局不亮）
   result: null,           // 本局结算面板 { html, dealer }
   history: []             // 历史牌局结算记录（新一轮才清空）
 };
@@ -1326,7 +1370,7 @@ function initGame(){
   G.players = [mkPlayer(0, '你', false), mkPlayer(1, BOT_NAMES[0], true),
                mkPlayer(2, BOT_NAMES[1], true), mkPlayer(3, BOT_NAMES[2], true)];
   G.handNo = 1; G.roundNo = 1; G.dealer = 0; G.huangfan = 0;
-  G.history = []; G.finished = false; G.result = null;
+  G.history = []; G.finished = false; G.reveal = false; G.result = null;
 }
 
 /* ---------------- 牌墙 ---------------- */
@@ -1812,7 +1856,7 @@ function banToast(payload){
   const near = list.filter(x => x !== t);
   const main = t >= 0 ? tileName(t) : '这张';
   toast('刚' + kind + '进的 ' + main +
-    (near.length ? ' 及隔三张的 ' + near.map(tileName).join('、') : '') + ' 不能立刻打出', 'red');
+    (near.length ? ' 及连片的 ' + near.map(tileName).join('、') : '') + ' 不能立刻打出', 'red');
 }
 function renderHand(){
   const p = G.players[0];
@@ -1909,14 +1953,27 @@ function renderSeats(){
 
     const bk = $('bk' + i);
     bk.innerHTML = '';
+    // v1.2.48：有人胡牌后，其余三家手牌翻开展示（手牌里没有 -1 占位即表示服务端已下发）
+    const shown = (G.reveal && p.hand && p.hand.length && p.hand.every(t => t >= 0))
+      ? sortTiles(p.hand) : null;
     if (!vert){
-      for (let k = 0; k < p.hand.length; k++) bk.appendChild(tileEl(null, ''));
+      if (shown) for (const t of shown) bk.appendChild(tileEl(t, ''));
+      else for (let k = 0; k < p.hand.length; k++) bk.appendChild(tileEl(null, ''));
     } else {
-      for (let k = 0; k < p.hand.length; k++){
-        const s = document.createElement('div');
-        s.className = 'vslot' + (i === 1 ? ' r' : '');
-        s.appendChild(tileEl(null, 'xs'));
-        bk.appendChild(s);
+      if (shown){
+        for (const t of shown){
+          const s = document.createElement('div');
+          s.className = 'vslot' + (i === 1 ? ' r' : '');
+          s.appendChild(tileEl(t, 'xs'));
+          bk.appendChild(s);
+        }
+      } else {
+        for (let k = 0; k < p.hand.length; k++){
+          const s = document.createElement('div');
+          s.className = 'vslot' + (i === 1 ? ' r' : '');
+          s.appendChild(tileEl(null, 'xs'));
+          bk.appendChild(s);
+        }
       }
     }
     const tbk = tingBadge(p);
@@ -2594,7 +2651,7 @@ function renderActs(){
     if (banL.length){
       const nearT = banL.filter(x => x !== banP.ban).map(tileName);
       $('hint').innerHTML = '刚' + (banP.banKind || '吃/碰') + '进的 <b>' + tileName(banP.ban) + '</b>'
-        + (nearT.length ? ' 及隔三张的 <b>' + nearT.join('、') + '</b>' : '') + ' 不能立刻打出';
+        + (nearT.length ? ' 及连片的 <b>' + nearT.join('、') + '</b>' : '') + ' 不能立刻打出';
     }
     return;
   }
@@ -2806,7 +2863,9 @@ async function discardTurn(p, drawn, kongDraw){
   } else {
     SEL = null; SELIDX = null;
     renderHand();
-    d = await ask('discard', bans.length ? { ban: bans[0], bans: bans, banKind: banKindName(p) } : null);
+    // v1.2.48：ban 传「刚吃/碰进的那张」（提示文案要用它），bans 传本次真正禁打的牌（供高亮/AI）
+    const eaten = (p.noDiscard != null && p.noDiscard >= 0) ? p.noDiscard : null;
+    d = await ask('discard', bans.length ? { ban: (eaten != null ? eaten : bans[0]), bans: bans, banKind: banKindName(p) } : null);
     if (G.abort) return null;          // 中途退出/返回首页：不再打这一张
   }
   // v1.2.40：兜底（老客户端 / 异常路径下仍打了禁牌）→ 改打手里另一张，
@@ -2957,7 +3016,7 @@ async function pickClaim(p, idx, tile, from, opts, isNext){
 
 async function runHand(){
   G.running = true;
-  G.finished = false; G.result = null;
+  G.finished = false; G.reveal = false; G.result = null;
   G.wall = buildWall(); G.wpos = 0; G.wtail = G.wall.length - 1;
   for (const p of G.players){
     p.hand = []; p.flowers = []; p.melds = []; p.discards = [];
@@ -3202,6 +3261,8 @@ function capText(v){ return CFG.lezi >= 99 ? '不封顶' : v; }
 // 收口：记录本局结算面板 + 写入历史
 function finishHand(html, dealer, rec){
   G.finished = true;
+  // v1.2.48：有人胡牌 → 本局结束后亮出其余三家手牌（流局不亮）
+  G.reveal = !(rec && rec.kind === '流局');
   G.result = { html, dealer };
   rec.no = G.handNo;
   rec.scores = G.players.map(p => p.score);
@@ -3292,7 +3353,7 @@ async function finish(res){
     const html1 = '<h2><span>结算</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
       '<div class="result"><div class="winner">' + p.name + ' 八花齐</div>' +
       '<div class="sub">自摸 · 三家各付 ' + sc.per + ' 分</div></div>' +
-      fanBreakdownHtml(ev, sc.add, sc, extraNote) + scoreTable(d);
+      fanBreakdownHtml(ev, sc.add, sc, extraNote) + revealBlock() + scoreTable(d);
     finishHand(html1, res.idx, { kind: '八花齐', winners: [res.idx], note: ev.type + ' · ' + sc.fan + ' 番 · 每家 ' + sc.per + ' 分', delta: d });
     if (G.huangfan) G.huangfan = 0;
     // v1.2.35：荒番一旦被用掉（本局已按倍数结算），下一局整体清零；
@@ -3329,7 +3390,7 @@ async function finish(res){
       (cb >= 0 ? baoSub : '<div class="sub">胡 ' + tileName(res.tile) + ' · 三家各付 ' + sc.per + ' 分</div>') +
       '</div>' +
       tilesRow(tiles, res.tile) + flowersRow(p) + meldsRow(p) +
-      fanBreakdownHtml(res.ev, sc.add, sc, extraNote) + scoreTable(d);
+      fanBreakdownHtml(res.ev, sc.add, sc, extraNote) + revealBlock() + scoreTable(d);
     finishHand(html2, res.idx, { kind: '自摸', winners: [res.idx],
       note: res.ev.type + ' · ' + sc.fan + ' 番' + (cb >= 0 ? ' · 包三口(' + G.players[cb].name + '付5份)' : '') + ' · ' + (cb >= 0 ? '收 ' + sc.per * 5 : '每家 ' + sc.per) + ' 分',
       delta: d });
@@ -3370,12 +3431,24 @@ async function finish(res){
   toast(winNames.length > 1 ? '一炮多响！' : (G.players[firstWinner].isBot ? G.players[firstWinner].name + ' 胡了' : '胡了！'), 'big');
   const note = res.wins.map((w, k) => winNames[k] + ' ' + w.ev.type + ' ' + winFans[k] + '番').join('；');
   finishHand('<h2><span>结算</span><span class="sp"></span><button class="close" onclick="closeSheet()">×</button></h2>' +
-    blocks + scoreTable(d), nextDealer,
+    blocks + revealBlock() + scoreTable(d), nextDealer,
     { kind: winNames.length > 1 ? '一炮多响' : '点炮', winners: res.wins.map(w => w.idx), from: res.from, note: note,       delta: d });
   if (G.huangfan) G.huangfan = 0;
   // v1.2.35：荒番一旦被用掉（本局已按倍数结算），下一局整体清零；
   // v1.2.25：立即刷新右上角标签与顶部「单份」（否则下一局开局前一直显示旧倍数）
   renderTop();
+}
+// v1.2.48：胡牌后亮出四家手牌（结算面板里直接看，不必先关掉弹窗）
+function revealBlock(){
+  const HD = ['本局四家手牌'];
+  let h = '<div class="rlvbox"><div class="rlvhd">' + HD[0] + '</div>';
+  for (let i = 0; i < 4; i++){
+    const p = G.players[i];
+    if (!p) continue;
+    h += '<div class="rlvrow"><span class="rlvnm">' + p.name + '</span>' +
+      tilesRow(sortTiles(p.hand.slice()), null) + '</div>';
+  }
+  return h + '</div>';
 }
 function tilesRow(tiles, winTile){
   return '<div class="tlist">' + tiles.map(t => {
@@ -3530,7 +3603,7 @@ function nextHand(dealer){
     return;
   }
   closeSheet();
-  G.finished = false; G.result = null;
+  G.finished = false; G.reveal = false; G.result = null;
   for (const p of G.players){ p.settleFan = null; p.settleDi = null; }
   G.dealer = dealer;
   // v1.2.35：去掉风圈后 handNo 不再回绕——两个局号（handNo/roundNo）都是「本轮第 N 局」，同步递增
@@ -3581,7 +3654,6 @@ function cfgRows(ro, inRoom){
 /* ---------- 台面主题（v1.2.46）：纯本地视觉，存 sjm_felt，不进房间规则、不发给服务端 ---------- */
 const FELT_COLORS = [{l:'绿',v:'green'},{l:'蓝',v:'blue'},{l:'红',v:'red'},{l:'棕',v:'brown'}];
 const FELT_PRINTS = [{l:'无',v:'none'},{l:'龙',v:'dragon'},{l:'凤',v:'phoenix'},{l:'發財',v:'fa'},{l:'灯笼',v:'lantern'},{l:'莲花',v:'lotus'}];
-const FELT_BG     = { green:'#072a1f', blue:'#072437', red:'#320c11', brown:'#2a1d11' };  // theme-color 同步（felt4）
 let FELT = { color:'green', print:'none' };
 function loadFelt(){ try{ Object.assign(FELT, JSON.parse(localStorage.getItem('sjm_felt') || '{}')); }catch(e){} }
 function saveFelt(){ try{ localStorage.setItem('sjm_felt', JSON.stringify(FELT)); }catch(e){} }
@@ -3857,10 +3929,10 @@ function openRule(){
 
   '<h3>出牌限制（两种玩法通用）</h3>' +
   '<ul><li><b>吃 / 碰 进什么，本次不能打出什么</b>：刚吃（或碰）进的那张牌，这一次出牌<b>不能打同一张</b>，必须等到下次出手（过一圈，或再吃 / 碰别人重新拿到出牌权）</li>' +
-  '<li><b>吃进后，这条线上「隔三张」的牌也不能打</b>：与吃进的那张牌<b>相隔 3 张</b>的同花色牌（吃 6 条 → 3 条 / 9 条）本次也不能打出 —— 防止吃完紧接着放这条线的边张喂下家（属「包三口」的变体）。<b>此条只针对「吃」</b>；碰牌只禁同一张</li>' +
+  '<li><b>吃进后若与手里连成 4 张连片，紧贴连片的边张也不能打</b>：吃进的这张 X 若与手里的牌连成 <b>4 张连片</b>（吃 4 万 + 手里 5、6 万 → 4-5-6-7 万连成一片），连片另一端的 <b>X±3</b>（1 万 / 7 万）本次也不能打出 —— 防止吃完紧接着放边张喂下家（属「包三口」的变体）。<b>前提是真的连成片</b>，没连成不算。<b>此条只针对「吃」</b>；碰牌只禁同一张</li>' +
   '<li><b>唯一例外 · 大吊车</b>：吃 / 碰 之后已经凑成 <b>4 组副露 + 单钓</b>（大吊车），以上限制<b>全部解除</b></li></ul>' +
   '<p class="dimc">例：上家打 2 万，你手里有 2、3、4 万，吃了这一口 → 这次出牌<b>不能打 2 万</b>（牌面会压暗并划一道红线，点了会提示）；打别的牌后，下次出手就可以打 2 万了。碰牌同理。</p>' +
-  '<p class="dimc">例：<b>吃进 6 条</b> → 手里的 <b>3 条、9 条</b>本次不能打（与 6 相邻的 5 条 / 7 条<b>可以</b>打）。<b>碰牌只禁刚碰进的那一张</b>（碰 5 筒时，手里的 5 筒不能打，4 筒 / 6 筒照常可以打）。字牌之间没有「隔三张」的概念。</p>' +
+  '<p class="dimc">例：<b>吃进 4 万 + 手里 5、6 万</b> → <b>7 万</b>本次不能打（顺子 2-3-4 + 手里 1 万 → 1 万不能打）；<b>吃进 4 万 + 手里只有 3、5 万</b>（顺子 3-4-5，够不到 7 万）→ <b>7 万照常可以打</b>。<b>碰牌只禁刚碰进的那一张</b>（碰 5 筒时，手里的 5 筒不能打，4 筒 / 6 筒照常可以打）。字牌之间没有连片的概念。</p>' +
 
   '<h3>敲麻规则</h3>' +
   '<ul><li><b>不敲不能胡</b>：必须先报听（敲）才有资格胡牌；手里有听法时点「敲听」或开自动敲</li>' +
@@ -4451,6 +4523,7 @@ function applyView(V){
   // 真正的新局 phase 一定是 playing，这里只拦截非 playing 的降级。
   const prevFinished = G.finished;
   G.finished = !!t.finished;
+  G.reveal = !!t.reveal;                // v1.2.48：本局胡牌后亮牌
   if (!t.finished && t.phase !== 'playing' && prevFinished && NET.lastSettle && NET.tableOn){
     G.finished = true;
   }

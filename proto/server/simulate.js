@@ -133,8 +133,13 @@ async function verifyView(){
     T('seat' + s + ' 可见自己手牌', Array.isArray(v.players[s].hand) && v.players[s].hand.length > 0,
       v.players[s].hand ? v.players[s].hand.length + ' 张' : 'null');
     const others = [0, 1, 2, 3].filter(i => i !== s);
-    T('seat' + s + ' 看不到其他三家手牌',
-      others.every(i => v.players[i].hand === null && v.players[i].waits === null));
+    // v1.2.48：本局已有人胡牌（table.reveal）→ 其余三家手牌公开（就是要翻开展示）；
+    //           其余时刻（含听牌）绝不下发。
+    const reveal = !!(v.table && v.table.reveal);
+    T('seat' + s + (reveal ? ' 胡牌亮牌：可见其余三家手牌' : ' 看不到其他三家手牌'),
+      others.every(i => reveal
+        ? (Array.isArray(v.players[i].hand) && v.players[i].hand.length > 0)
+        : (v.players[i].hand === null && v.players[i].waits === null)));
     // 但要知道别人手里几张牌（画牌背用）
     T('seat' + s + ' 知道他人手牌张数',
       others.every(i => typeof v.players[i].handCount === 'number' && v.players[i].handCount >= 0),

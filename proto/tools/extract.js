@@ -58,8 +58,8 @@ const PATCHES = [
   },
   {
     why: 'discardTurn：出牌询问带上座位（v1.2.47f：payload 带「吃/碰禁打」的 ban + bans 清单）',
-    old: `    d = await ask('discard', bans.length ? { ban: bans[0], bans: bans, banKind: banKindName(p) } : null);`,
-    neo: `    d = await ask('discard', bans.length ? { ban: bans[0], bans: bans, banKind: banKindName(p) } : null, p.idx);`
+    old: `    d = await ask('discard', bans.length ? { ban: (eaten != null ? eaten : bans[0]), bans: bans, banKind: banKindName(p) } : null);`,
+    neo: `    d = await ask('discard', bans.length ? { ban: (eaten != null ? eaten : bans[0]), bans: bans, banKind: banKindName(p) } : null, p.idx);`
   },
   {
     why: 'runHand 支持 G.abort 中途作废（玩家在局中点「返回首页」时，旧循环安静退出、不打流局结算；单机正常对局 G.abort 恒为假，行为不变）',
