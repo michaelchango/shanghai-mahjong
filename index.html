@@ -704,7 +704,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.50</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.51</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -1963,32 +1963,37 @@ function renderSeats(){
       : p.name + ' <span class="sc">' + p.score + '分</span>';
 
     const bk = $('bk' + i);
-    bk.innerHTML = '';
     // v1.2.48：有人胡牌后，其余三家手牌翻开展示（手牌里没有 -1 占位即表示服务端已下发）
     const shown = (G.reveal && p.hand && p.hand.length && p.hand.every(t => t >= 0))
       ? sortTiles(p.hand) : null;
-    if (!vert){
-      if (shown) for (const t of shown) bk.appendChild(tileEl(t, ''));
-      else for (let k = 0; k < p.hand.length; k++) bk.appendChild(tileEl(null, ''));
-    } else {
-      if (shown){
-        for (const t of shown){
-          const s = document.createElement('div');
-          s.className = 'vslot' + (i === 1 ? ' r' : '');
-          s.appendChild(tileEl(t, 'xs'));
-          bk.appendChild(s);
-        }
+    // 差量：牌背张数/亮牌状态没变就跳过整段重建（联机每帧重建上百张占位牌是卡顿主因）
+    const bkSig = shown ? ('R' + shown.join(',')) : ('H' + p.hand.length + (p.knocked ? 'k' : ''));
+    if (!(SEL === null && bk._sig === bkSig)){
+      bk._sig = bkSig;
+      bk.innerHTML = '';
+      if (!vert){
+        if (shown) for (const t of shown) bk.appendChild(tileEl(t, ''));
+        else for (let k = 0; k < p.hand.length; k++) bk.appendChild(tileEl(null, ''));
       } else {
-        for (let k = 0; k < p.hand.length; k++){
-          const s = document.createElement('div');
-          s.className = 'vslot' + (i === 1 ? ' r' : '');
-          s.appendChild(tileEl(null, 'xs'));
-          bk.appendChild(s);
+        if (shown){
+          for (const t of shown){
+            const s = document.createElement('div');
+            s.className = 'vslot' + (i === 1 ? ' r' : '');
+            s.appendChild(tileEl(t, 'xs'));
+            bk.appendChild(s);
+          }
+        } else {
+          for (let k = 0; k < p.hand.length; k++){
+            const s = document.createElement('div');
+            s.className = 'vslot' + (i === 1 ? ' r' : '');
+            s.appendChild(tileEl(null, 'xs'));
+            bk.appendChild(s);
+          }
         }
       }
+      const tbk = tingBadge(p);
+      if (tbk) bk.appendChild(tbk);          // 听牌圆章盖在牌背上
     }
-    const tbk = tingBadge(p);
-    if (tbk) bk.appendChild(tbk);          // 听牌圆章盖在牌背上
 
     // 花 + 吃碰杠排：花在左（各自视角），副露在右，中间分隔
     const ml = $('ml' + i);
@@ -2019,6 +2024,15 @@ function tingBadge(p){
 }
 // 花 + 吃碰杠 统一渲染：vert=竖排（东西家），rev=东家（列序翻转）
 function renderFx(box, p, vert, rev){
+  // 差量：花/副露没变就跳过整段重建（避免每帧重画一堆 SVG，联机卡顿主因之一）
+  const sig = (p.flowers.join(',')) + '|' + (p.pendingFlowers || []).join(',') + '|' +
+    p.melds.map(m => m.type + ':' + m.tiles.join('-') + ':' + (m.from === undefined ? -1 : m.from)).join(',') + '|' + (p.knocked ? 1 : 0);
+  if (SEL === null){
+    if (box._fxSig === sig) return;
+    box._fxSig = sig;
+  } else {
+    box._fxSig = null;   // 选牌高亮可能落在副露/花牌上，强制重建
+  }
   box.innerHTML = '';
   const addTile = (t, cls, parent) => {
     const e = tileEl(t, cls);
@@ -4464,7 +4478,7 @@ function netAsk(m){
   netSetClock(typeof m.askLeft === 'number' ? m.askLeft : Math.max(0, (m.deadline || 0) - Date.now()));
   SEL = null; SELIDX = null;
   PEND = { kind: m.kind, payload: m.payload, res: null, seat: 0 };  // 伪 PEND：复用 renderActs 的按钮逻辑
-  render();
+  scheduleNetRender();
   startCd();
   // 刚点过「敲听」打牌 → 服务端紧接着问「敲不敲」：直接确认，免掉第二次点击
   if (m.kind === 'knock' && NET.autoKnock){
@@ -4543,6 +4557,19 @@ NET.teardown = function(){
 
 /* ---------- 投影 → 本地 G（座位重映射） ---------- */
 function remap(seat){ return NET.active ? (seat - NET.mySeat + 4) % 4 : seat; }
+
+/* 网络帧合并渲染：把同一帧内到达的多条 view/ask 合并成「每动画帧最多一次」整页渲染。
+   原因：服务器常在同一批次先发 view 再发 ask，原逻辑各调一次 render() → 连续两整页重建，
+   在 #pcz(transform:scale) 下等于连续两次整层重栅格化，联机时表现为「卡卡」。 */
+let _netRaf = 0;
+function scheduleNetRender(){
+  if (_netRaf) return;
+  _netRaf = 1;
+  const run = () => { _netRaf = 0; renderLog(); render(); };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run);
+  else setTimeout(run, 0);
+}
+
 function applyView(V){
   if (V.cfg) Object.assign(CFG, V.cfg);   // 本桌规则由服务端下发，客户端只跟着显示
   const t = V.table;
@@ -4596,8 +4623,7 @@ function applyView(V){
     noPromptSig: '', tianDi: false,
     settleFan: null, settleDi: null
   }));
-  renderLog();
-  render();
+  scheduleNetRender();
   // 倒计时要自己走：投影只在局面变化时下发，中间的每一秒靠本地 tick 递减
   if (NET.active && !NET.timer) startCd();
 }
@@ -4605,8 +4631,10 @@ function applyView(V){
 function renderLog(){
   const box = $('log');
   if (!box) return;
-  box.innerHTML = '';
   const L = G.logs || [];
+  if (box._n === L.length) return;        // 记录只增不减，长度没变就跳过整段重建
+  box._n = L.length;
+  box.innerHTML = '';
   for (let i = L.length - 1; i >= Math.max(0, L.length - 3); i--){
     const d = document.createElement('div');
     d.textContent = L[i];
