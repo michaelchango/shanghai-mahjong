@@ -1,5 +1,7 @@
 // m51：v1.2.40 新规则 —— 吃 / 碰 进什么，本次出牌不能立刻打出什么
 //   两种玩法通用。唯一例外：吃/碰 后已形成「大吊车」（4 副露单钓）→ 允许立刻打出同一张。
+//   v1.2.47 起 API 改为 banTilesOf(p)（返回禁打数组，首元素=刚吃/碰进的那张）；
+//   本测试用垫片保持旧断言写法（claimedBanTile = 首张或 null）。
 const { boot } = require('../proto/server/headless');
 const { handSeed } = require('../proto/server/rng');
 
@@ -7,6 +9,7 @@ let pass = 0, fail = 0;
 const ok = (n, c, x) => { if (c) pass++; else { fail++; console.log('  FAIL: ' + n + (x !== undefined ? ' -> ' + JSON.stringify(x) : '')); } };
 
 const S = boot({ seed: handSeed(3131, 1, 0), instant: true });
+const claimedBanTile = p => { const b = S.banTilesOf(p); return b.length ? b[0] : null; };
 const st = S.__state, CFG = st.CFG, G = st.G;
 const T = { '1m':0,'2m':1,'3m':2,'4m':3,'5m':4,'6m':5,'7m':6,'8m':7,'9m':8,
   '1p':9,'2p':10,'3p':11,'4p':12,'5p':13,'6p':14,'7p':15,'8p':16,'9p':17,
@@ -24,23 +27,23 @@ console.log('== 1) claimedBanTile：基本行为 ==');
   // 吃了 2万（手里还有 2万 和可打的别的牌）→ 禁打 2万
   let p = mkP({ hand: mk(['2m','5m','7m']), noDiscard: T['2m'], noDiscardKind: 'chow',
                 melds: [{ type:'chow', tile:T['2m'], tiles:[T['1m'],T['2m'],T['3m']] }] });
-  ok('吃 2万 → 禁打 2万', S.claimedBanTile(p) === T['2m'], S.claimedBanTile(p));
+  ok('吃 2万 → 禁打 2万', claimedBanTile(p) === T['2m'], claimedBanTile(p));
   ok('提示词 = 吃', S.banKindName(p) === '吃', S.banKindName(p));
 
   // 碰了 5万 → 禁打 5万
   p = mkP({ hand: mk(['5m','7m','9m']), noDiscard: T['5m'], noDiscardKind: 'pung',
             melds: [{ type:'pung', tile:T['5m'], tiles:[T['5m'],T['5m'],T['5m']] }] });
-  ok('碰 5万 → 禁打 5万', S.claimedBanTile(p) === T['5m'], S.claimedBanTile(p));
+  ok('碰 5万 → 禁打 5万', claimedBanTile(p) === T['5m'], claimedBanTile(p));
   ok('提示词 = 碰', S.banKindName(p) === '碰', S.banKindName(p));
 
   // 没有 noDiscard → 不禁
   p = mkP({ hand: mk(['5m','7m']) });
-  ok('没吃没碰 → 不禁任何牌', S.claimedBanTile(p) === null, S.claimedBanTile(p));
+  ok('没吃没碰 → 不禁任何牌', claimedBanTile(p) === null, claimedBanTile(p));
 
   // 手里只剩这一张 → 无法限制，放行
   p = mkP({ hand: mk(['5m']), noDiscard: T['5m'], noDiscardKind: 'pung',
             melds: [{ type:'pung', tile:T['5m'], tiles:[T['5m'],T['5m'],T['5m']] }] });
-  ok('手里只剩这一张 → 放行', S.claimedBanTile(p) === null, S.claimedBanTile(p));
+  ok('手里只剩这一张 → 放行', claimedBanTile(p) === null, claimedBanTile(p));
 }
 
 console.log('== 2) 大吊车例外：吃/碰 后 4 副露 → 允许立刻打出同一张 ==');
@@ -53,12 +56,12 @@ console.log('== 2) 大吊车例外：吃/碰 后 4 副露 → 允许立刻打出
   ];
   const p = mkP({ hand: mk(['2m','2m']), noDiscard: T['2m'], noDiscardKind: 'chow', melds: melds4 });
   ok('4 副露 = 大吊车', S.isDaDiaoChe(p) === true);
-  ok('大吊车 → 不禁打同张', S.claimedBanTile(p) === null, S.claimedBanTile(p));
+  ok('大吊车 → 不禁打同张', claimedBanTile(p) === null, claimedBanTile(p));
 
   // 同样 hand，但只有 3 副露 → 仍禁
   const p3 = mkP({ hand: mk(['2m','2m','5m','5m','5m']), noDiscard: T['2m'],
                    noDiscardKind: 'chow', melds: melds4.slice(0, 3) });
-  ok('3 副露（非大吊车）→ 仍禁打同张', S.claimedBanTile(p3) === T['2m'], S.claimedBanTile(p3));
+  ok('3 副露（非大吊车）→ 仍禁打同张', claimedBanTile(p3) === T['2m'], claimedBanTile(p3));
 }
 
 console.log('== 3) 机器人：吃/碰 后不会打出刚进的那张 ==');
@@ -68,7 +71,7 @@ console.log('== 3) 机器人：吃/碰 后不会打出刚进的那张 ==');
   const meld = { type:'pung', tile:T['5m'], tiles:[T['5m'],T['5m'],T['5m']] };
   const p = mkP({ hand: mk(['5m','9m','1p']), melds: [meld],
                   noDiscard: T['5m'], noDiscardKind: 'pung' });
-  const ban = S.claimedBanTile(p);
+  const ban = claimedBanTile(p);
   ok('ban = 5万', ban === T['5m'], ban);
   // 一般性证明：把 AI 的「首选牌」设为禁打，它必须换一张
   let checked = 0, dodged = 0;
@@ -98,11 +101,11 @@ console.log('== 4) 出牌一次后限制解除（noDiscard 清空）==');
   p.flowers = []; p.pendingFlowers = []; p.knocked = false; p.isBot = false;
   p.noDiscard = T['2m']; p.noDiscardKind = 'chow';
   G.running = true;
-  const banBefore = S.claimedBanTile(p);
+  const banBefore = claimedBanTile(p);
   ok('出牌前 ban 生效', banBefore === T['2m'], banBefore);
   // 模拟出牌完成：引擎里 discardTurn 打完会清空（这里直接验证约定）
   p.noDiscard = null; p.noDiscardKind = null;
-  ok('出牌后 ban 解除', S.claimedBanTile(p) === null, S.claimedBanTile(p));
+  ok('出牌后 ban 解除', claimedBanTile(p) === null, claimedBanTile(p));
 }
 
 console.log('== 5) 两种玩法都生效（规则与玩法无关）==');
@@ -111,7 +114,7 @@ console.log('== 5) 两种玩法都生效（规则与玩法无关）==');
     CFG.lajiHu = laji;
     const p = mkP({ hand: mk(['3m','7m','9m']), noDiscard: T['3m'], noDiscardKind: 'chow',
                     melds: [{ type:'chow', tile:T['3m'], tiles:[T['2m'],T['3m'],T['4m']] }] });
-    ok((laji ? '敲麻' : '清混碰') + ' 禁打同张生效', S.claimedBanTile(p) === T['3m'], S.claimedBanTile(p));
+    ok((laji ? '敲麻' : '清混碰') + ' 禁打同张生效', claimedBanTile(p) === T['3m'], claimedBanTile(p));
   }
   CFG.lajiHu = true;
 }

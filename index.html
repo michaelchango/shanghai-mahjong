@@ -704,7 +704,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.51</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.52</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -1022,8 +1022,10 @@ function leziOf(type){
 function specialLezi(){
   return CFG.lajiHu ? 2 : 1;
 }
-// 无花果：花数为 0（花牌、风牌明碰/暗刻/明杠/暗杠都算花）——v1.2.12 起杠算花
-function isWuGuoHua(p){ return calcFlowers(p, null) === 0; }
+// 无花果：花数为 0（花牌、字牌明碰/暗刻、明杠/暗杠都算花）——v1.2.12 起杠算花
+// v1.2.52：判定带最终手牌——手牌里的风/字暗刻也破无花果（与点炮判定 wuGuoHuaAt 同口径，
+//   修复「有风刻/字刻点炮可胡、自摸却被记无花果勒子」的自相矛盾）
+function isWuGuoHua(p){ return calcFlowers(p, toCounts(p.hand || [])) === 0; }
 // 大吊车：四副露全在手外（单钓将）
 function isDaDiaoChe(p){ return (p.melds || []).length === 4; }
 // v1.2.40：吃 / 碰 进的是哪张，本次出牌就不能立刻打出同一张（两种玩法通用）。
@@ -1132,20 +1134,23 @@ function calcFlowers(p, handCounts){
   for (const m of (p.melds || [])){
     if (m.type === 'kong'){
       f += isWind(m.tile) ? (m.concealed ? 3 : 2) : (m.concealed ? 2 : 1);
-    } else if (m.type === 'pung' && isWind(m.tile)){
+    } else if (m.type === 'pung' && isHonor(m.tile)){
+      // v1.2.52：字牌明碰算花——风牌本就算；清混碰下中发白刻子也算（破无花果）。
+      // 敲麻里中发白是花牌上墙（不会成碰/刻），此分支天然只对清混碰生效。
       f += 1;
     }
   }
-  // 手牌中的风牌暗刻
+  // 手牌中的字牌暗刻：风牌各组 1 花；清混碰下中发白暗刻同样算花（v1.2.52）
+  //（敲麻中发白上墙为花牌，手牌不会出现 31-33，循环多算两位无副作用）
   if (handCounts){
-    for (let t = 27; t <= 30; t++) if (handCounts[t] >= 3) f += 1;
+    for (let t = 27; t <= 33; t++) if (handCounts[t] >= 3) f += 1;
   }
   return f;
 }
 
 /* 附加番 */
-// v1.2.36：无花果判定——把 tile 纳入手牌后仍然一张花都没有（花牌、风牌明碰/暗刻/明杠/暗杠都算花）。
-// 无花果的牌只能自摸：不能点炮胡、不能抢杠胡（见 claimOptions / 抢杠判定）。
+// v1.2.36：无花果判定——把 tile 纳入手牌后仍然一张花都没有（花牌、字牌明碰/暗刻、明杠/暗杠都算花；
+//           v1.2.52 起清混碰下中发白刻子同样算花）。无花果的牌只能自摸：不能点炮胡、不能抢杠胡。
 function wuGuoHuaAt(p, tile){
   const c = toCounts(p.hand || []);
   if (tile !== undefined && tile !== null) c[tile]++;
@@ -2138,10 +2143,10 @@ function getWaitsHand(hand, melds){
   return out;
 }
 // 任一玩家当前的「底 / 番」：底 = 起底 + 花；番 = 听牌取最佳听口番，否则取当前牌型番
-// v1.2.37：口径与 analyzeMe / scoreOf 对齐——花数不带手牌风刻，附加番走 extraFan()，听口比较用底×番
+// v1.2.52：花数一律 calcFlowers(p, hc)——含手牌风/字暗刻，与结算 tryWin 的 ev.flowers 同口径
 function playerDiFan(p){
   const hc = toCounts(p.hand || []);
-  const di = CFG.base + calcFlowers(p, null);
+  const di = CFG.base + calcFlowers(p, hc);
   if (p.settleFan != null) return { di: p.settleDi != null ? p.settleDi : di, fan: p.settleFan, tenpai: true };
   if (!p.hand || !p.hand.length) return { di, fan: null, tenpai: false };
   const addFan = extraFan(p, {}).reduce((s, x) => s + x[1], 0);
@@ -2152,7 +2157,7 @@ function playerDiFan(p){
       tenpai = true;
       let best = null, bv = -1;
       for (const x of w){
-        const r = diFanOf(x.ev, calcFlowers(p, null), addFan, p);
+        const r = diFanOf(x.ev, calcFlowers(p, hc), addFan, p);
         const v = r.di * r.fan;                 // 用「底 × 番」比较，勒子牌型的底不同也能比
         if (v > bv){ bv = v; best = r; }
       }
@@ -2160,8 +2165,8 @@ function playerDiFan(p){
     }
   }
   if (fan === null){
-    const cur = evaluateShape(hc, p.melds, { flowerCount: calcFlowers(p, null) });
-    const r = cur ? diFanOf(cur, calcFlowers(p, null), addFan, p) : typeDiFan(evalAll(hc, p.melds.length).bestType, calcFlowers(p, null), addFan, p);
+    const cur = evaluateShape(hc, p.melds, { flowerCount: calcFlowers(p, hc) });
+    const r = cur ? diFanOf(cur, calcFlowers(p, hc), addFan, p) : typeDiFan(evalAll(hc, p.melds.length).bestType, calcFlowers(p, hc), addFan, p);
     fan = r.fan; di2 = r.di;
   }
   return { di: di2 != null ? di2 : di, fan, tenpai };
@@ -2169,8 +2174,8 @@ function playerDiFan(p){
 function analyzeMe(){
   const p = G.players[0];
   const hc = toCounts(p.hand);
-  // v1.2.37：花数与附加番一律走结算同源口径（花数不带手牌风刻；附加番 extraFan 统一给）
-  const flowers = calcFlowers(p, null);
+  // v1.2.52：花数与结算/点炮判定同口径（calcFlowers(p, hc)，含手牌风/字暗刻）；附加番 extraFan 统一给
+  const flowers = calcFlowers(p, hc);
   const di = CFG.base + flowers;
   const add = extraFan(p, {});
   const addFan = add.reduce((s, x) => s + x[1], 0);
@@ -2988,6 +2993,40 @@ async function collectClaims(tile, from){
     if (pick && pick.k === 'hu') huers.push(idx);
   }
   if (huers.length) return { type: 'hu', players: huers };
+  // 对家/上家的杠/碰询问（原第2轮后半段，抽出复用）
+  const askRestKP = async () => {
+    const kp = [];
+    for (let i = 2; i < 4; i++){
+      const idx = (from + i) % 4;
+      const p = G.players[idx];
+      const opts = claimOptions(p, tile, from, false).filter(o => o.k === 'kong' || o.k === 'pung');
+      if (!opts.length) continue;
+      const pick = await pickClaim(p, idx, tile, from, opts, false);
+      if (pick && pick.k !== 'pass') kp.push({ idx, pick });
+    }
+    if (kp.length){
+      const pri = { kong: 3, pung: 2 };
+      kp.sort((a, b) => pri[b.pick.k] - pri[a.pick.k]);
+      return { type: kp[0].pick.k, idx: kp[0].idx, opt: kp[0].pick };
+    }
+    return null;
+  };
+  // v1.2.52：下家（唯一能吃的座位）若杠/碰/吃同时可行（真人），一次性把 杠/碰/吃 全部亮出——
+  // 这是同一家人自己的决定，不必拆成「先问碰、过了再问吃」两轮。
+  //   选杠/碰 → 与原第2轮一致直接生效（下家本就最先被问，无需再问对家/上家）；
+  //   选吃   → 仍先问对家/上家有没有杠/碰（吃优先级低于别家碰杠，被碰则吃作废）；
+  //   过     → 杠/碰/吃都不要，继续问对家/上家的杠/碰。
+  const ni = (from + 1) % 4;
+  const np = G.players[ni];
+  const nAll = claimOptions(np, tile, from, true);
+  if (!np.isBot && nAll.some(o => o.k === 'kong' || o.k === 'pung') && nAll.some(o => o.k === 'chow')){
+    const pick = await pickClaim(np, ni, tile, from, nAll, true);
+    if (pick && pick.k === 'chow'){
+      return (await askRestKP()) || { type: 'chow', idx: ni, opt: pick };
+    }
+    if (pick && pick.k !== 'pass') return { type: pick.k, idx: ni, opt: pick };
+    return askRestKP();       // 过 = 杠/碰/吃都不要
+  }
   // 第2轮：杠 / 碰（同级，一起问；杠优先于碰）
   const kp = [];
   for (let i = 1; i < 4; i++){
@@ -3004,9 +3043,7 @@ async function collectClaims(tile, from){
     return { type: kp[0].pick.k, idx: kp[0].idx, opt: kp[0].pick };
   }
   // 第3轮：吃（只有下家能吃）
-  const ni = (from + 1) % 4;
-  const np = G.players[ni];
-  const nOpts = claimOptions(np, tile, from, true).filter(o => o.k === 'chow');
+  const nOpts = nAll.filter(o => o.k === 'chow');
   if (nOpts.length){
     const pick = await pickClaim(np, ni, tile, from, nOpts, true);
     if (pick && pick.k === 'chow') return { type: 'chow', idx: ni, opt: pick };
@@ -3932,7 +3969,7 @@ function openRule(){
 
   '<h3>附加番（可没有，也可多个叠加）</h3>' +
   '<table><tr><th>番种</th><th>说明</th><th class="f">敲麻</th><th class="f">清混碰</th></tr>' +
-  '<tr><td>无花果</td><td>胡牌时一张花都没有（花牌、风牌明碰/暗刻/明杠/暗杠都算花）<b>，且只能自摸</b></td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
+  '<tr><td>无花果</td><td>胡牌时一张花都没有（花牌、字牌明碰/暗刻、明杠/暗杠都算花；清混碰下中发白刻子也算花）<b>，且只能自摸</b></td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
   '<tr><td>大吊车</td><td>4 组副露都在手外，单钓最后一张</td><td class="f">2 勒子</td><td class="f">1 勒子</td></tr>' +
   '<tr><td>门清</td><td>不吃不碰不明杠（暗杠不破门清）</td><td class="f">+1 番</td><td class="f">+1 番</td></tr>' +
   '<tr><td>杠上开花</td><td>杠后补牌自摸</td><td class="f">+1 番</td><td class="f">+1 番</td></tr>' +
