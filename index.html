@@ -44,6 +44,13 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
 .topbar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);padding:0 2px 3px;flex:0 0 auto}
 .topbar .gname{font-size:12px;color:var(--txt);font-weight:600}
 .topbar .sp{flex:1}
+/* v1.2.50：顶部正中央常驻「玩法」标识（敲麻 / 清混碰）。
+   左右各占 1 份弹性空间，中间 modeTag 自动落在正中央。 */
+.topbar .tbL{flex:1 1 0;display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .tbR{flex:1 1 0;display:flex;align-items:center;gap:4px;justify-content:flex-end}
+.topbar .modeTag{flex:0 0 auto;padding:1px 11px;border-radius:7px;font-size:12px;font-weight:800;
+  color:#3a2a00;background:linear-gradient(180deg,#ffe6a3,#e8a927);border:1px solid #ffe0a3;
+  letter-spacing:1px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.25)}
 .iconbtn{width:26px;height:26px;border-radius:8px;background:var(--card);display:flex;align-items:center;
   justify-content:center;font-size:13px;line-height:1}
 
@@ -697,7 +704,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.49</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.50</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -739,13 +746,17 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 
 <div id="app" data-page-node-id="keDzkr1sB8bzq5wlIJrGII">
   <div class="topbar" data-page-node-id="aovWvuvv7ue9Th9aeiVIio">
-    <span class="gname" id="gname" data-page-node-id="RGjdtjsIWWIhaeoNKFK6gw">第 1 局</span>
-    <span id="roundinfo" data-page-node-id="N9AcGEmhubeizLK0xdH5Oa">庄家 你</span>
-    <span class="sp" data-page-node-id="lgpIdelU9jtHG2oTkDcfp2"></span>
-    <span id="huangfanTag" data-page-node-id="lJGjSBrvPvLh7ACB7AcO6O"></span>
-    <button class="iconbtn" id="btnHist" title="历史记录" data-page-node-id="B6OufWgedNDb72YCXLdqwz">记</button>
-    <button class="iconbtn" id="btnRule" data-page-node-id="fykiMXDqkESJQwyXlEEn4s">?</button>
-    <button class="iconbtn" id="btnSet" data-page-node-id="4XwiYiZZDlHywKVSmdOTuF">⚙</button>
+    <div class="tbL">
+      <span class="gname" id="gname" data-page-node-id="RGjdtjsIWWIhaeoNKFK6gw">第 1 局</span>
+      <span id="roundinfo" data-page-node-id="N9AcGEmhubeizLK0xdH5Oa">庄家 你</span>
+    </div>
+    <span class="modeTag" id="modeTag" title="当前玩法">敲麻</span>
+    <div class="tbR">
+      <span id="huangfanTag" data-page-node-id="lJGjSBrvPvLh7ACB7AcO6O"></span>
+      <button class="iconbtn" id="btnHist" title="历史记录" data-page-node-id="B6OufWgedNDb72YCXLdqwz">记</button>
+      <button class="iconbtn" id="btnRule" data-page-node-id="fykiMXDqkESJQwyXlEEn4s">?</button>
+      <button class="iconbtn" id="btnSet" data-page-node-id="4XwiYiZZDlHywKVSmdOTuF">⚙</button>
+    </div>
   </div>
 
   <div class="hud" data-page-node-id="iN4HcKBoQfwapmYkjkEZE7">
@@ -2369,6 +2380,9 @@ function renderTop(){
   // v1.2.12：豹子/开宝只在骰子旁显示一次，右上角不再重复
   if (G.huangfan) tags.push('荒番×' + Math.pow(2, G.huangfan));
   $('huangfanTag').textContent = tags.join(' · ');
+  // v1.2.50：顶部正中央常驻显示当前玩法（敲麻 / 清混碰）
+  const mt = $('modeTag');
+  if (mt) mt.textContent = CFG.lajiHu ? '敲麻' : '清混碰';
   // 桌心罗盘：四家风位 + 当前出牌者
   const DIAL = { dwN: 'n', dwW: 'w', dwE: 'e', dwS: 's' };
   const SEAT_OF = { dwN: 2, dwW: 3, dwE: 1, dwS: 0 };
