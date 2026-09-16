@@ -83,6 +83,7 @@ const CFG_ALLOW = {
   cd:         v => [0, 15, 30].includes(Number(v)) ? Number(v) : null,  // v1.2.27 出牌倒计时（秒），0=无限时
   // v1.3.1 机器人按座位分别设置：数组长度必须正好 4，下标 = 真实座位号。
   // 机器人 = 空位（真人的座位这两个值没意义，但照样存着，换座 / 掉线托管时行为可预期）。
+  // v1.3.2 起前端不再让玩家选速度（本地机器人一律「快」），这里仍接受 0.6/1/1.8 老档位以兼容老客户端。
   aiSeats:    v => (Array.isArray(v) && v.length === 4) ? v.map(x => !!x) : null,
   spd:        v => {
     if (!Array.isArray(v) || v.length !== 4) return null;
@@ -96,9 +97,9 @@ function defaultCfg(){
   return {
     base: 2, unit: 1, lezi: 8,
     allowChow: true, sevenPairs: false, lajiHu: true,
-    autoKnock: false, autoHu: false, speed: 1, cd: 0,
+    autoKnock: false, autoHu: false, speed: 1.8, cd: 0,
     aiSeats: [true, true, true, true],   // 默认每台机器人都用大模型（与单机默认一致）
-    spd: [1, 1, 1, 1]                    // 各自 0.6 慢 / 1 中 / 1.8 快，只有不用大模型时才用得上
+    spd: [1.8, 1.8, 1.8, 1.8]            // v1.3.2：不用大模型的机器人一律「快」（1.8），不再让玩家选
   };
 }
 

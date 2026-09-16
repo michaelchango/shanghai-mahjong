@@ -48,20 +48,19 @@ const HAND = ['1m','2m','3m','4m','5m','6m','7m','8m','9m','1p','2p','3p','5p'];
     ok('复位后又能用', S.aiSeatOn(2) === true);
   }
 
-  console.log('== 2) spdOf：每台机器人各自的速度，没设过的用全局值 ==');
+  console.log('== 2) spdOf：按座位取节奏；v1.3.2 起默认 / UI 统一「快」（1.8） ==');
   {
     CFG.speed = 1.8;
-    CFG.spd = [1, 1, 1, 1];
-    ok('四个座位都在默认中档', S.spdOf(P2) === 1);
-    CFG.spd[2] = 0.6;
-    ok('座位 2 单独设慢 → 取 0.6', S.spdOf(P2) === 0.6);
-    ok('座位 1 仍是中档', S.spdOf(P1) === 1);
+    CFG.spd = [1.8, 1.8, 1.8, 1.8];
+    ok('四个座位都默认「快」（1.8）', S.spdOf(P2) === 1.8 && S.spdOf(P1) === 1.8);
     ok('真人座位不受影响（走全局）', S.spdOf(P0) === 1.8);
+    CFG.spd[2] = 0.6;                            // 老房间规则还可能带别的档位：引擎仍然按座位尊重
+    ok('按座位取（兼容老规则里的 0.6）', S.spdOf(P2) === 0.6 && S.spdOf(P1) === 1.8);
     CFG.spd[3] = 0;                              // 脏值兜底
     ok('脏值（0）→ 退回全局速度', S.spdOf(G.players[3]) === 1.8);
     CFG.spd[3] = null;
     ok('空值 → 退回全局速度', S.spdOf(G.players[3]) === 1.8);
-    CFG.spd = [1, 1, 1, 1]; CFG.speed = 1;
+    CFG.spd = [1.8, 1.8, 1.8, 1.8]; CFG.speed = 1.8;
   }
 
   console.log('== 3) 出牌：设成「不用AI」的座位连请求都不发 ==');
@@ -128,7 +127,7 @@ const HAND = ['1m','2m','3m','4m','5m','6m','7m','8m','9m','1p','2p','3p','5p'];
     const ALLOW = G2.CFG_ALLOW, def = G2.defaultCfg();
 
     ok('defaultCfg 带 aiSeats（默认四台都用 AI）', JSON.stringify(def.aiSeats) === JSON.stringify([true, true, true, true]), def.aiSeats);
-    ok('defaultCfg 带 spd（默认全中档）', JSON.stringify(def.spd) === JSON.stringify([1, 1, 1, 1]), def.spd);
+    ok('defaultCfg 带 spd（v1.3.2 起默认全「快」1.8）', JSON.stringify(def.spd) === JSON.stringify([1.8, 1.8, 1.8, 1.8]), def.spd);
     ok('两个键的长度都是 4（下标 = 真实座位号）', def.aiSeats.length === 4 && def.spd.length === 4);
 
     ok('aiSeats 接受长度 4 的数组', JSON.stringify(ALLOW.aiSeats([true, false, true, false])) === JSON.stringify([true, false, true, false]));

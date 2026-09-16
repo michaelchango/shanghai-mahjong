@@ -712,7 +712,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.1</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.2</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -1360,10 +1360,10 @@ const CFG = {
   autoKnock: false,
   autoHu: false,       // v1.2.15 自动胡牌：开=能胡就自动胡（含敲定后点炮「有和必和」）；关=自摸/点炮都出「胡/过」按钮自己决定
   cd: 0,               // v1.2.27 出牌倒计时（秒）：15/30，0=无（v1.2.41 起默认「无」）；联机房规则（房主设定），且开局时真人 ≥2 才生效；1 真人对机器人不限时
-  speed: 1,       // 0.6 慢 / 1 中 / 1.8 快（全局兜底；单座位可在 spd 里覆盖）
+  speed: 1.8,     // 机器人出牌节奏（1.8 = 快）。v1.3.2 起不再让玩家选，本地机器人统一走快
   // v1.3.1：机器人按座位分别设置 —— 下标 = 座位号（单机里 1/2/3 = 下家/对家/上家）
   aiSeats: [true, true, true, true],   // 这个座位要不要交给大模型决策（false = 该座位走本地逻辑）
-  spd: [1, 1, 1, 1]                    // 这个座位的机器人出牌节奏（由 spdOf(p) 读；真人座位无意义）
+  spd: [1.8, 1.8, 1.8, 1.8]            // v1.3.2：不用大模型的座位一律「快」（由 spdOf(p) 读；真人座位无意义）
 };
 let SETDRAFT = null;   // 等待页房主编辑规则时的暂存草稿；null 表示未在草稿态
 function loadCfg(){
@@ -1807,7 +1807,7 @@ function aiBrainOn(){ return !!(AI_BRAIN && AI_TIER !== 'local'); }
 function aiBrainStat(){ return { on: aiBrainOn(), tier: AI_TIER, hits: AI_HITS, miss: AI_MISS, err: AI_BRAIN_ERR }; }
 /* v1.3.1 按座位分别设置（单机三家机器人各管各的；联机由房主设定，服务端同一份引擎读同一套键）
      aiSeatOn(i)：这个座位要不要问大模型（缺省 = 要 —— 老存档、老房间规则行为不变）
-     spdOf(p)   ：这个座位机器人的出牌节奏（没单独设过就退回全局 CFG.speed） */
+     spdOf(p)   ：这个座位机器人的出牌节奏（v1.3.2 起恒为「快」1.8；脏值/缺省都兜到 CFG.speed） */
 function aiSeatOn(i){
   const a = CFG.aiSeats;
   return !(a && a[i] === false);
@@ -4038,8 +4038,8 @@ function voiceRows(inRoom){
 }
 loadVoice();
 
-/* ---------- 机器人 AI 与出牌速度（v1.3.1：按座位分别设置）----------
-   三个机器人各自决定「用不用大模型」；没用的那个按自己的节奏出牌（慢 / 中 / 快）。
+/* ---------- 机器人 AI 与出牌节奏（v1.3.2：按座位分别设置，本地机器人统一「快」）----------
+   三个机器人各自决定「用不用大模型」；没用大模型的按**快**节奏出牌（v1.3.2 起不再让玩家选速度）。
    策略固定为「引擎先按向听/危险度排出候选 → 模型在候选里定夺」——
    算牌交给不会算错的确定性引擎，读牌与取舍才交给模型。
    答案的合法性校验与超时兜底都在引擎里做，所以怎么切都坏不了牌局。
@@ -4048,22 +4048,21 @@ loadVoice();
      · 单机：本机 localStorage 'sjm_ai'（下标 = 本地视角座位 1/2/3 = 下家/对家/上家）；
      · 联机：房间规则的一部分（cfg.aiSeats / cfg.spd，下标 = 真实座位号）——
        联机机器人跑在服务端，所以「哪台用 AI」必须由房主写进房间规则、服务端才认。 */
-const SPEEDS = [0.6, 1, 1.8];
-let AI_CFG = { seats: [true, true, true, true], spd: [1, 1, 1, 1] };   // 下标 = 座位（0 位是自己，无意义）
-let AI_SRV = { checked: false, enabled: false, reason: '', models: null, probe: null, serverTier: 'off', probing: false, limited: false };
+const BOT_SPEED = 1.8;            // 机器人出牌节奏：统一「快」（引擎侧仍按座位读 CFG.spd，只是值恒为它）
+let AI_CFG = { seats: [true, true, true, true] };   // 下标 = 座位（0 位是自己，无意义）
+let AI_SRV = { checked: false, enabled: false, reason: '', down: false, models: null, probe: null,
+               probeErr: '', serverTier: 'off', probing: false, probeAt: 0, limited: false };
 function loadAi(){
   try{
     const s = JSON.parse(localStorage.getItem('sjm_ai') || '{}');
     // 兼容 v1.3.0 及更早的存档（{on:bool} / {tier:'local'|'fast'|'strong'}）：三个座位取同一个值
+    // v1.3.2 起速度不再可选，老存档里的 spd 直接忽略（一律走快）
     const all = (typeof s.on === 'boolean') ? s.on : (typeof s.tier === 'string' ? (s.tier !== 'local') : true);
-    for (let i = 1; i < 4; i++){
+    for (let i = 1; i < 4; i++)
       AI_CFG.seats[i] = (Array.isArray(s.seats) && typeof s.seats[i] === 'boolean') ? s.seats[i] : all;
-      const sp = Array.isArray(s.spd) ? Number(s.spd[i]) : NaN;
-      AI_CFG.spd[i] = (SPEEDS.indexOf(sp) >= 0) ? sp : 1;
-    }
   }catch(e){}
 }
-function saveAi(){ try{ localStorage.setItem('sjm_ai', JSON.stringify({ seats: AI_CFG.seats, spd: AI_CFG.spd })); }catch(e){} }
+function saveAi(){ try{ localStorage.setItem('sjm_ai', JSON.stringify({ seats: AI_CFG.seats })); }catch(e){} }
 /* 本机有几个机器人交给大模型 / 现用规则里还有没有座位要模型出手（都读引擎那份 CFG） */
 function aiSeatsCount(){ let n = 0; for (let i = 1; i < 4; i++) if (AI_CFG.seats[i]) n++; return n; }
 function aiCfgAnyOn(){
@@ -4074,8 +4073,8 @@ function aiCfgAnyOn(){
 /* 单机三个机器人的设置 → 写进引擎读的 CFG（联机时 CFG 由房间规则直接给，不走这里） */
 function applyAiCfg(){
   if (!Array.isArray(CFG.aiSeats)) CFG.aiSeats = [true, true, true, true];
-  if (!Array.isArray(CFG.spd)) CFG.spd = [1, 1, 1, 1];
-  for (let i = 1; i < 4; i++){ CFG.aiSeats[i] = !!AI_CFG.seats[i]; CFG.spd[i] = AI_CFG.spd[i]; }
+  if (!Array.isArray(CFG.spd)) CFG.spd = [BOT_SPEED, BOT_SPEED, BOT_SPEED, BOT_SPEED];
+  for (let i = 1; i < 4; i++){ CFG.aiSeats[i] = !!AI_CFG.seats[i]; CFG.spd[i] = BOT_SPEED; }
   applyAiTier();
 }
 /* 档位翻译成引擎注入点：服务端不可用 / 一台机器人都不走大模型 → 干脆不注入（零网络、零开销）。
@@ -4091,14 +4090,23 @@ function aiAskServer(payload){
     body: JSON.stringify(payload)
   }).then(r => (r && r.ok) ? r.json() : Promise.reject(new Error('http ' + (r && r.status))));
 }
-/* AI 连接状态文案：模型名 + 实测耗时 / 失败原因，一句话说清「通没通、多少毫秒」 */
+/* AI 连接状态文案：模型名 + 实测耗时 / 失败原因，一句话说清「通没通、多少毫秒」。
+   注意 probeBusy() 自带看门狗（探测超时就自动放行），所以这里不会永远停在「正在实测」。
+   重测期间若已有上一次的成功结论，也一并带出来，别让毫秒数凭空消失。 */
 function aiConnText(){
-  if (!AI_SRV.checked) return '正在检查服务端…';
-  if (!AI_SRV.enabled) return '服务端未配置大模型，已自动回退本地逻辑：' + (AI_SRV.reason || '原因未知');
-  const model = (AI_SRV.models && AI_SRV.models.strong) || '大模型';
-  if (AI_SRV.probing) return '已连接 ' + model + '　⏳ 正在实测调用…';
+  if (!AI_SRV.checked) return '正在检查服务端…（首次打开可能要多等几秒）';
   const pr = AI_SRV.probe;
-  if (!pr) return '已连接 ' + model + (AI_SRV.limited ? '　⏳ 测速冷却中（20 秒内不重复测）' : '　（还没实测过，点右上「测试连接」）');
+  const last = (pr && pr.ok) ? '（上次 ' + pr.ms + 'ms）' : '';
+  if (!AI_SRV.enabled){
+    if (AI_SRV.down) return '服务端' + (AI_SRV.reason || '不可达') +
+      '，机器人先按本地逻辑出牌' + (AI_RETRY_TIMER ? '（稍后自动重试）' : '');
+    return '服务端未配置大模型，已自动回退本地逻辑：' + (AI_SRV.reason || '原因未知');
+  }
+  const model = (AI_SRV.models && AI_SRV.models.strong) || '大模型';
+  if (probeBusy()) return '已连接 ' + model + '　⏳ 正在实测调用…' + last;
+  if (!pr) return '已连接 ' + model + (AI_SRV.limited
+    ? '　⏳ 测速冷却中，' + (AI_RETRY_TIMER ? '冷却结束自动重测' : '点右上「测试连接」重试')
+    : '　（还没实测过，点右上「测试连接」）');
   if (pr.ok) return '已连接 ' + model + '　✅ 实测调用成功 ' + pr.ms + 'ms';
   return '已连接 ' + model + '　❌ 实测失败：' + String(pr.detail || '未知').slice(0, 60);
 }
@@ -4116,19 +4124,20 @@ function aiRoomStat(){
 /* 面板渲染期的上下文：点开关时靠它判断该写哪份设置（单机写本机存档 / 联机写房间草稿） */
 const BOTUI = { inRoom: false, base: 0 };
 /* 机器人分组：每台一行「用AI / 不用AI」，紧跟一行跟着这个选择的设置 ——
-   用 AI → 显示 AI 连接状态；不用 → 选这台机器人自己的出牌速度。
+   用 AI → 显示 AI 连接状态（含实测毫秒）；不用 → 一行本地节奏说明（固定「快」）。
    联机时只列空位（真人坐的位子不是机器人），并按「下家/对家/上家 + 真实座位号」标清是哪一家。 */
 function botAiRows(inRoom, ro){
   const base = inRoom ? ((typeof NET !== 'undefined' && NET.mySeat >= 0) ? NET.mySeat : 0) : 0;
   BOTUI.inRoom = inRoom; BOTUI.base = base;
   const aiOk = !!AI_SRV.enabled && (!inRoom || AI_SRV.serverTier !== 'off');
   let h = '<div class="sgrp"><span>机器人设置</span>' +
-    (aiOk ? '<button class="sgbtn" onclick="testAi()">' + (AI_SRV.probing ? '测试中…' : '测试连接') + '</button>' : '') +
+    (aiOk ? '<button class="sgbtn" onclick="testAi()">' + (probeBusy() ? '测试中…' : '测试连接') + '</button>' : '') +
     '</div>';
   if (!aiOk){
-    h += '<div class="setrow"><div class="lb">服务端未配置大模型<small>' +
-      (AI_SRV.checked ? String(AI_SRV.reason || '机器人只能走本地逻辑') : '正在检查服务端…') +
-      '　所以下面只按各自的速度出牌</small></div></div>';
+    const why = AI_SRV.checked ? String(AI_SRV.reason || '机器人只能走本地逻辑') : '正在检查服务端…';
+    const head = !AI_SRV.checked ? '正在检查服务端' : (AI_SRV.down ? '服务端不可用' : '服务端未配置大模型');
+    h += '<div class="setrow"><div class="lb">' + head + '<small>' +
+      why + '　所以下面只按本地逻辑出牌（快）</small></div></div>';
   }
   const bots = [];
   if (inRoom){
@@ -4154,7 +4163,7 @@ function botAiRows(inRoom, ro){
       '<small>' + (inRoom ? '座位 ' + b.seat + ' · 空位' : POS[b.r - 1] + '（你' + SIDE[b.r - 1] + '，座位 ' + b.seat + '）') + '</small></div>' +
       (aiOk ? seg('sgAiSeat' + b.r, [{ l: '用AI', v: 1 }, { l: '不用AI', v: 0 }], on ? 1 : 0, 'setAiSeat', ro, b.seat) : '') +
       '</div>';
-    if (!aiOk || !on) h += botSpdRow(b.seat, inRoom, ro);
+    if (!aiOk || !on) h += botSpdRow();
     else h += '<div class="setrow sub"><div class="lb">AI 状态<small>' + aiConnText() + '</small></div></div>';
   }
   if (inRoom){
@@ -4169,11 +4178,9 @@ function botAiRows(inRoom, ro){
   }
   return h;
 }
-/* 子设置：这台机器人不用 AI 时，按自己的节奏出牌 */
-function botSpdRow(seat, inRoom, ro){
-  const cur = inRoom ? ((((SETDRAFT || CFG).spd || [])[seat]) || 1) : (AI_CFG.spd[seat] || 1);
-  return '<div class="setrow sub"><div class="lb">出牌速度<small>这台机器人不走大模型，按它自己的节奏出牌</small></div>' +
-    seg('sgSpdSeat' + seat, [{ l: '慢', v: 0.6 }, { l: '中', v: 1 }, { l: '快', v: 1.8 }], cur, 'setAiSpd', ro, seat) + '</div>';
+/* 子设置：这台机器人不走大模型 → 本地算牌、按「快」节奏出牌（v1.3.2 起不再让玩家选速度） */
+function botSpdRow(){
+  return '<div class="setrow sub"><div class="lb">出牌节奏<small>不走大模型 · 本地算牌 · 出牌快（无需设置）</small></div></div>';
 }
 /* 点开关：单机写本机存档并立刻生效；联机写房间草稿，随房主点「确定」一起发给服务端 */
 function setAiSeat(v, seat){
@@ -4186,23 +4193,22 @@ function setAiSeat(v, seat){
   }
   openSet();
 }
-function setAiSpd(v, seat){
-  const s = Number(v);
-  if (SPEEDS.indexOf(s) < 0) return;
-  if (BOTUI.inRoom){
-    const R = SETDRAFT || CFG;
-    R.spd = Array.isArray(R.spd) ? R.spd.slice() : [1, 1, 1, 1];
-    R.spd[seat] = s;
-  } else {
-    AI_CFG.spd[seat] = s; saveAi(); applyAiCfg();
-  }
-  openSet();
-}
 loadAi(); applyAiCfg();
-/* 探服务端能力：没部署 / 没配环境变量 → 静默保持本地逻辑
-   force=true 时让服务端真打一次模型（?probe=1）。拿到「可用」结论后会自动补一次实测，
-   所以玩家打开设置就能看到实测毫秒数，不用自己点。 */
-let AI_AUTOTESTED = false;
+/* 探服务端能力：没部署 / 没配环境变量 → 静默保持本地逻辑。
+   force=true 时让服务端真打一次模型（?probe=1）拿「通没通、多少毫秒」。
+
+   v1.3.2 加固（之前会出现「结果不显示、一直停在测试中」）：
+     ① 请求带超时（AbortController）—— 服务端冷启动/网关抽风不会把界面吊死；
+     ② probing 复位放在链尾的兜底里，任何分支（含 applyAiTier 抛错）都会复位；
+     ③ 看门狗 probeBusy()：探测时间超过 PROBE_STUCK_MS 自动放行，界面永远不会卡住；
+     ④ 没拿到毫秒就自动重试（最多 3 次）—— 刷新页面撞上服务端 20 秒 probe 冷却时，
+        冷却一过自动补一次，玩家不用自己反复点。 */
+const PROBE_TIMEOUT_MS = 20000;   // 单次请求超时（Render 免费层冷启动可能要十几秒）
+const PROBE_STUCK_MS   = 30000;   // 看门狗：超过它还没结论就当作超时，放行界面
+const PROBE_CD_MS      = 22000;   // 服务端 probe 冷却 20 秒，留 2 秒余量再重试
+let AI_AUTOTESTED = false;        // 每页自动实测一次
+let AI_RETRY_TIMER = null;        // 冷却/超时后的自动重试定时器
+let AI_RETRY_N = 0;               // 自动重试预算（最多 3 次，防止刷服务端额度）
 function refreshSet(){
   try{
     if (typeof document === 'undefined') return;
@@ -4210,10 +4216,34 @@ function refreshSet(){
     if (sh && sh.classList && sh.classList.contains('on') && typeof openSet === 'function') openSet();
   }catch(e){}
 }
-/* 「测试连接」：立刻再实测一次。旧结论保留着（AI_SRV.probing 会让状态行先显示「正在实测调用…」），
+/* 是否正在实测。带看门狗：探测卡住太久 → 自动判定超时并放行（否则界面永远停在「测试中」）。
+   渲染函数里调用它是有意的 —— 面板每重绘一次，卡死的状态就会被清理掉。 */
+function probeBusy(){
+  if (!AI_SRV.probing) return false;
+  if (AI_SRV.probeAt && Date.now() - AI_SRV.probeAt > PROBE_STUCK_MS){
+    AI_SRV.probing = false; AI_SRV.probeAt = 0;
+    AI_SRV.probeErr = '响应超时（' + Math.round(PROBE_STUCK_MS / 1000) + ' 秒）';
+    return false;
+  }
+  return true;
+}
+/* 还没拿到毫秒就隔一会儿再试一次（最多 3 次）—— 把「冷却中被挡回」变成「等一会儿自动出结果」 */
+function scheduleProbeRetry(delay){
+  if (typeof setTimeout !== 'function') return;
+  if (AI_RETRY_TIMER || AI_RETRY_N >= 3) return;
+  AI_RETRY_N++;
+  AI_RETRY_TIMER = setTimeout(() => {
+    AI_RETRY_TIMER = null;
+    if (typeof document === 'undefined') return;
+    probeAi(true);
+  }, delay);
+}
+/* 「测试连接」：立刻再实测一次。旧结论保留着（重测时状态行先显示「正在实测调用…（上次 1338ms）」），
    这样万一是被 20 秒冷却挡回，界面上至少还有上一次的真实耗时，而不是空白。 */
 function testAi(){
   AI_AUTOTESTED = true;
+  AI_RETRY_N = 0;                                    // 玩家手动测 → 重试预算重置
+  if (probeBusy()){ openSet(); return; }              // 已经在测了，别重复发请求
   probeAi(true);
   openSet();
 }
@@ -4221,18 +4251,32 @@ function probeAi(force){
   if (typeof document === 'undefined') return;      // 服务端引擎（headless）不执行
   if (typeof fetch !== 'function') return;
   if (location.protocol !== 'http:' && location.protocol !== 'https:'){
-    AI_SRV.checked = true; AI_SRV.enabled = false;
+    AI_SRV.checked = true; AI_SRV.enabled = false; AI_SRV.down = false;
     AI_SRV.reason = '以本地文件打开，没有服务端';
     applyAiTier(); return;
   }
-  if (AI_SRV.probing) return;                        // 一次只飞一个探测
+  if (probeBusy()) return;                           // 一次只飞一个探测
   AI_SRV.probing = !!force;
-  fetch('/api/ai/status' + (force ? '?probe=1' : ''), { headers: { Accept: 'application/json' } })
+  AI_SRV.probeAt = Date.now();
+  AI_SRV.probeErr = '';
+  if (force) AI_SRV.limited = false;
+  let ctl = null, timer = null;
+  try {
+    if (typeof AbortController === 'function'){
+      ctl = new AbortController();
+      timer = setTimeout(() => { try{ ctl.abort(); }catch(e){} }, PROBE_TIMEOUT_MS);
+    }
+  }catch(e){ ctl = null; timer = null; }
+  const opt = { headers: { Accept: 'application/json' }, cache: 'no-store' };
+  if (ctl) opt.signal = ctl.signal;
+  fetch('/api/ai/status' + (force ? '?probe=1&t=' : '?t=') + Date.now(), opt)
     .then(r => ((r && r.ok) ? r.json() : null))
     .then(j => {
+      if (timer) clearTimeout(timer);
       AI_SRV.checked = true;
       AI_SRV.enabled = !!(j && j.enabled);
-      AI_SRV.reason = (j && j.reason) || '';
+      AI_SRV.down = !j;
+      AI_SRV.reason = j ? ((j && j.reason) || '') : '返回了无法解析的内容';
       AI_SRV.models = (j && j.models) || null;
       AI_SRV.serverTier = (j && j.serverTier) || 'off';
       if (j && j.probe){
@@ -4243,20 +4287,26 @@ function probeAi(force){
         if (!limited) AI_SRV.probe = j.probe;
         else if (!(AI_SRV.probe && AI_SRV.probe.ok)) AI_SRV.probe = null;
       }
-      applyAiTier();
     })
-    .catch(() => {
-      AI_SRV.checked = true; AI_SRV.enabled = false; AI_SRV.reason = '服务端不可达';
-      applyAiTier();
+    .catch(e => {
+      if (timer) clearTimeout(timer);
+      const aborted = !!(ctl && ctl.signal && ctl.signal.aborted);
+      AI_SRV.checked = true; AI_SRV.enabled = false; AI_SRV.down = true;
+      AI_SRV.reason = aborted ? ('响应超时（' + Math.round(PROBE_TIMEOUT_MS / 1000) + ' 秒）') : '不可达';
+      AI_SRV.probeErr = AI_SRV.reason;
     })
     .then(() => {
-      AI_SRV.probing = false;
-      refreshSet();
-      // 服务端说可用就自动补一次真调用（每页只做一次）：把「通没通、多少毫秒」直接写进状态行
+      // 兜底：无论走哪条分支都复位，绝不让界面停在「测试中」
+      AI_SRV.probing = false; AI_SRV.probeAt = 0;
+      try { applyAiTier(); }catch(e){}
       if (!force && AI_SRV.enabled && aiCfgAnyOn() && !AI_AUTOTESTED){
+        // 服务端说可用就自动补一次真调用（每页只做一次）：把「多少毫秒」写进状态行
         AI_AUTOTESTED = true;
         probeAi(true);
+      } else if (AI_SRV.enabled && !(AI_SRV.probe && AI_SRV.probe.ok)){
+        scheduleProbeRetry(AI_SRV.limited ? PROBE_CD_MS : 5000);
       }
+      refreshSet();
     });
 }
 probeAi();
@@ -5432,8 +5482,7 @@ window.netKick = netKick;
 window.setCfg = setCfg; window.setCfg2 = setCfg2; window.setCfg3 = setCfg3;
 window.setCfg4 = setCfg4; window.setCfg5 = setCfg5; window.setCfg7 = setCfg7; window.setCfg8 = setCfg8; window.setCfg9 = setCfg9;
 window.setCfg10 = setCfg10;
-window.setAiSeat = setAiSeat;      // v1.3.1：按座位设「这台机器人用不用 AI」
-window.setAiSpd = setAiSpd;        // 不用 AI 的那台，按自己的节奏出牌
+window.setAiSeat = setAiSeat;      // v1.3.1：按座位设「这台机器人用不用 AI」（v1.3.2 起不再有速度设置）
 window.testAi = testAi;            // 「测试连接」：真打一次模型，把耗时 / 失败原因写在状态行
 window.resetAll = resetAll;
 </script>

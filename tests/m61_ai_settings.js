@@ -54,7 +54,7 @@ renderHUD = function(){}; logMsg = function(){}; toast = function(){}; seatToast
 global.__api = {
   NET, CFG, AI_CFG, AI_SRV, BOTUI,
   openSet, cfgRows, botAiRows, botSpdRow, aiConnText, aiCfgAnyOn, applyAiCfg, applyAiTier,
-  setAiSeat, setAiSpd, testAi, probeAi, aiBrainStat, aiBrainOn, aiSeatOn, spdOf,
+  setAiSeat, testAi, probeAi, probeBusy, saveAi, aiBrainStat, aiBrainOn, aiSeatOn, spdOf,
   draft(){ return SETDRAFT; },        // SETDRAFT 会被整体替换，必须用取值函数而非快照
   clearDraft(){ SETDRAFT = null; },
   sheet(){ return __sheet; }
@@ -118,41 +118,41 @@ function srvOff(){ M.AI_SRV.checked = true; M.AI_SRV.enabled = false; M.AI_SRV.r
     M.AI_SRV.probe = { ok: true, ms: 2449 };
   }
 
-  console.log('== 4) 选了「不用AI」→ 只有这一台换成速度设置 ==');
+  console.log('== 4) 选了「不用AI」→ 走本地逻辑，出牌节奏固定「快」（v1.3.2 不再让玩家选速度） ==');
   {
     M.setAiSeat(0, 2);                       // 关掉对家（座位 2）
     ok('AI_CFG.seats[2] = false', M.AI_CFG.seats[2] === false, M.AI_CFG.seats);
     ok('落进引擎读的 CFG.aiSeats[2]', M.CFG.aiSeats[2] === false, M.CFG.aiSeats);
     ok('另外两台不受影响', M.CFG.aiSeats[1] === true && M.CFG.aiSeats[3] === true);
     let h = M.sheet();
-    ok('这一台出现「出牌速度」', h.indexOf('出牌速度') >= 0);
-    ok('速度段落带座位号 setAiSpd(值,2)', h.indexOf('setAiSpd(0.6,2)') >= 0 && h.indexOf('setAiSpd(1.8,2)') >= 0);
-    ok('只有这一台有速度设置（其余两台仍是 AI 状态）',
-      (h.match(/出牌速度/g) || []).length === 1 && (h.match(/AI 状态/g) || []).length === 2);
+    ok('这一台换成「出牌节奏」说明行', h.indexOf('出牌节奏') >= 0 && h.indexOf('出牌快') >= 0);
+    ok('面板里已经没有速度开关', h.indexOf('setAiSpd') < 0 && h.indexOf('sgSpdSeat') < 0);
+    ok('只有这一台有节奏说明（其余两台仍是 AI 状态）',
+      (h.match(/出牌节奏/g) || []).length === 1 && (h.match(/AI 状态/g) || []).length === 2);
     ok('汇总行写明几台走大模型 / 几台走本地', h.indexOf('本机机器人') >= 0 && h.indexOf('2 台走大模型') >= 0 && h.indexOf('1 台走本地逻辑') >= 0);
 
-    M.setAiSpd(1.8, 2);
-    ok('速度写进 AI_CFG.spd[2] 与 CFG.spd[2]', M.AI_CFG.spd[2] === 1.8 && M.CFG.spd[2] === 1.8, [M.AI_CFG.spd, M.CFG.spd]);
-    ok('引擎按座位取到快档', M.spdOf({ isBot: true, idx: 2 }) === 1.8);
-    ok('没单独设过的座位用全局速度', M.spdOf({ isBot: true, idx: 3 }) === M.CFG.speed);
+    ok('引擎按座位取到的节奏恒为「快」', M.spdOf({ isBot: true, idx: 2 }) === 1.8 && M.spdOf({ isBot: true, idx: 1 }) === 1.8);
+    ok('全局兜底速度也是「快」', M.CFG.speed === 1.8, M.CFG.speed);
+    ok('存档不再保存 spd（只有一个座位开关）', M.saveAi.toString().indexOf('spd') < 0, M.saveAi.toString());
 
     console.log('   — 三台全关：引擎干脆不注入大脑（零网络开销） —');
     M.setAiSeat(0, 1); M.setAiSeat(0, 3);
     ok('三台都关掉了', M.aiCfgAnyOn() === false, M.CFG.aiSeats);
     ok('aiBrainOn() = false', M.aiBrainOn() === false);
-    ok('面板三行都变成速度设置', (M.sheet().match(/出牌速度/g) || []).length === 3);
+    ok('面板三行都变成节奏说明', (M.sheet().match(/出牌节奏/g) || []).length === 3);
     M.setAiSeat(1, 1); M.setAiSeat(1, 3);        // 复原
     ok('恢复「用AI」后大脑重新注入', M.aiBrainOn() === true && M.aiBrainStat().tier === 'strong', M.aiBrainStat());
   }
 
-  console.log('== 5) 服务端没有大模型：不显示开关，只按各自速度出牌 ==');
+  console.log('== 5) 服务端没有大模型：不显示开关，只用本地逻辑（节奏固定快） ==');
   {
     srvOff();
     M.openSet();
     const h = M.sheet();
     ok('说明服务端未配置大模型', h.indexOf('服务端未配置大模型') >= 0);
     ok('不再显示「用AI / 不用AI」（点了也没用）', h.indexOf('>用AI<') < 0 && h.indexOf('>不用AI<') < 0);
-    ok('三台都给出速度设置', (h.match(/出牌速度/g) || []).length === 3);
+    ok('三台都给出节奏说明', (h.match(/出牌节奏/g) || []).length === 3);
+    ok('面板里没有速度开关', h.indexOf('setAiSpd') < 0);
     ok('顺序仍然是 玩法 < 机器人设置 < 语音 < 样式', (() => { const m = marks(); return m.ai > m.cfg && m.voice > m.ai && m.felt > m.voice; })());
     srvOn();
   }
@@ -184,11 +184,12 @@ function srvOff(){ M.AI_SRV.checked = true; M.AI_SRV.enabled = false; M.AI_SRV.r
       hh.indexOf('onclick="setAiSeat(1,3)"') >= 0 && hh.indexOf('onclick="setAiSeat(0,1)"') >= 0, hh);
     M.setAiSeat(0, 3);                                 // 关掉下家（座位 3）
     ok('写进房间草稿 SETDRAFT.aiSeats[3]', M.draft() && M.draft().aiSeats[3] === false, M.draft() && M.draft().aiSeats);
-    M.setAiSpd(0.6, 1);
-    ok('速度也写进草稿 SETDRAFT.spd[1]', M.draft().spd[1] === 0.6, M.draft().spd);
+    ok('草稿里的 spd 仍是 4 元数组、值固定「快」', Array.isArray(M.draft().spd) && M.draft().spd[1] === 1.8, M.draft() && M.draft().spd);
+    ok('关掉后那一台的子设置变成节奏说明（不再是速度开关）',
+      M.sheet().indexOf('出牌节奏') >= 0 && M.sheet().indexOf('setAiSpd') < 0);
     M.clearDraft();
     M.NET.roomNo = 0; M.NET.isHost = false; M.NET.mySeat = -1; M.NET.players = [];
-    M.CFG.aiSeats = [true, true, true, true]; M.CFG.spd = [1, 1, 1, 1];
+    M.CFG.aiSeats = [true, true, true, true]; M.CFG.spd = [1.8, 1.8, 1.8, 1.8];
   }
 
   console.log('== 7) AI 状态里的毫秒是自动测出来的（打开设置就能看到） ==');
@@ -228,6 +229,53 @@ function srvOff(){ M.AI_SRV.checked = true; M.AI_SRV.enabled = false; M.AI_SRV.r
     M.AI_SRV.probe = null;
     ok('没有旧结论时如实说「冷却中」（而不是失败）', M.aiConnText().indexOf('冷却') >= 0 && M.aiConnText().indexOf('❌') < 0, M.aiConnText());
     M.AI_SRV.limited = false;
+    global.location = { protocol: 'file:' };
+  }
+
+  console.log('== 8) 探测加固：卡住也不会永远停在「测试中」（看门狗 + 冷却后自动重测） ==');
+  {
+    global.location = { protocol: 'http:', hostname: 'game.example.com' };
+    srvOn();
+    // (a) 请求挂住不返回 → 看门狗到点自动放行，如实说超时，界面不再停在「测试中」
+    global.fetch = () => new Promise(() => {});            // 永不 settle
+    M.AI_SRV.probe = null; M.AI_SRV.probing = false; M.AI_SRV.probeAt = 0; M.AI_SRV.limited = false;
+    M.probeAi(true);
+    ok('刚发出去时确实显示「正在实测」', M.probeBusy() === true);
+    M.AI_SRV.probeAt = Date.now() - 31000;                  // 模拟已经卡了 31 秒
+    ok('看门狗自动放行（不再显示「测试中」）', M.probeBusy() === false);
+    ok('并如实记下超时原因', /超时/.test(M.AI_SRV.probeErr), M.AI_SRV.probeErr);
+    ok('状态文案不再停在「正在实测调用…」', M.aiConnText().indexOf('正在实测调用') < 0, M.aiConnText());
+
+    // (b) 被服务端 20 秒冷却挡回 → 自己安排一次重测，不指望玩家反复点
+    M.AI_SRV.probing = false; M.AI_SRV.probeAt = 0; M.AI_SRV.probe = null; M.AI_SRV.limited = false;
+    global.fetch = url => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(
+      { enabled: true, models: { strong: 'hy3' }, serverTier: 'strong', probe: { ok: false, detail: 'probe 被限流（probe_cd）' } }) });
+    M.probeAi(true);
+    await new Promise(r => setTimeout(r, 40));
+    ok('冷却被如实记下', M.AI_SRV.limited === true);
+    ok('并承诺冷却结束后自动重测', M.aiConnText().indexOf('自动重测') >= 0, M.aiConnText());
+
+    // (c) 服务端不可达 / 超时的文案：说清「先走本地逻辑」
+    M.AI_SRV.enabled = false; M.AI_SRV.down = true; M.AI_SRV.reason = '响应超时（20 秒）';
+    ok('文案说清先走本地逻辑', M.aiConnText().indexOf('响应超时') >= 0 && M.aiConnText().indexOf('本地逻辑') >= 0, M.aiConnText());
+    M.AI_SRV.down = false; M.AI_SRV.reason = '';
+
+    // (d) 回到正常态：按钮显示「测试连接」，面板里没有任何「测试中」
+    M.AI_SRV.probing = false; M.AI_SRV.probeAt = 0;
+    srvOn();
+    M.openSet();
+    ok('按钮回到「测试连接」', M.sheet().indexOf('测试连接') >= 0 && M.sheet().indexOf('测试中…') < 0);
+
+    // (e) 点「测试连接」时，探测中不会重复发请求
+    let n = 0;
+    global.fetch = url => { n++; return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(
+      { enabled: true, models: { strong: 'hy3' }, serverTier: 'strong', probe: { ok: true, ms: 999 } }) }); };
+    M.AI_SRV.probing = false; M.AI_SRV.probeAt = 0; M.AI_SRV.probe = null;
+    M.testAi();                                             // 第一下：真发
+    M.testAi();                                             // 第二下：还在飞 → 不该重复发
+    await new Promise(r => setTimeout(r, 40));
+    ok('连点「测试连接」只发一个请求', n === 1, n);
+    ok('实测结果拿到毫秒', !!M.AI_SRV.probe && M.AI_SRV.probe.ms === 999 && M.aiConnText().indexOf('999ms') >= 0, M.aiConnText());
     global.location = { protocol: 'file:' };
   }
 
