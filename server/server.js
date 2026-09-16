@@ -23,6 +23,8 @@ const { WebSocketServer } = require('ws');
 const { boot } = require('../proto/server/headless');
 const { projectFor } = require('../proto/server/view');
 const { handSeed } = require('../proto/server/rng');
+// v1.3.0 大模型机器人：未配置 CLOUDBASE_ENV / CLOUDBASE_API_KEY 时 isEnabled()=false，一切照旧走本地 AI
+const aibrain = require('../proto/server/aibrain');
 
 const PORT = Number(process.env.PORT || 8080);
 const ROOT = path.resolve(__dirname, '..');
@@ -303,6 +305,11 @@ class GameHost {
     const S = this.S;
     // 引擎 ask() 的服务端路由（patch 钩子）：谁要做决定 → GameHost.onAsk
     S.onAsk = pend => this.onAsk(pend);
+    // v1.3.0：联机房间的机器人默认也走大模型（与单机「机器人是否启用AI」默认启用一致）；
+    // 未配环境变量 / AI_BOT_TIER=off → 房间机器人退回本地逻辑。
+    if (aibrain.isEnabled() && aibrain._env.serverTier !== 'off' && typeof S.setAiBrain === 'function'){
+      S.setAiBrain({ ask: p => aibrain.decide(p) }, aibrain._env.serverTier);
+    }
     // CFG/G 是 const 声明，须经 __state 桥访问（见 headless.js）
     // 按房主设定的本桌规则初始化（开局后锁定，中途不能改）
     const cfg = Object.assign(defaultCfg(), room.cfg || {});
@@ -643,6 +650,73 @@ function handle(conn, m){
 /* ========================================================================
    HTTP + WebSocket
    ======================================================================== */
+/* v1.2.53 AI 大脑的 HTTP 出口：单机模式下浏览器引擎经这里问大模型。
+   同源调用（index.html 由本服务托管）→ 不需要 CORS；也不对外开放跨域，避免被外部页面白嫖额度。 */
+function sendJson(res, code, obj){
+  let s = '{"ok":false}';
+  try { s = JSON.stringify(obj); } catch (e){}
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(s);
+}
+function readJson(req, cb){
+  let buf = '', done = false;
+  const fin = (e, v) => { if (done) return; done = true; cb(e, v); };
+  req.on('data', c => {
+    if (done) return;
+    buf += c;
+    if (buf.length > 32 * 1024) fin(new Error('too_large'));
+  });
+  req.on('end', () => {
+    if (done) return;
+    try { fin(null, JSON.parse(buf || '{}')); } catch (e){ fin(e); }
+  });
+  req.on('error', e => fin(e));
+}
+
+/* ---------- /api/ai/* 的防滥用闸门 ----------
+   这两个接口是公开的（单机模式在浏览器里同源调用），而每次调用都会花掉真实的模型额度，
+   所以必须挡住「随便谁都能刷」的情况。三道闸，都不影响正常玩法：
+     1) 同源校验：浏览器同源 fetch 一定会带 Origin，允许 Origin 为空（老客户端/同源 GET），
+        但带了 Origin 就必须与本站一致 —— 挡掉跨站脚本拿玩家浏览器当代理刷额度。
+     2) 单 IP 限流：固定窗口计数，正常牌局每分钟最多几十次决策，给到 240 次/分仍很宽裕。
+     3) 全局限流：单 IP 那道闸依赖 X-Forwarded-For，而它是客户端可伪造的；再加一道
+        **进程级总闸**（300 次/分）兜底 —— 就算有人不断换 IP，也刷不爆额度。
+        （其实网关自己对模型有 60 次/分限制，这里是双保险，顺带挡住请求洪水。）
+     4) probe 冷却：?probe=1 会真打一次模型，同一 IP 每 20 秒只放行一次。 */
+const AI_RATE = { win: 60000, max: 240, globalMax: 300, probeCd: 20000, hits: new Map(), gt0: 0, gn: 0 };
+function clientIp(req){
+  const fwd = req.headers['x-forwarded-for'];
+  if (fwd) return String(fwd).split(',')[0].trim();
+  return (req.socket && req.socket.remoteAddress) || '-';
+}
+function sameOrigin(req){
+  const org = req.headers.origin;
+  if (!org || org === 'null') return true;          // 同源 GET / 非浏览器客户端：不靠这道闸，靠限流
+  const host = req.headers.host;
+  if (!host) return false;
+  try { return new URL(org).host === host; } catch (e){ return false; }
+}
+function aiAllowed(req, isProbe){
+  if (!sameOrigin(req)) return 'origin';
+  const ip = clientIp(req);
+  const now = Date.now();
+  if (!AI_RATE.gt0 || now - AI_RATE.gt0 >= AI_RATE.win){ AI_RATE.gt0 = now; AI_RATE.gn = 0; }
+  let b = AI_RATE.hits.get(ip);
+  if (!b || now - b.t0 >= AI_RATE.win) { b = { t0: now, n: 0, probe: 0 }; AI_RATE.hits.set(ip, b); }
+  if (isProbe){
+    if (now - b.probe < AI_RATE.probeCd) return 'probe_cd';
+    b.probe = now;
+  }
+  AI_RATE.gn++;
+  if (AI_RATE.gn > AI_RATE.globalMax) return 'global';
+  b.n++;
+  if (b.n > AI_RATE.max) return 'rate';
+  if (AI_RATE.hits.size > 2000){                     // 简单的表清理，防内存无界增长
+    for (const [k, v] of AI_RATE.hits) if (now - v.t0 >= AI_RATE.win) AI_RATE.hits.delete(k);
+  }
+  return '';
+}
+
 const server = http.createServer((req, res) => {
   const url = (req.url || '/').split('?')[0];
   if (url === '/' || url === '/index.html'){
@@ -650,6 +724,34 @@ const server = http.createServer((req, res) => {
       if (err){ res.writeHead(500); res.end('read index.html failed'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(buf);
+    });
+    return;
+  }
+  // 大模型能力探测：客户端启动时问一次，未配置就静默保持本地逻辑
+  if (url === '/api/ai/status'){
+    // ?probe=1 会真的打一次模型，用来回答「接口到底通没通」（默认走缓存，不额外花钱）
+    const wantProbe = /[?&]probe=1/.test(req.url || '');
+    const base = aibrain.status();
+    if (!wantProbe || !base.enabled){ sendJson(res, 200, base); return; }
+    const deny = aiAllowed(req, true);
+    if (deny){ sendJson(res, 200, Object.assign({}, base, { probe: { ok: false, detail: 'probe 被限流（' + deny + '）' } })); return; }
+    Promise.resolve()
+      .then(() => aibrain.probe(true))
+      .then(pr => sendJson(res, 200, Object.assign({}, aibrain.status(), { probe: pr })))
+      .catch(e => sendJson(res, 200, Object.assign({}, base, { probe: { ok: false, detail: String((e && e.message) || e).slice(0, 200) } })));
+    return;
+  }
+  // 单机机器人决策：{ kind, tier, view } → { ok, discard|action, reason }
+  if (url === '/api/ai/decide'){
+    if (req.method !== 'POST'){ sendJson(res, 405, { ok: false, error: 'method' }); return; }
+    const deny = aiAllowed(req, false);
+    if (deny){ sendJson(res, 429, { ok: false, error: deny }); return; }
+    readJson(req, (err, body) => {
+      if (err){ sendJson(res, 400, { ok: false, error: 'bad_body' }); return; }
+      Promise.resolve()
+        .then(() => aibrain.decide(body))
+        .then(r => sendJson(res, r && r.ok ? 200 : 503, r || { ok: false }))
+        .catch(e => sendJson(res, 500, { ok: false, error: 'internal', detail: String((e && e.message) || e).slice(0, 120) }));
     });
     return;
   }
@@ -794,8 +896,20 @@ function scanRooms(){
 }
 
 server.listen(PORT, () => {
-  log(`一道来敲麻 v1.2.49 服务端已启动: http://0.0.0.0:${PORT}`);
+  log(`一道来敲麻 v${require('../package.json').version} 服务端已启动: http://0.0.0.0:${PORT}`);
   log('手机浏览器访问上面的地址 → 多人对战 → 创建房间');
+  const ai = aibrain.status();
+  log(ai.enabled
+    ? `AI 机器人：大模型已就绪（快档 ${ai.models.fast}／强档 ${ai.models.strong}；联机托管档位 ${ai.serverTier}）`
+    : `AI 机器人：未启用大模型（${ai.reason}）→ 机器人走本地逻辑`);
+  // 配了凭据就真打一次，把「通没通」写进启动日志（失败不影响启动，机器人照走本地逻辑）
+  if (ai.enabled){
+    aibrain.probe(true).then(pr => {
+      log(pr.ok
+        ? `AI 连通性：✅ 实测调用成功（${pr.ms}ms）`
+        : `AI 连通性：❌ ${pr.detail || '未知原因'} → 机器人仍会走本地逻辑，请检查环境变量`);
+    }).catch(() => {});
+  }
   setInterval(scanRooms, SCAN_INTERVAL).unref();
   setInterval(() => {
     if (rooms.size) log(`房间数：${rooms.size}`);

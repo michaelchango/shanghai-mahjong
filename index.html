@@ -704,7 +704,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.2.52</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.0</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -1764,6 +1764,230 @@ function resolvePend(v){
   }
   r(v);
 }
+/* ========================================================================
+   AI 大脑注入点（v1.3.0）：机器人决策可交给「宿主注入的大模型」
+   ------------------------------------------------------------------------
+   设计要点（为什么长这样）：
+   1. 本地启发式 aiChooseDiscard / aiClaim 一个字不改，继续当「本地大脑」。
+      它们同时是仿真（simulate.js）与单测的确定性基准，绝不能改成 async。
+   2. 这里新增的 decideDiscard / decideClaim 是 async 包装：
+        先同步算出本地答案（0ms 就有了）→ 并发去问大模型 →
+        预算内拿到「合法」答案就用模型的，否则用本地答案。
+      于是：模型超时 / 报错 / 答非法 / 未配置 → 一律退回本地，玩家零感知。
+   3. 合法性由**这里**兜底（白名单二次校验），大模型永远无法破坏规则：
+        · 出牌必须在手牌里、且不在本回合禁打(bans)里；
+        · 碰/吃/杠必须在 opts 里真实存在；
+        · 胡、敲定后的摸打属于规则硬约束，根本不问模型。
+   4. 视野纪律：aiView 只输出「这个机器人自己看得见的信息」，
+      绝不包含他人手牌与牌墙顺序 —— 否则 AI 就是作弊。
+   ======================================================================== */
+let AI_BRAIN = null;          // 宿主注入：{ ask(payload) -> Promise<{discard|action, reason}> }
+let AI_TIER = 'local';        // 'local' | 'fast' | 'strong'
+let AI_BRAIN_ERR = '';        // 最近一次失败原因（设置面板显示「已降级」用）
+let AI_HITS = 0, AI_MISS = 0; // 命中 / 回退计数（诊断用）
+
+function setAiBrain(brain, tier){
+  AI_BRAIN = (brain && typeof brain.ask === 'function') ? brain : null;
+  AI_TIER = (tier === 'fast' || tier === 'strong') ? tier : (AI_BRAIN ? 'fast' : 'local');
+  AI_BRAIN_ERR = ''; AI_HITS = 0; AI_MISS = 0;
+}
+function aiBrainOn(){ return !!(AI_BRAIN && AI_TIER !== 'local'); }
+/* 诊断快照：设置面板与测试都用它观察「命中 / 回退 / 最近失败原因」 */
+function aiBrainStat(){ return { on: aiBrainOn(), tier: AI_TIER, hits: AI_HITS, miss: AI_MISS, err: AI_BRAIN_ERR }; }
+/* 思考预算：得容得下模型一次真实往返（实测 hy3 约 1.1~1.6s），
+   否则「模型永远来不及 → 每手都回退本地 → 玩家以为 AI 没生效」。
+   ⚠️ 与「机器人速度」档位**无关**：那个档位调的是本地逻辑的出牌节奏，
+   走大模型时它在设置里是隐藏的，让预算跟着它变只会造成静默劣化
+   （例如速度设成「快」→ 预算被砍 25% → 每手都超时回退）。
+   强档另有一套提示词（候选内定夺），给更宽的预算让它把候选表读完。 */
+function aiBudget(){
+  return (AI_TIER === 'strong') ? 3600 : 2200;
+}
+/* 牌名 ⇄ 编码：只让模型认牌名，编码表由程序翻译（模型极易搞错数字编码）。
+   归一化要能容错 —— 模型常写「5筒 / 5p / 东 / 发 / 白板」，引擎内部是「五筒 / 東 / 發 / 白」，
+   多认几种写法，才不会因为写法差异白白丢掉一次好决策。 */
+const NUM_CN = ['一','二','三','四','五','六','七','八','九'];
+const SUIT_ALIAS = { m: '萬', M: '萬', p: '筒', P: '筒', s: '條', S: '條' };
+function normTileName(name){
+  let x = String(name).trim().replace(/\s+/g, '');
+  x = x.replace(/[１-９]/g, d => NUM_CN['１２３４５６７８９'.indexOf(d)]);
+  x = x.replace(/[1-9]/g, d => NUM_CN[+d - 1]);
+  x = x.replace(/万/g, '萬').replace(/条|索/g, '條').replace(/东/g, '東')
+       .replace(/发/g, '發').replace(/风/g, '風');
+  x = x.replace(/^([一二三四五六七八九])([mMpPsS])$/, (m, n, s) => n + SUIT_ALIAS[s]);
+  if (x === '白板') x = '白';
+  if (x === '红中' || x === '紅中') x = '中';
+  if (x === '發財' || x === '發财') x = '發';
+  if (/^[東南西北]風?$/.test(x)) x = x[0];
+  return x;
+}
+let TILE_BY_NAME = null;
+function tileFromName(name){
+  if (name == null) return null;
+  if (!TILE_BY_NAME){
+    TILE_BY_NAME = {};
+    for (let t = 0; t < PLAYCNT; t++) TILE_BY_NAME[tileName(t)] = t;
+  }
+  const k = normTileName(name);
+  return TILE_BY_NAME[k] != null ? TILE_BY_NAME[k] : null;
+}
+/* 强档候选：本地引擎先把每张可打牌的后果算出来，按「向听优先、再看危险度」排序，
+   只把前 K 张交给模型定夺。刻意不算进张数（ukeire）—— 那一步耗时且逐次不同，
+   会让候选集抖动；模型的任务是**在几张合理牌之间取舍**，不是自己重新算牌理。 */
+function aiRankDiscards(p, bans, k){
+  const kk = k || 4;
+  const bansA = (bans == null) ? [] : (Array.isArray(bans) ? bans : [bans]);
+  const uniq = [...new Set(p.hand || [])].filter(t => bansA.indexOf(t) < 0 && !isFlower(t));
+  if (!uniq.length) return [];
+  const hc = toCounts(p.hand);
+  const rows = [];
+  for (const t of uniq){
+    hc[t]--;
+    const ev = evalAll(hc, (p.melds || []).length);
+    let sc = ev.best;
+    if (p.target && ev[p.target] !== undefined && ev[p.target] <= ev.best + 1) sc = Math.min(sc, ev[p.target] - 0.35);
+    hc[t]++;
+    const r = t < 27 ? (t % 9) + 1 : 5;
+    const center = t < 27 ? (4 - Math.abs(r - 5)) * 0.6 : 0;   // 中张比边张有价值
+    const danger = dangerScore(t, p);
+    rows.push({ t, sh: Math.round(sc * 100) / 100, danger, val: -sc * 1000 - danger * 9 + center });
+  }
+  rows.sort((a, b) => b.val - a.val);
+  return rows.slice(0, kk);
+}
+/* 预算竞速：超时 / 异常一律 resolve(null)，绝不把失败的 Promise 抛给主循环 */
+function aiRace(pr, ms){
+  return new Promise(resolve => {
+    let done = false;
+    const finish = v => { if (!done){ done = true; resolve(v); } };
+    let timer = null;
+    if (typeof setTimeout === 'function') timer = setTimeout(() => finish(null), ms);
+    Promise.resolve(pr).then(
+      v => { if (timer) clearTimeout(timer); finish(v); },
+      () => { if (timer) clearTimeout(timer); finish(null); }
+    );
+  });
+}
+/* 该 AI 视角的牌局快照 —— 只含公开信息 + 自己的手牌 */
+function aiView(p, kind, extra){
+  const names = arr => (arr || []).map(tileName);
+  const hand = sortTiles(p.hand || []).filter(t => !isFlower(t));
+  const melds = (p.melds || []).map(m => ({ type: m.type, tiles: names(m.tiles), concealed: !!m.concealed }));
+  const table = [];
+  for (let i = 0; i < G.players.length; i++){
+    const q = G.players[i];
+    table.push({
+      discards: names(q.discards),
+      melds: (q.melds || []).map(m => ({ type: m.type, tile: tileName(m.tile) }))
+    });
+  }
+  let shanten = null;
+  try { shanten = evalAll(toCounts(p.hand), (p.melds || []).length).best; } catch (e){}
+  const v = {
+    mode: CFG.lajiHu ? '敲麻' : '清混碰',
+    seat: p.idx, dealer: G.dealer, handNo: G.handNo || 1,
+    hand: names(hand), melds, flowers: names(p.flowers),
+    knocked: !!p.knocked, shanten, plan: p.target || null,
+    wallLeft: (typeof wallLeft === 'function' ? wallLeft() : null),
+    lastDiscard: (G.lastDiscard == null ? null : tileName(G.lastDiscard)),
+    lastFrom: (G.lastFrom == null ? null : G.lastFrom),
+    table
+  };
+  if (kind === 'discard'){
+    const bans = (extra && extra.bans) || [];
+    v.legal = names(hand.filter(t => bans.indexOf(t) < 0));
+    v.banned = names(bans);
+    // 强档：把引擎算好的候选一并交给模型（模型只在这几张里定夺）
+    const cand = (extra && extra.cand) || null;
+    if (cand && cand.length){
+      v.candidates = cand.map(c => ({ tile: tileName(c.t), shanten: c.sh, danger: c.danger }));
+    }
+  } else {
+    v.claimTile = tileName(extra.tile);
+    v.claimFrom = extra.from;
+    v.isNext = !!extra.isNext;
+    v.options = (extra.opts || []).map(o => o.k);
+  }
+  return v;
+}
+/* 出牌决策：本地答案先算好，模型只在「预算内 + 答案合法」时才接管。
+   交给模型的除了牌面，还有「怎么选」：
+     · 强档（默认、也是 UI 唯一暴露的一档）：引擎先按向听/危险度排出 top-4 候选，
+       模型只在这几张里定夺 —— 算牌交给确定性引擎（不会算错牌理），
+       模型专管「读牌河、判谁在做牌」这类取舍。
+   fast 分支保留给本地仿真与单测做对照，UI 不再暴露。 */
+async function decideDiscard(p, bans){
+  const local = aiChooseDiscard(p, bans);
+  if (!aiBrainOn() || p.knocked) return local;      // 敲定后规则要求摸打，不问模型
+  let cand = null, allowed = null;
+  if (AI_TIER === 'strong'){
+    try { cand = aiRankDiscards(p, bans, 4); } catch (e){ cand = null; }
+    if (!cand || !cand.length) cand = null;
+    else {
+      allowed = cand.map(c => c.t);
+      if (allowed.indexOf(local) < 0) allowed.push(local);   // 本地最优一定留在允许集里，避免模型被迫选次优
+    }
+  }
+  let r = null;
+  try { r = await aiRace(AI_BRAIN.ask({ kind: 'discard', tier: AI_TIER, view: aiView(p, 'discard', { bans, cand }) }), aiBudget()); }
+  catch (e){ r = null; }
+  const t = (r && r.discard != null) ? tileFromName(r.discard) : null;
+  const bad = (t == null) || (p.hand || []).indexOf(t) < 0 || (bans || []).indexOf(t) >= 0
+              || (allowed !== null && allowed.indexOf(t) < 0);
+  if (bad){
+    AI_MISS++;
+    if (!r) AI_BRAIN_ERR = 'timeout';
+    else if (r.error) AI_BRAIN_ERR = r.error;
+    return local;
+  }
+  AI_HITS++;
+  p.aiWhy = String(r.reason || '').slice(0, 40);    // 留作「机器人思考气泡」的数据（P3）
+  return t;
+}
+/* 吃牌可能有多种组合（同一张牌左右不同的搭子），按向听最优选一组打出去 */
+function pickChowOption(p, tile, cand){
+  if (!cand || !cand.length) return null;
+  if (cand.length === 1) return cand[0];
+  const hc0 = toCounts(p.hand);
+  let best = null;
+  for (const o of cand){
+    const hc = hc0.slice();
+    let ok = true;
+    for (const t of (o.combo || [])){ if (!hc[t]){ ok = false; break; } hc[t]--; }
+    if (!ok) continue;
+    const ev = evalAll(hc, (p.melds || []).length + 1);
+    const k = (p.target && ev[p.target] !== undefined) ? ev[p.target] : ev.best;
+    if (!best || k < best.k) best = { o, k };
+  }
+  return best ? best.o : cand[0];
+}
+/* 碰/吃/杠决策：胡与敲定不进模型；模型选的选项必须真实存在于 opts */
+async function decideClaim(p, tile, from, opts, isNext){
+  const local = aiClaim(p, tile, from, opts, isNext);
+  if (!aiBrainOn()) return local;
+  if ((opts || []).some(o => o.k === 'hu')) return local;   // 有和必和：规则，不商量
+  if (p.knocked) return local;
+  let r = null;
+  try { r = await aiRace(AI_BRAIN.ask({ kind: 'claim', tier: AI_TIER, view: aiView(p, 'claim', { tile, from, opts, isNext }) }), aiBudget()); }
+  catch (e){ r = null; }
+  if (!r || r.action == null){
+    AI_MISS++;
+    if (r && r.error) AI_BRAIN_ERR = r.error;
+    return local;
+  }
+  const a = String(r.action).trim();
+  if (a === '过' || a === 'pass'){
+    AI_HITS++; p.aiWhy = String(r.reason || '').slice(0, 40);
+    return null;                                  // 过 = 碰吃都不要（与真人点「过」同义）
+  }
+  const KINDS = { '碰': 'pung', '杠': 'kong', '吃': 'chow' };
+  const want = KINDS[a];
+  const cand = want ? (opts || []).filter(o => o.k === want) : [];
+  if (!cand.length){ AI_MISS++; return local; }
+  AI_HITS++; p.aiWhy = String(r.reason || '').slice(0, 40);
+  return want === 'chow' ? pickChowOption(p, tile, cand) : cand[0];
+}
+
 const waitBot = () => sleep((420 + Math.random() * 320) / CFG.speed);
 
 /* ========================================================================
@@ -2885,14 +3109,17 @@ async function discardTurn(p, drawn, kongDraw){
     // 不是本手刚摸的那张，就会把手里的一张牌打出去 —— 这里改成先校验再用。
     const want = (drawn !== null && drawn !== undefined) ? drawn : p.drawn;
     if (want !== null && want !== undefined && !isFlower(want) && (p.hand || []).indexOf(want) >= 0) d = want;
-    else d = aiChooseDiscard(p, bans);
+    else d = await decideDiscard(p, bans);
     await sleep(560 / CFG.speed);
   } else if (p.isBot){
     // v1.2.18：摸牌后出牌前重估做牌方向——「边打边判断」：碰/吃改变牌型进度后，
     // 该转混一色/清一色/碰碰胡都在这里实时切换，而不是开局定死一路走到黑
     p.target = aiTargetOf(p);
-    d = aiChooseDiscard(p, bans);
+    // v1.3.0：模型往返（约 1~1.6s）与机器人原有的「思考」间隔**并发**，不等串行 ——
+    // 否则每手会变成「模型 1.4s + 间隔 0.6s」，三个机器人一起拖整局节奏。
+    const pend = decideDiscard(p, bans);
     await waitBot();
+    d = await pend;
   } else {
     SEL = null; SELIDX = null;
     renderHand();
@@ -3053,7 +3280,7 @@ async function collectClaims(tile, from){
 /* 单次 claim 决策：bot 走 AI；敲定默认有和必和/有杠必杠（可被「自动胡牌=关」改为逐次询问）；真人走 ask 并记漏胡 */
 async function pickClaim(p, idx, tile, from, opts, isNext){
   if (p.isBot){
-    const pick = aiClaim(p, tile, from, opts, isNext);
+    const pick = await decideClaim(p, tile, from, opts, isNext);
     if (pick) await sleep(160 / CFG.speed);
     return pick;
   }
@@ -3710,10 +3937,15 @@ function cfgRows(ro, inRoom){
     (inRoom
       ? '<div class="setrow"><div class="lb">出牌倒计时<small>轮到你决策时的思考时限，超时自动出牌 / 自动过；无 = 不限时（默认）。多人局里凑够 2 位真人才开始计时，1 真人对机器人不限时</small></div>' +
         seg('sgCd', [{l:'15秒',v:15},{l:'30秒',v:30},{l:'无',v:0}], c.cd, 'setCfg10', ro) + '</div>'
-      : '') +
-    '<div class="setrow"><div class="lb">机器人速度</div>' +
-      seg('sgSpeed', [{l:'慢',v:0.6},{l:'中',v:1},{l:'快',v:1.8}], c.speed, 'setCfg6', ro) + '</div>'
+      : '')
   );
+}
+/* 机器人速度（v1.3.0 起从规则区独立出来、并默认隐藏）：
+   机器人真的走大模型时，节奏由模型往返决定，这个档位没有意义 —— 只有机器人实际用本地逻辑时才显示。 */
+function speedRows(ro){
+  const c = SETDRAFT || CFG;
+  return '<div class="setrow"><div class="lb">机器人速度<small>机器人思考与出牌的节奏</small></div>' +
+    seg('sgSpeed', [{l:'慢',v:0.6},{l:'中',v:1},{l:'快',v:1.8}], c.speed, 'setCfg6', ro) + '</div>';
 }
 
 /* ---------- 台面主题（v1.2.46）：纯本地视觉，存 sjm_felt，不进房间规则、不发给服务端 ---------- */
@@ -3789,6 +4021,98 @@ function voiceRows(inRoom){
 }
 loadVoice();
 
+/* ---------- 机器人 AI（v1.3.0）----------
+   纯本地设置（localStorage 'sjm_ai'）。只有一个开关：机器人是否交给大模型决策。
+   策略固定为「引擎先按向听/危险度排出候选 → 模型在候选里定夺」——
+   算牌交给不会算错的确定性引擎，读牌与取舍才交给模型。
+   答案的合法性校验与超时兜底都在引擎里做，所以这个开关怎么切都坏不了牌局。
+   单机：管本机三个机器人；联机：机器人由服务端托管（AI_BOT_TIER），这里只展示状态。 */
+let AI_CFG = { on: true };            // 默认启用（服务端没配大模型时会自动回退本地，不会报错）
+let AI_SRV = { checked: false, enabled: false, reason: '', models: null, probe: null, serverTier: 'off' };
+function loadAi(){
+  try{
+    const s = JSON.parse(localStorage.getItem('sjm_ai') || '{}');
+    if (typeof s.on === 'boolean') AI_CFG.on = s.on;
+    else if (typeof s.tier === 'string') AI_CFG.on = (s.tier !== 'local');   // 兼容旧版三档存档
+  }catch(e){}
+}
+function saveAi(){ try{ localStorage.setItem('sjm_ai', JSON.stringify({ on: !!AI_CFG.on })); }catch(e){} }
+/* 机器人此刻是否真的由大模型驱动（开关开着 + 服务端可用）；只有本地逻辑时才需要「机器人速度」 */
+function aiActive(){ return !!(AI_CFG.on && AI_SRV.enabled); }
+/* 档位翻译成引擎注入点：关掉 / 服务端不可用 → 干脆不注入（零网络、零开销，走本地启发式） */
+function applyAiTier(){
+  if (!AI_CFG.on || !AI_SRV.enabled){ setAiBrain(null, 'local'); return; }
+  setAiBrain({ ask: aiAskServer }, 'strong');
+}
+function aiAskServer(payload){
+  return fetch('/api/ai/decide', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(r => (r && r.ok) ? r.json() : Promise.reject(new Error('http ' + (r && r.status))));
+}
+function aiStatusText(){
+  if (!AI_CFG.on) return '机器人用本地逻辑出牌（不联网、零成本）';
+  if (!AI_SRV.checked) return '正在检查服务端…';
+  if (!AI_SRV.enabled) return '服务端未配置大模型，已回退本地逻辑：' + (AI_SRV.reason || '原因未知');
+  const head = '已连接大模型 ' + (((AI_SRV.models || {}).strong) || '?');
+  const pr = AI_SRV.probe;
+  if (!pr) return head;
+  return head + '　' + (pr.ok ? ('✅ 实测调用成功 ' + pr.ms + 'ms') : ('❌ 实测失败：' + (pr.detail || '未知')));
+}
+function aiRows(inRoom){
+  if (inRoom){
+    const on = (AI_SRV.serverTier && AI_SRV.serverTier !== 'off');
+    return '<div class="setrow"><div class="lb">机器人是否启用AI<small>联机时机器人由服务端统一托管</small></div>' +
+        seg('sgAiRo', [{l:'启用',v:1},{l:'不启用',v:0}], on ? 1 : 0, 'setAiTier', true) + '</div>' +
+      '<div class="setrow"><div class="lb">AI 状态<small>' +
+        (on ? '服务端已启用大模型，联机机器人由它出牌' : '服务端未启用大模型，联机机器人走本地逻辑') +
+        '</small></div></div>';
+  }
+  return '<div class="setrow"><div class="lb">机器人是否启用AI<small>启用后机器人每步交给大模型决策，问不到就自动回退本地</small></div>' +
+      seg('sgAi', [{l:'启用',v:1},{l:'不启用',v:0}], AI_CFG.on ? 1 : 0, 'setAiTier', false) + '</div>' +
+    '<div class="setrow"><div class="lb">AI 状态<small>' + aiStatusText() + '</small></div></div>';
+}
+function setAiTier(v){
+  AI_CFG.on = !!v;
+  saveAi(); applyAiTier(); openSet();
+  if (AI_CFG.on) probeAi(true);   // 打开时实测一次，把「通没通」直接写在状态行上
+}
+loadAi();
+/* 探服务端能力：没部署 / 没配环境变量 → 静默保持本地逻辑
+   force=true 时让服务端真打一次模型（?probe=1），只在用户真的打开 AI 时用，避免白花钱 */
+function probeAi(force){
+  if (typeof document === 'undefined') return;      // 服务端引擎（headless）不执行
+  if (typeof fetch !== 'function') return;
+  if (location.protocol !== 'http:' && location.protocol !== 'https:'){
+    AI_SRV.checked = true; AI_SRV.enabled = false;
+    AI_SRV.reason = '以本地文件打开，没有服务端';
+    applyAiTier(); return;
+  }
+  fetch('/api/ai/status' + (force ? '?probe=1' : ''), { headers: { Accept: 'application/json' } })
+    .then(r => ((r && r.ok) ? r.json() : null))
+    .then(j => {
+      AI_SRV.checked = true;
+      AI_SRV.enabled = !!(j && j.enabled);
+      AI_SRV.reason = (j && j.reason) || '';
+      AI_SRV.models = (j && j.models) || null;
+      AI_SRV.serverTier = (j && j.serverTier) || 'off';
+      if (j && j.probe){
+        // probe 被服务端 20 秒冷却挡下不是故障（连点开关就会遇到）：
+        // 保留上一次的成功结论，别让玩家看到一个假的「❌ 实测失败」。
+        const limited = /限流/.test(String((j.probe && j.probe.detail) || ''));
+        AI_SRV.probe = (limited && AI_SRV.probe && AI_SRV.probe.ok) ? AI_SRV.probe : j.probe;
+      }
+      applyAiTier();
+      if (force && typeof openSet === 'function' && $('sheet') && $('sheet').classList.contains('on')) openSet();
+    })
+    .catch(() => {
+      AI_SRV.checked = true; AI_SRV.enabled = false; AI_SRV.reason = '服务端不可达';
+      applyAiTier();
+    });
+}
+probeAi();
+
 function openSet(){
   /* v1.2.46：重绘前记录滚动区位置，重建后恢复 —— 否则点任何一个设置项，面板都会弹回页头 */
   const keepScroll = (function(){ try{ const b = document.querySelector('#sheet .sBody'); return b ? b.scrollTop : 0; }catch(e){ return 0; } })();
@@ -3822,7 +4146,9 @@ function openSet(){
       btns = '<button class="pri" onclick="closeSet()">关闭</button>';
     }
     openSheet('<h2><span>设置</span><span class="sp"></span><button class="close" onclick="closeSet()">×</button></h2>' +
-      tip + cfgRows(!canEdit, true) + feltRows() + voiceRows(true) +
+      tip + cfgRows(!canEdit, true) + aiRows(true) +
+      ((AI_SRV.serverTier && AI_SRV.serverTier !== 'off') ? '' : speedRows(!canEdit)) +
+      voiceRows(true) + feltRows() +
       '<div class="btns">' + btns + '</div>');
     { const sb = document.querySelector('#sheet .sBody'); if (sb) sb.scrollTop = keepScroll; }
     return;
@@ -3839,7 +4165,8 @@ function openSet(){
     : '<button onclick="closeSet()">返回</button>' +
       '<button class="pri" onclick="commitSoloGo()">开始游戏</button>';
   openSheet('<h2><span>设置</span><span class="sp"></span><button class="close" onclick="closeSet()">×</button></h2>' +
-    tip + cfgRows(false) + feltRows() + voiceRows(false) +
+    tip + cfgRows(false) + aiRows(false) + (aiActive() ? '' : speedRows(false)) +
+    voiceRows(false) + feltRows() +
     '<div class="btns">' + btns + '</div>');
   { const sb = document.querySelector('#sheet .sBody'); if (sb) sb.scrollTop = keepScroll; }
 }
@@ -4957,6 +5284,7 @@ window.netKick = netKick;
 window.setCfg = setCfg; window.setCfg2 = setCfg2; window.setCfg3 = setCfg3;
 window.setCfg4 = setCfg4; window.setCfg5 = setCfg5; window.setCfg6 = setCfg6; window.setCfg7 = setCfg7; window.setCfg8 = setCfg8; window.setCfg9 = setCfg9;
 window.setCfg10 = setCfg10;
+window.setAiTier = setAiTier;
 window.resetAll = resetAll;
 </script>
 </body>

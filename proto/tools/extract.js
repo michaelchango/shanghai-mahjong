@@ -109,6 +109,11 @@ const EXPORTS = [
   // 玩家输入/AI
   'ask', 'resolvePend',
   'aiTargetOf', 'aiChooseDiscard', 'aiClaim', 'dangerScore',
+  // v1.2.53 大模型机器人：注入点 + 决策包装（本地启发式仍是兜底）
+  'setAiBrain', 'aiBrainOn', 'aiBudget', 'aiView', 'decideDiscard', 'decideClaim',
+  'aiBrainStat', 'tileFromName', 'normTileName',
+  // v1.3.0 强档：本地算好候选，模型只在候选里定夺
+  'aiRankDiscards',
   // 杂项
   'sleep', 'waitBot', 'logMsg', 'windOf'
 ];
