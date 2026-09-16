@@ -712,7 +712,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.2</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.3</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -3899,14 +3899,21 @@ function sheetLayout(host){
   }
   host.classList.add('sheetFlex');
 }
-function openSheet(html){
+/* v1.3.3：kind 标记当前开的是哪个弹窗（设置面板 = 'set'）。
+   刷 AI 实测结果时靠它判断「该不该原地重绘」—— 否则探测一回来，
+   会把玩家正在看的规则 / 本局记录弹窗顶成设置面板。 */
+let SHEET_KIND = '';
+function openSheet(html, kind){
   const host = $('sheet');
   host.className = 'sheet';            // 复位（上一次可能是别的形态）
   host.innerHTML = html;
   sheetLayout(host);
+  SHEET_KIND = kind || '';
   $('mask').classList.remove('hide');
 }
-function closeSheet(){ $('mask').classList.add('hide'); renderActs(); }
+function closeSheet(){ SHEET_KIND = ''; $('mask').classList.add('hide'); renderActs(); }
+/* 弹窗是否开着：显隐状态挂在 #mask 的 .hide 上，不在 #sheet 上（v1.3.3 修） */
+function sheetOpen(){ try{ const m = $('mask'); return !!m && !m.classList.contains('hide'); }catch(e){ return false; } }
 
 function nextHand(dealer){
   // 联机：下一局由服务端推进（谁先点都行，服务端只认第一份）
@@ -4051,7 +4058,8 @@ loadVoice();
 const BOT_SPEED = 1.8;            // 机器人出牌节奏：统一「快」（引擎侧仍按座位读 CFG.spd，只是值恒为它）
 let AI_CFG = { seats: [true, true, true, true] };   // 下标 = 座位（0 位是自己，无意义）
 let AI_SRV = { checked: false, enabled: false, reason: '', down: false, models: null, probe: null,
-               probeErr: '', serverTier: 'off', probing: false, probeAt: 0, limited: false };
+               probeErr: '', serverTier: 'off', probing: false, probeAt: 0, limited: false,
+               lastTryAt: 0 };
 function loadAi(){
   try{
     const s = JSON.parse(localStorage.getItem('sjm_ai') || '{}');
@@ -4107,7 +4115,7 @@ function aiConnText(){
   if (!pr) return '已连接 ' + model + (AI_SRV.limited
     ? '　⏳ 测速冷却中，' + (AI_RETRY_TIMER ? '冷却结束自动重测' : '点右上「测试连接」重试')
     : '　（还没实测过，点右上「测试连接」）');
-  if (pr.ok) return '已连接 ' + model + '　✅ 实测调用成功 ' + pr.ms + 'ms';
+  if (pr.ok) return '已连接 ' + model + '　✅ 实测调用成功 ' + pr.ms + 'ms' + (pr.cached ? '（沿用刚测的结论）' : '');
   return '已连接 ' + model + '　❌ 实测失败：' + String(pr.detail || '未知').slice(0, 60);
 }
 /* 联机：本桌几台机器人走大模型、几台走本地（机器人的位子 = 空位） */
@@ -4209,11 +4217,15 @@ const PROBE_CD_MS      = 22000;   // 服务端 probe 冷却 20 秒，留 2 秒�
 let AI_AUTOTESTED = false;        // 每页自动实测一次
 let AI_RETRY_TIMER = null;        // 冷却/超时后的自动重试定时器
 let AI_RETRY_N = 0;               // 自动重试预算（最多 3 次，防止刷服务端额度）
+/* AI 实测结果回来了 → 玩家若正开着设置面板，就原地重绘（毫秒数当场出现）。
+   ⚠️ 两个判断缺一不可：① 弹窗确实开着（看 #mask 的 .hide，不是 #sheet 的 .on）；
+   ② 开的确实是设置面板（SHEET_KIND）—— 否则会把玩家的规则 / 记录弹窗顶掉。 */
 function refreshSet(){
   try{
     if (typeof document === 'undefined') return;
-    const sh = document.getElementById('sheet');
-    if (sh && sh.classList && sh.classList.contains('on') && typeof openSet === 'function') openSet();
+    if (!sheetOpen() || SHEET_KIND !== 'set') return;
+    if (typeof openSet !== 'function') return;
+    openSet();
   }catch(e){}
 }
 /* 是否正在实测。带看门狗：探测卡住太久 → 自动判定超时并放行（否则界面永远停在「测试中」）。
@@ -4238,6 +4250,36 @@ function scheduleProbeRetry(delay){
     probeAi(true);
   }, delay);
 }
+/* 定时兜底看门狗：不信赖「某次渲染顺手清理」—— 探测卡到点就自己放行并重绘面板 */
+let AI_STUCK_TIMER = null;
+function armProbeWatchdog(){
+  if (typeof setTimeout !== 'function') return;
+  if (AI_STUCK_TIMER){ clearTimeout(AI_STUCK_TIMER); AI_STUCK_TIMER = null; }
+  AI_STUCK_TIMER = setTimeout(() => {
+    AI_STUCK_TIMER = null;
+    if (!AI_SRV.probing) return;
+    AI_SRV.probing = false; AI_SRV.probeAt = 0;
+    AI_SRV.probeErr = '响应超时（' + Math.round(PROBE_STUCK_MS / 1000) + ' 秒）';
+    refreshSet();
+  }, PROBE_STUCK_MS);
+}
+/* 打开设置面板时补测一把（v1.3.3）：还没拿到成功结论、也没在测 → 自动来一次。
+   这样「打开设置就能看到多少毫秒」，不必玩家自己点「测试连接」。
+   5 秒间隔上限防止每次重绘都发请求；被服务端 20 秒冷却挡回时走自动重试。 */
+function maybeAutoTest(){
+  try{
+    if (typeof document === 'undefined') return;
+    if (typeof location === 'undefined') return;
+    // 本地文件直接打开（没有服务端）：不必探测，也别把状态改成「不可用」
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    if (!AI_SRV.enabled || !aiCfgAnyOn()) return;
+    if (probeBusy()) return;                                   // 正在测，别重复发
+    if (AI_SRV.probe && AI_SRV.probe.ok) return;               // 已经有成功结论
+    if (AI_SRV.lastTryAt && Date.now() - AI_SRV.lastTryAt < 5000) return;
+    AI_RETRY_N = 0;
+    probeAi(true);
+  }catch(e){}
+}
 /* 「测试连接」：立刻再实测一次。旧结论保留着（重测时状态行先显示「正在实测调用…（上次 1338ms）」），
    这样万一是被 20 秒冷却挡回，界面上至少还有上一次的真实耗时，而不是空白。 */
 function testAi(){
@@ -4258,8 +4300,10 @@ function probeAi(force){
   if (probeBusy()) return;                           // 一次只飞一个探测
   AI_SRV.probing = !!force;
   AI_SRV.probeAt = Date.now();
+  AI_SRV.lastTryAt = Date.now();
   AI_SRV.probeErr = '';
   if (force) AI_SRV.limited = false;
+  armProbeWatchdog();                                // 定时兜底：卡住也能自己放行 + 重绘
   let ctl = null, timer = null;
   try {
     if (typeof AbortController === 'function'){
@@ -4298,6 +4342,7 @@ function probeAi(force){
     .then(() => {
       // 兜底：无论走哪条分支都复位，绝不让界面停在「测试中」
       AI_SRV.probing = false; AI_SRV.probeAt = 0;
+      if (AI_STUCK_TIMER){ clearTimeout(AI_STUCK_TIMER); AI_STUCK_TIMER = null; }
       try { applyAiTier(); }catch(e){}
       if (!force && AI_SRV.enabled && aiCfgAnyOn() && !AI_AUTOTESTED){
         // 服务端说可用就自动补一次真调用（每页只做一次）：把「多少毫秒」写进状态行
@@ -4312,6 +4357,7 @@ function probeAi(force){
 probeAi();
 
 function openSet(){
+  maybeAutoTest();   // v1.3.3：还没实测出毫秒就顺手测一把；结果回来时 refreshSet 会原地重绘
   /* v1.2.46：重绘前记录滚动区位置，重建后恢复 —— 否则点任何一个设置项，面板都会弹回页头 */
   const keepScroll = (function(){ try{ const b = document.querySelector('#sheet .sBody'); return b ? b.scrollTop : 0; }catch(e){ return 0; } })();
   // 已加入房间（含等待页）：规则由房间统一设定。等待页房主可改；其他人和开局后只能看。
@@ -4346,7 +4392,7 @@ function openSet(){
     openSheet('<h2><span>设置</span><span class="sp"></span><button class="close" onclick="closeSet()">×</button></h2>' +
       tip + cfgRows(!canEdit, true) + botAiRows(true, !canEdit) +
       voiceRows(true) + feltRows() +
-      '<div class="btns">' + btns + '</div>');
+      '<div class="btns">' + btns + '</div>', 'set');
     { const sb = document.querySelector('#sheet .sBody'); if (sb) sb.scrollTop = keepScroll; }
     return;
   }
@@ -4364,7 +4410,7 @@ function openSet(){
   openSheet('<h2><span>设置</span><span class="sp"></span><button class="close" onclick="closeSet()">×</button></h2>' +
     tip + cfgRows(false) + botAiRows(false, false) +
     voiceRows(false) + feltRows() +
-    '<div class="btns">' + btns + '</div>');
+    '<div class="btns">' + btns + '</div>', 'set');
   { const sb = document.querySelector('#sheet .sBody'); if (sb) sb.scrollTop = keepScroll; }
 }
 /* v1.2.18：单机设置草稿提交 —— 取差异并清草稿；无差异返回 null */

@@ -119,6 +119,18 @@ curl -s "$BASE/api/ai/status?probe=1" | node -e "let s='';process.stdin.on('data
 
 ---
 
+## 0.3 实施结果（v1.3.3，2026-09-16）：修「实测毫秒不自动出现」
+
+| 项 | 落地方式 |
+|---|---|
+| 根因 | `refreshSet()` 用 `#sheet.classList.contains('on')` 判断「设置面板开着」，但弹窗显隐挂在 `#mask` 的 `.hide` 上 → 判断恒假 → 探测结果回来也不重绘（切开关时 `setAiSeat` 调到 `openSet()` 才「看见」） |
+| 面板识别 | 新增 `sheetOpen()`（读 `#mask` 的 `.hide`）；`openSheet(html, kind)` 加弹窗种类标记，设置面板传 `'set'`；`refreshSet()` 需「开着 && 是设置面板」两条件 —— 同时避免把规则 / 记录弹窗顶掉 |
+| 打开即测 | `openSet()` → `maybeAutoTest()`：未拿到成功结论、不在探测中、距上次尝试 > 5 秒才发；非 http(s)（本地文件）直接跳过 |
+| 冷却取用缓存 | 服务端 `/api/ai/status?probe=1` 撞 `probe_cd` 时改为返回 `aibrain.probe(false)` 的 60 秒缓存结论（`cached:true`），不再回「被限流」；客户端文案加「（沿用刚测的结论）」 |
+| 定时看门狗 | `armProbeWatchdog()`：`setTimeout` 到 `PROBE_STUCK_MS` 若仍在探测 → 复位 + 记超时 + `refreshSet()`；探测正常结束时清掉 |
+| 实测耗时 | 本机真凭据：打开设置后 **约 1.5 秒**面板出现 `✅ 实测调用成功 1426ms`（此前撞冷却要等 22 秒） |
+| 回归 | `tests/m61_ai_settings.js` **80 项**（新增第 9 / 10 节）；真实端到端 14/14 |
+
 ## 0.2 实施结果（v1.3.2，2026-09-16）：去掉速度选择 + 修「AI 测试结果不显示」
 
 | 项 | 落地方式 |

@@ -45,8 +45,8 @@ js = js.slice(0, cut);
 const harness = `
 ;NET.roomNo = 0; NET.active = false;
 var __sheet = '';
-openSheet = function(h){ __sheet = h; };
-closeSheet = function(){};
+openSheet = function(h, kind){ __sheet = h; SHEET_KIND = kind || ''; };   // v1.3.3：桩也要记弹窗种类
+closeSheet = function(){ SHEET_KIND = ''; };
 render = function(){}; renderActs = function(){}; renderHand = function(){};
 renderSeats = function(){}; renderRiver = function(){}; renderFx = function(){};
 renderTop = function(){}; renderTurnClock = function(){}; renderRoom = function(){};
@@ -57,6 +57,9 @@ global.__api = {
   setAiSeat, testAi, probeAi, probeBusy, saveAi, aiBrainStat, aiBrainOn, aiSeatOn, spdOf,
   draft(){ return SETDRAFT; },        // SETDRAFT 会被整体替换，必须用取值函数而非快照
   clearDraft(){ SETDRAFT = null; },
+  refreshSet, sheetOpen,              // v1.3.3：结果回来后的「原地重绘」链路
+  sheetKind(){ return SHEET_KIND; },
+  openOtherSheet(h){ openSheet(h); },  // 模拟打开「别的」弹窗（规则 / 记录）
   sheet(){ return __sheet; }
 };
 `;
@@ -276,6 +279,84 @@ function srvOff(){ M.AI_SRV.checked = true; M.AI_SRV.enabled = false; M.AI_SRV.r
     await new Promise(r => setTimeout(r, 40));
     ok('连点「测试连接」只发一个请求', n === 1, n);
     ok('实测结果拿到毫秒', !!M.AI_SRV.probe && M.AI_SRV.probe.ms === 999 && M.aiConnText().indexOf('999ms') >= 0, M.aiConnText());
+    global.location = { protocol: 'file:' };
+  }
+
+  console.log('== 9) 【v1.3.3 回归】实测结果回来时，正开着的设置面板要自己重绘 ==');
+  {
+    // 控制弹窗显隐：真实实现看的是 #mask 上有没有 .hide（不是 #sheet 上的 .on）
+    const mask = { hidden: false };
+    global.document.getElementById = id => (id === 'mask')
+      ? { classList: { contains: c => (c === 'hide' ? mask.hidden : false),
+                       add: c => { if (c === 'hide') mask.hidden = true; },
+                       remove: c => { if (c === 'hide') mask.hidden = false; } } }
+      : { classList: { contains: () => false }, style: {}, appendChild: noop, innerHTML: '' };
+    global.location = { protocol: 'http:', hostname: 'game.example.com' };
+    srvOn();
+
+    mask.hidden = false;
+    M.AI_SRV.probe = null; M.AI_SRV.limited = false;
+    M.AI_SRV.lastTryAt = Date.now();        // 别让「打开就补测」干扰这一段
+    M.openSet();
+    ok('打开的设置面板被标记成「设置」弹窗（SHEET_KIND=set）', M.sheetKind() === 'set', M.sheetKind());
+    ok('面板开着时 sheetOpen() 为真', M.sheetOpen() === true);
+    ok('此时面板上还看不到毫秒（只有开关）', M.sheet().indexOf('实测调用成功') < 0);
+
+    // 模拟「探测结果刚刚回来」：状态写好 → 走一次刷新链路
+    M.AI_SRV.probe = { ok: true, ms: 1688 };
+    M.refreshSet();
+    ok('面板被原地重绘：毫秒当场出现（不用切开关再看）',
+      M.sheet().indexOf('实测调用成功 1688ms') >= 0, M.aiConnText());
+
+    // 面板关着 → 不许重绘、更不许把弹窗自己弹出来
+    mask.hidden = true;
+    const closed = M.sheet();
+    M.refreshSet();
+    ok('面板关着时不重绘（也不会自己弹出来）', M.sheet() === closed && M.sheetOpen() === false);
+
+    console.log('   — 别的弹窗开着时，AI 结果不能把它顶成设置面板 —');
+    mask.hidden = false;
+    M.openOtherSheet('<h2><span>本局记录</span></h2>');
+    const rec = M.sheet();
+    ok('记录弹窗不是设置面板', M.sheetKind() === '' && rec.indexOf('本局记录') >= 0);
+    M.refreshSet();
+    ok('记录弹窗没被顶掉', M.sheet() === rec, M.sheet().slice(0, 40));
+
+    console.log('   — 打开设置面板时若还没测过，会自动补测（不用玩家点） —');
+    mask.hidden = true;
+    let n = 0;
+    global.fetch = url => { if (/probe=1/.test(String(url))) n++;
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(
+        { enabled: true, models: { strong: 'hy3' }, serverTier: 'strong', probe: { ok: true, ms: 4321 } }) }); };
+    M.AI_SRV.probe = null; M.AI_SRV.probing = false; M.AI_SRV.probeAt = 0;
+    M.AI_SRV.lastTryAt = 0; M.AI_SRV.limited = false;
+    M.openSet();                                        // 打开面板 → openSet 里会自动补测
+    await new Promise(r => setTimeout(r, 40));
+    ok('打开设置就自动测了一把', n >= 1, n);
+    ok('结果落到 AI_SRV 并出现在文案里', !!M.AI_SRV.probe && M.aiConnText().indexOf('4321ms') >= 0, M.aiConnText());
+    const n1 = n;
+    M.openSet(); M.openSet();                           // 反复重绘不该反复发请求
+    await new Promise(r => setTimeout(r, 40));
+    ok('已经有成功结论后不再重复探测', n === n1, [n1, n]);
+    global.location = { protocol: 'file:' };
+  }
+
+  console.log('== 10) 【v1.3.3】冷却期间服务端直接回上次结论 → 立刻显示毫秒 ==');
+  {
+    global.location = { protocol: 'http:', hostname: 'game.example.com' };
+    srvOn();
+    // 服务端在 20 秒冷却里不再回「限流」，而是把上一次的实测结论带回来（cached:true）
+    global.fetch = () => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(
+      { enabled: true, models: { strong: 'hy3' }, serverTier: 'strong',
+        probe: { at: Date.now(), ok: true, ms: 1368, detail: '', cached: true, cooldown: true } }) });
+    M.AI_SRV.probe = null; M.AI_SRV.probing = false; M.AI_SRV.probeAt = 0;
+    M.AI_SRV.limited = false; M.AI_SRV.lastTryAt = 0;
+    M.probeAi(true);
+    await new Promise(r => setTimeout(r, 40));
+    ok('认下这份结论（毫秒当场就有）', !!M.AI_SRV.probe && M.AI_SRV.probe.ok && M.AI_SRV.probe.ms === 1368, M.AI_SRV.probe);
+    ok('没有被当成「冷却中」', M.AI_SRV.limited === false);
+    ok('文案写着毫秒 + 说明是沿用的结论', M.aiConnText().indexOf('实测调用成功 1368ms') >= 0 && M.aiConnText().indexOf('沿用') >= 0, M.aiConnText());
+    ok('不再出现「❌ 实测失败」', M.aiConnText().indexOf('❌') < 0, M.aiConnText());
     global.location = { protocol: 'file:' };
   }
 

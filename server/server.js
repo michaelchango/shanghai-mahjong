@@ -747,7 +747,26 @@ const server = http.createServer((req, res) => {
     const base = aibrain.status();
     if (!wantProbe || !base.enabled){ sendJson(res, 200, base); return; }
     const deny = aiAllowed(req, true);
-    if (deny){ sendJson(res, 200, Object.assign({}, base, { probe: { ok: false, detail: 'probe 被限流（' + deny + '）' } })); return; }
+    if (deny){
+      // v1.3.3：冷却被挡回**不是故障** —— 把上一次的实测结论原样带回去（带 cached 标记），
+      // 客户端就能立刻显示真实毫秒，而不是干等 20 秒冷却结束。
+      // 只有在没有可用的历史结论时（限流/跨域等），才如实回一个「被限流」。
+      if (deny === 'probe_cd'){
+        Promise.resolve()
+          .then(() => aibrain.probe(false))          // 不 force → 命中 60 秒缓存，不打模型
+          .then(pr => {
+            const hit = pr && pr.at && (pr.ok || pr.detail);
+            const probe = hit ? Object.assign({}, pr, { cached: true, cooldown: true, detail: '' })
+                              : { ok: false, detail: 'probe 被限流（probe_cd）' };
+            sendJson(res, 200, Object.assign({}, base, { probe: probe }));
+          })
+          .catch(() => sendJson(res, 200, Object.assign({}, base,
+            { probe: { ok: false, detail: 'probe 被限流（probe_cd）' } })));
+        return;
+      }
+      sendJson(res, 200, Object.assign({}, base, { probe: { ok: false, detail: 'probe 被限流（' + deny + '）' } }));
+      return;
+    }
     Promise.resolve()
       .then(() => aibrain.probe(true))
       .then(pr => sendJson(res, 200, Object.assign({}, aibrain.status(), { probe: pr })))
