@@ -80,7 +80,15 @@ const CFG_ALLOW = {
   lajiHu:     v => (v === true || v === false || v === 1 || v === 0) ? !!v : null,
   autoKnock:  v => (v === true || v === false || v === 1 || v === 0) ? !!v : null,
   autoHu:     v => (v === true || v === false || v === 1 || v === 0) ? !!v : null,
-  cd:         v => [0, 15, 30].includes(Number(v)) ? Number(v) : null   // v1.2.27 出牌倒计时（秒），0=无限时
+  cd:         v => [0, 15, 30].includes(Number(v)) ? Number(v) : null,  // v1.2.27 出牌倒计时（秒），0=无限时
+  // v1.3.1 机器人按座位分别设置：数组长度必须正好 4，下标 = 真实座位号。
+  // 机器人 = 空位（真人的座位这两个值没意义，但照样存着，换座 / 掉线托管时行为可预期）。
+  aiSeats:    v => (Array.isArray(v) && v.length === 4) ? v.map(x => !!x) : null,
+  spd:        v => {
+    if (!Array.isArray(v) || v.length !== 4) return null;
+    const out = v.map(x => [0.6, 1, 1.8].includes(Number(x)) ? Number(x) : null);
+    return out.some(x => x === null) ? null : out;
+  }
 };
 
 /* 房间默认规则（与 index.html 的 CFG 默认值一致）；房主可在等待页改，开局后锁定 */
@@ -88,7 +96,9 @@ function defaultCfg(){
   return {
     base: 2, unit: 1, lezi: 8,
     allowChow: true, sevenPairs: false, lajiHu: true,
-    autoKnock: false, autoHu: false, speed: 1, cd: 0
+    autoKnock: false, autoHu: false, speed: 1, cd: 0,
+    aiSeats: [true, true, true, true],   // 默认每台机器人都用大模型（与单机默认一致）
+    spd: [1, 1, 1, 1]                    // 各自 0.6 慢 / 1 中 / 1.8 快，只有不用大模型时才用得上
   };
 }
 
@@ -305,7 +315,8 @@ class GameHost {
     const S = this.S;
     // 引擎 ask() 的服务端路由（patch 钩子）：谁要做决定 → GameHost.onAsk
     S.onAsk = pend => this.onAsk(pend);
-    // v1.3.0：联机房间的机器人默认也走大模型（与单机「机器人是否启用AI」默认启用一致）；
+    // v1.3.0：联机房间的机器人默认也走大模型（与单机默认一致）；
+    // v1.3.1：具体哪几个座位用大模型由房间规则 cfg.aiSeats 决定（房主在等待页设定）；
     // 未配环境变量 / AI_BOT_TIER=off → 房间机器人退回本地逻辑。
     if (aibrain.isEnabled() && aibrain._env.serverTier !== 'off' && typeof S.setAiBrain === 'function'){
       S.setAiBrain({ ask: p => aibrain.decide(p) }, aibrain._env.serverTier);
@@ -313,7 +324,7 @@ class GameHost {
     // CFG/G 是 const 声明，须经 __state 桥访问（见 headless.js）
     // 按房主设定的本桌规则初始化（开局后锁定，中途不能改）
     const cfg = Object.assign(defaultCfg(), room.cfg || {});
-    for (const k of ['base', 'unit', 'lezi', 'allowChow', 'sevenPairs', 'lajiHu', 'autoKnock', 'autoHu', 'speed']){
+    for (const k of ['base', 'unit', 'lezi', 'allowChow', 'sevenPairs', 'lajiHu', 'autoKnock', 'autoHu', 'speed', 'aiSeats', 'spd']){
       S.__state.CFG[k] = cfg[k];
     }
     S.initGame();                      // 生成四家玩家对象（G.players）
@@ -326,7 +337,8 @@ class GameHost {
       else { G.players[i].isBot = true; G.players[i].name = BOT_NAMES[i % BOT_NAMES.length]; }
     }
 
-    log(`房 ${room.no} 开局 seed=${this.seed} 真人=${room.seats.filter(Boolean).length}`);
+    log(`房 ${room.no} 开局 seed=${this.seed} 真人=${room.seats.filter(Boolean).length}` +
+        ` 机器人AI=${(cfg.aiSeats || []).map(v => (v ? 'AI' : '本')).join('/')}`);
     S.runHand();
   }
 

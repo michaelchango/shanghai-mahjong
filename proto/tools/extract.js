@@ -115,7 +115,9 @@ const EXPORTS = [
   // v1.3.0 强档：本地算好候选，模型只在候选里定夺
   'aiRankDiscards',
   // 杂项
-  'sleep', 'waitBot', 'logMsg', 'windOf'
+  'sleep', 'waitBot', 'logMsg', 'windOf',
+  // v1.3.1 按座位分别设置：测试要能直接读这两个
+  'spdOf', 'aiSeatOn'
 ];
 
 function main(){
