@@ -722,7 +722,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.7</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.8</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -1316,6 +1316,22 @@ function evalAll(counts, fixedMelds){
   r.best = r[bt]; r.bestType = bt;
   return r;
 }
+
+/* v1.3.8：清混碰锁门感知的向听评估——吃过某门后即锁死该花色，
+   但引擎的 evalAll 仍无差别对所有花色算向听，于是「留其他花色凑别的混/清一色」
+   会被当成好牌（正是 AI 打条留筒的根因）。这里只保留与本门兼容的牌型：
+   本门混一色 / 本门清一色 / 风一色（字牌做将或刻）；其余花色一律视为死牌。
+   返回与 evalAll 同形状的对象，仅把 best / bestType 收敛到锁内最优，
+   其余字段保留，方便 aiChooseDiscard 的 target 偏置逻辑照常工作。 */
+function evalAllLocked(counts, fixedMelds, ls){
+  const e = evalAll(counts, fixedMelds);
+  let best = Infinity, bt = 'mix' + ls;
+  for (const k of ['mix' + ls, 'pure' + ls, 'wind']){
+    if (e[k] < best){ best = e[k]; bt = k; }
+  }
+  e.best = best; e.bestType = bt;
+  return e;
+}
 function typeLabel(t){
   return { pung:'碰碰胡', mix0:'混一色(萬)', mix1:'混一色(筒)', mix2:'混一色(條)',
            pure0:'清一色(萬)', pure1:'清一色(筒)', pure2:'清一色(條)', wind:'风一色',
@@ -1451,6 +1467,16 @@ function tryWin(counts, p){
   const need = 4 - p.melds.length;
   const seven = p.melds.length === 0 && isSevenPairs(counts);
   if (!isWinShape(counts, need) && !seven) return null;
+  // v1.3.8：清混碰锁门（吃过某门数牌）后，本局只能以该门+字牌（混/清一色）或全字牌（风一色）胡；
+  // 手牌里含其他花色数牌即非法。此前 tryWin 不拦这条，理论上锁门玩家能「跨门胡」，与锁门语义自相矛盾。
+  if (!CFG.lajiHu){
+    const ls = (typeof lockedSuitOf === 'function') ? lockedSuitOf(p) : null;
+    if (ls !== null && ls >= 0){
+      for (let t = 0; t < 27; t++){
+        if (counts[t] > 0 && suitOf(t) !== ls) return null;
+      }
+    }
+  }
   const hc2 = counts.slice();
   const flowers = calcFlowers(p, hc2);
   return evaluateShape(hc2, p.melds, { flowerCount: flowers });
@@ -1675,11 +1701,16 @@ function aiChooseDiscard(p, ban){
   const bans = (ban == null) ? [] : (Array.isArray(ban) ? ban : [ban]);
   const uniq = [...new Set(p.hand)].filter(t => bans.indexOf(t) < 0);
   if (!uniq.length) return p.hand[p.hand.length - 1];
+  // v1.3.8：清混碰锁门时刷新做牌目标，确保 target 落在锁内牌型，偏置才生效；
+  // 同时算出锁门花色 ls，向听评估改用 evalAllLocked（只认本门+字），
+  // 否则「留其他花色凑别的混/清一色」会被当成好牌 → 打条留筒。
+  if (!CFG.lajiHu && !p.knocked) p.target = aiTargetOf(p);
+  const ls = (!CFG.lajiHu && typeof lockedSuitOf === 'function') ? lockedSuitOf(p) : null;
   let best = null;
   const t0 = Date.now();
   for (const t of uniq){
     hc[t]--;
-    const ev = evalAll(hc, p.melds.length);
+    const ev = (ls !== null && ls >= 0) ? evalAllLocked(hc, p.melds.length, ls) : evalAll(hc, p.melds.length);
     let sc = ev.best;
     if (p.target && ev[p.target] !== undefined && ev[p.target] <= ev.best + 1) sc = Math.min(sc, ev[p.target] - 0.35);
     let uke = 0;
@@ -1705,7 +1736,14 @@ function aiChooseDiscard(p, ban){
     // 中张价值（保留 3-7 更容易成型）
     const r = t < 27 ? (t % 9) + 1 : 5;
     const center = t < 27 ? (4 - Math.abs(r - 5)) * 0.6 : 0;
-    const val = -sc * 1000 + wl * 42 + uke * 14 - dangerScore(t, p) * 9 + center;
+    let val = -sc * 1000 + wl * 42 + uke * 14 - dangerScore(t, p) * 9 + center;
+    // v1.3.8：清混碰锁门时，同等向听下优先打掉非锁定花色数牌、留住锁定花色+字牌，
+    // 否则「打条留筒」式平手错排仍会出现（首候选可能落在锁定花色上，模型随之打条）。
+    if (ls !== null && ls >= 0){
+      const su = suitOf(t);
+      if (su === ls || su === 3) val -= 8;   // 锁定花色 / 字牌：尽量留，别打
+      else val += 8;                          // 其他数牌：尽快打掉
+    }
     if (!best || val > best.val) best = { t, val, sh: sc };
   }
   return best ? best.t : p.hand[p.hand.length - 1];
@@ -1883,11 +1921,15 @@ function aiRankDiscards(p, bans, k){
   const uniq = [...new Set(p.hand || [])].filter(t => bansA.indexOf(t) < 0 && !isFlower(t));
   if (!uniq.length) return [];
   const hc = toCounts(p.hand);
+  // v1.3.8：清混碰锁门时刷新 target 并改用锁门感知的向听评估，否则喂给模型的
+  // 候选本身就会「留其他花色」，模型再聪明也只能在错误候选里挑。
+  if (!CFG.lajiHu && !p.knocked) p.target = aiTargetOf(p);
+  const ls = (!CFG.lajiHu && typeof lockedSuitOf === 'function') ? lockedSuitOf(p) : null;
   const rows = [];
   const t0 = Date.now();
   for (const t of uniq){
     hc[t]--;
-    const ev = evalAll(hc, (p.melds || []).length);
+    const ev = (ls !== null && ls >= 0) ? evalAllLocked(hc, (p.melds || []).length, ls) : evalAll(hc, (p.melds || []).length);
     let sc = ev.best;
     if (p.target && ev[p.target] !== undefined && ev[p.target] <= ev.best + 1) sc = Math.min(sc, ev[p.target] - 0.35);
     let uke = 0;
@@ -1913,8 +1955,13 @@ function aiRankDiscards(p, bans, k){
     const r = t < 27 ? (t % 9) + 1 : 5;
     const center = t < 27 ? (4 - Math.abs(r - 5)) * 0.6 : 0;   // 中张比边张有价值
     const danger = dangerScore(t, p);
-    rows.push({ t, sh: Math.round(sc * 100) / 100, danger, left,
-      val: -sc * 1000 + (left || 0) * 42 + uke * 14 - danger * 9 + center });
+    let val = -sc * 1000 + (left || 0) * 42 + uke * 14 - danger * 9 + center;
+    // v1.3.8：锁门时同等向听下偏置——打非锁定花色、留锁定花色+字牌（与 aiChooseDiscard 同口径）
+    if (ls !== null && ls >= 0){
+      const su = suitOf(t);
+      if (su === ls || su === 3) val -= 8; else val += 8;
+    }
+    rows.push({ t, sh: Math.round(sc * 100) / 100, danger, left, val });
   }
   rows.sort((a, b) => b.val - a.val);
   return rows.slice(0, kk);
