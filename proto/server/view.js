@@ -41,7 +41,10 @@ function projectFor(S, seat, online){
       // v1.2.15：自己的敲定听牌随投影下发（顶部「已敲·听X」/底部「听牌中→X」要用）；
       // 别家不下发，听牌仍是私密信息
       base.knockWaits = (p.knocked && Array.isArray(p.knockWaits)) ? p.knockWaits.slice() : [];
-      base.waits = S.getWaits ? S.getWaits(p).map(w => w.t) : [];
+      // v1.3.4：下发的「听」只含真能胡的听口 —— 台面上已现完（剩 0 张）的听死牌不下发，
+      // 与敲定判定 / 顶部提示同口径（引擎没导出 aliveWaits 时退回旧行为）
+      base.waits = (S.aliveWaits && S.getWaits) ? S.aliveWaits(S.getWaits(p), p).map(w => w.t)
+                 : (S.getWaits ? S.getWaits(p).map(w => w.t) : []);
       base.canKnock = S.canKnock ? S.canKnock(p) : false;
       base.missHu = Array.from(p.missHu || []);   // 自己的漏胡状态（UI 提示用）
     } else {

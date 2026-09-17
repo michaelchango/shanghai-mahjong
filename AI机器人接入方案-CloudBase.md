@@ -119,6 +119,16 @@ curl -s "$BASE/api/ai/status?probe=1" | node -e "let s='';process.stdin.on('data
 
 ---
 
+## 0.4 实施结果（v1.3.4，2026-09-17）：提示词补齐 4 条规则 + 听口剩余张数进入决策
+
+- **规则知识补齐**（`RULES_BASE`，system 段仍是**逐字常量**，继续命中模型侧上下文缓存）：
+  七小对随 `view.sevenPairs`、清混碰锁门 `view.lock`、无花果只能自摸 `view.wuGuoHua`、各档番值；
+  user 段新增 `cur`（这手牌当前的底 / 番）。强档候选说明补 `left` —— 打完若听牌，听口在台面上的剩余张数。
+- **听口剩余张数**：引擎侧新增 `leftFor` / `aliveWaits` / `aliveLeft`。`leftFor(t, p)` 是原 `visibleLeft(t)` 的泛化
+  （按座位视角，人类与 AI 同源同口径）；`aiRankDiscards` 候选带 `left`，`left === 0`（听死）按「没听」退回一向听。
+- **代价**：system 段加长约 300 token，**首次调用会 miss 一次上下文缓存**，其后照旧命中。
+- **回归**：m63（40）+ m59（92）+ m61（80）+ m62（34）全过；真凭据 probe 正常（1869ms）。
+
 ## 0.3 实施结果（v1.3.3，2026-09-16）：修「实测毫秒不自动出现」
 
 | 项 | 落地方式 |

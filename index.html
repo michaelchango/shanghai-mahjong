@@ -712,7 +712,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.3</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.4</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -1451,7 +1451,7 @@ function getWaits(p){ return getWaitsHand(p.hand, p.melds); }
 function canKnock(p){
   if (p.knocked) return false;
   if (p.hand.length % 3 !== 1) return false;
-  return getWaits(p).length > 0;
+  return aliveWaits(getWaits(p), p).length > 0;   // v1.3.4：听的牌全现完（剩 0 张）不算可敲
 }
 
 // 对打出的牌可以做什么
@@ -1683,11 +1683,20 @@ function aiChooseDiscard(p, ban){
         if (e2.best < ev.best) uke += Math.max(0, 4 - seenCount(a));
       }
     }
+    // v1.3.4：打出去就听牌的话，看听口在台面上还剩几张（听死牌 = 剩 0 张 = 胡不了）。
+    //   听死时把向听退回 1，等同「没听」，让别的打法（能听且听口有货）胜出 —— 即「剩 0 张不听，继续组牌」。
+    //   ⚠️ 只有「形状上算得出听口、但听口全被现完」才是听死；算不出听口（张数不合法等）= 另一回事，不改判。
+    let wl = 0;
+    if (sc === 0){
+      const w0 = getWaitsHand(countsToTiles(hc), p.melds);
+      wl = aliveLeft(aliveWaits(w0, p), p);
+      if (w0.length && wl <= 0) sc = 1;
+    }
     hc[t]++;
     // 中张价值（保留 3-7 更容易成型）
     const r = t < 27 ? (t % 9) + 1 : 5;
     const center = t < 27 ? (4 - Math.abs(r - 5)) * 0.6 : 0;
-    const val = -sc * 1000 + uke * 14 - dangerScore(t, p) * 9 + center;
+    const val = -sc * 1000 + wl * 42 + uke * 14 - dangerScore(t, p) * 9 + center;
     if (!best || val > best.val) best = { t, val, sh: sc };
   }
   return best ? best.t : p.hand[p.hand.length - 1];
@@ -1853,9 +1862,12 @@ function tileFromName(name){
   const k = normTileName(name);
   return TILE_BY_NAME[k] != null ? TILE_BY_NAME[k] : null;
 }
-/* 强档候选：本地引擎先把每张可打牌的后果算出来，按「向听优先、再看危险度」排序，
-   只把前 K 张交给模型定夺。刻意不算进张数（ukeire）—— 那一步耗时且逐次不同，
-   会让候选集抖动；模型的任务是**在几张合理牌之间取舍**，不是自己重新算牌理。 */
+/* 强档候选：本地引擎先把每张可打牌的后果算出来，按「向听优先，再看进张与危险度」排序，
+   只把前 K 张交给模型定夺。模型的任务是**在几张合理牌之间取舍**，不是自己重新算牌理。
+   v1.3.4：补上进张数（ukeire），与 aiChooseDiscard 打分逐项同口径 ——
+     ① 「听死牌退回一向听」之后，光看向听+危险度无法区分「假装听（打出去听死）」与
+        真的一向听，候选首张会与本地启发式分叉（护栏测试 m59 就是抓这个的）；
+     ② 同时保证候选首张 == 本地答案，模型整条不可用时行为不漂移。 */
 function aiRankDiscards(p, bans, k){
   const kk = k || 4;
   const bansA = (bans == null) ? [] : (Array.isArray(bans) ? bans : [bans]);
@@ -1863,16 +1875,37 @@ function aiRankDiscards(p, bans, k){
   if (!uniq.length) return [];
   const hc = toCounts(p.hand);
   const rows = [];
+  const t0 = Date.now();
   for (const t of uniq){
     hc[t]--;
     const ev = evalAll(hc, (p.melds || []).length);
     let sc = ev.best;
     if (p.target && ev[p.target] !== undefined && ev[p.target] <= ev.best + 1) sc = Math.min(sc, ev[p.target] - 0.35);
+    let uke = 0;
+    if (ev.best <= 2 && Date.now() - t0 < 900){
+      for (let a = 0; a < PLAYCNT; a++){
+        if (hc[a] >= 4) continue;
+        hc[a]++;
+        const e2 = evalAll(hc, p.melds.length);
+        hc[a]--;
+        if (e2.best < ev.best) uke += Math.max(0, 4 - seenCount(a));
+      }
+    }
+    // v1.3.4：打出去即听牌 → 顺带算出听口的可见剩余张数，交给模型一起权衡；
+    //   听死牌（剩 0 张）按「没听」处理，免得模型在候选里挑一个根本胡不了的听。
+    //   ⚠️ 只有「算得出听口、但全被现完」才算听死（算不出听口是另一回事）
+    let left = null;
+    if (sc === 0){
+      const w0 = getWaitsHand(countsToTiles(hc), p.melds);
+      left = aliveLeft(aliveWaits(w0, p), p);
+      if (w0.length && left <= 0){ left = 0; sc = 1; }
+    }
     hc[t]++;
     const r = t < 27 ? (t % 9) + 1 : 5;
     const center = t < 27 ? (4 - Math.abs(r - 5)) * 0.6 : 0;   // 中张比边张有价值
     const danger = dangerScore(t, p);
-    rows.push({ t, sh: Math.round(sc * 100) / 100, danger, val: -sc * 1000 - danger * 9 + center });
+    rows.push({ t, sh: Math.round(sc * 100) / 100, danger, left,
+      val: -sc * 1000 + (left || 0) * 42 + uke * 14 - danger * 9 + center });
   }
   rows.sort((a, b) => b.val - a.val);
   return rows.slice(0, kk);
@@ -1905,11 +1938,20 @@ function aiView(p, kind, extra){
   }
   let shanten = null;
   try { shanten = evalAll(toCounts(p.hand), (p.melds || []).length).best; } catch (e){}
+  /* v1.3.4：把「影响选牌但模型原本看不到」的规则状态一并给出去 —— 七小对是否算胡、
+     清混碰锁门的花色、自己是不是 0 花（无花果只能自摸）、当前这手牌的底/番，都是自己视角的公开信息，不算偷看。 */
+  const lockS = (typeof lockedSuitOf === 'function') ? lockedSuitOf(p) : null;
+  let cur = null;
+  try { const df = playerDiFan(p); cur = { di: df.di, fan: df.fan, tenpai: !!df.tenpai }; } catch (e){}
   const v = {
     mode: CFG.lajiHu ? '敲麻' : '清混碰',
     seat: p.idx, dealer: G.dealer, handNo: G.handNo || 1,
     hand: names(hand), melds, flowers: names(p.flowers),
     knocked: !!p.knocked, shanten, plan: p.target || null,
+    sevenPairs: !!CFG.sevenPairs,
+    lock: (lockS == null || lockS < 0) ? null : SUIT_CH[lockS],
+    wuGuoHua: (typeof isWuGuoHua === 'function') ? !!isWuGuoHua(p) : false,
+    cur,
     wallLeft: (typeof wallLeft === 'function' ? wallLeft() : null),
     lastDiscard: (G.lastDiscard == null ? null : tileName(G.lastDiscard)),
     lastFrom: (G.lastFrom == null ? null : G.lastFrom),
@@ -1922,7 +1964,12 @@ function aiView(p, kind, extra){
     // 强档：把引擎算好的候选一并交给模型（模型只在这几张里定夺）
     const cand = (extra && extra.cand) || null;
     if (cand && cand.length){
-      v.candidates = cand.map(c => ({ tile: tileName(c.t), shanten: c.sh, danger: c.danger }));
+      // v1.3.4：带上 left —— 打掉这张后若听牌，听口在台面上还剩几张（听死牌为 0，已按没听处理）
+      v.candidates = cand.map(c => {
+        const o = { tile: tileName(c.t), shanten: c.sh, danger: c.danger };
+        if (c.left != null) o.left = c.left;
+        return o;
+      });
     }
   } else {
     v.claimTile = tileName(extra.tile);
@@ -2399,7 +2446,7 @@ function playerDiFan(p){
   const addFan = extraFan(p, {}).reduce((s, x) => s + x[1], 0);
   let fan = null, di2 = null, tenpai = false;
   if (p.hand && p.hand.length % 3 === 1 && G.running){
-    const w = getWaitsHand(p.hand, p.melds);
+    const w = aliveWaits(getWaitsHand(p.hand, p.melds), p);   // v1.3.4：听死牌不算听（与敲定/顶部同口径）
     if (w.length){
       tenpai = true;
       let best = null, bv = -1;
@@ -2431,7 +2478,7 @@ function analyzeMe(){
 
   let waits = [];
   if (p.hand.length % 3 === 1){
-    waits = getWaitsHand(p.hand, p.melds);
+    waits = aliveWaits(getWaitsHand(p.hand, p.melds), p);   // v1.3.4：听死牌不算听
   } else if (p.hand.length % 3 === 2){
     // 刚摸牌（14 张）：模拟打一张，优先找"打了就听牌"，否则找向听最小的打法
     const uniq = [...new Set(p.hand)];
@@ -2439,18 +2486,23 @@ function analyzeMe(){
     for (const t of uniq){
       const h = p.hand.slice();
       const i = h.indexOf(t); if (i >= 0) h.splice(i, 1);
-      const w = getWaitsHand(h, p.melds);
+      const w = aliveWaits(getWaitsHand(h, p.melds), p);    // v1.3.4：听死的听口先滤掉
       const e2 = evalAll(toCounts(h), p.melds.length);
-      if (!bs || (w.length && !bs.w.length) ||
-          (!!w.length === !!bs.w.length && e2.best < bs.ev.best) ||
-          (w.length && bs.w.length && w.length > bs.w.length)){
-        bs = { t, w, ev: e2 };
+      const cand = { t, w, ev: e2, live: w.length > 0, left: aliveLeft(w, p) };
+      if (!bs){ bs = cand; continue; }
+      // v1.3.4 取舍顺序：① 打完能听 > 不能听；② 都能听 → 听口剩余张数多者优（最直观的胡牌概率）；
+      //                ③ 剩余一样 → 听口种类多者优；④ 都不能听 → 向听小者优
+      if (cand.live !== bs.live){ if (cand.live) bs = cand; continue; }
+      if (cand.live){
+        if (cand.left !== bs.left){ if (cand.left > bs.left) bs = cand; continue; }
+        if (cand.w.length !== bs.w.length){ if (cand.w.length > bs.w.length) bs = cand; continue; }
       }
+      if (cand.ev.best < bs.ev.best) bs = cand;
     }
     if (bs){
       waits = bs.w;
-      out.discardToTenpai = bs.t;
-      if (!waits.length){ out.shanten = bs.ev.best; out.target = bs.ev.bestType; }
+      if (waits.length) out.discardToTenpai = bs.t;
+      else { out.shanten = bs.ev.best; out.target = bs.ev.bestType; }
     }
   }
   if (waits.length){
@@ -2480,22 +2532,36 @@ function analyzeMe(){
 }
 // 听牌提示里的「台面剩余张数」：4 减去自己手牌、三家牌河、吃碰杠副露里已出现的同牌数。
 // 不算其他三家手牌（台面下，看不见）。
-function visibleLeft(t){
+// v1.3.4：泛化成「任意座位视角」的 leftFor —— 人类看到的数字与 AI 判断听口价值的数字同源同口径。
+//   决策期也用 p.hand（打牌前）：打出去的那张会进牌河，与「还在手里」等效，
+//   所以 4 - 手牌 - 牌河 - 副露 在打出前后完全一致，不必模拟打完后的手牌。
+function leftFor(t, p){
   let n = 4;
-  const me = G.players[0];
-  if (me && me.hand) n -= me.hand.filter(x => x === t).length;
+  if (p && p.hand) n -= p.hand.filter(x => x === t).length;
   for (let i = 0; i < 4; i++){
-    const p = G.players[i];
-    if (!p) continue;
-    if (p.discards) n -= p.discards.filter(x => x === t).length;
-    for (const m of (p.melds || [])){
+    const q = G.players[i];
+    if (!q) continue;
+    if (q.discards) n -= q.discards.filter(x => x === t).length;
+    for (const m of (q.melds || [])){
       const ts = (m.tiles && m.tiles.length) ? m.tiles : [m.tile];
       n -= ts.filter(x => x === t).length;
     }
   }
   return Math.max(0, n);
 }
-// 当前手牌可敲听的打法：模拟每张牌，返回能进入听牌的 {discard, waits} 列表
+function visibleLeft(t){ return leftFor(t, G.players[0]); }
+/* v1.3.4：听口有效性 —— 听的牌在台面上已经现完（剩 0 张）就是「听死」：这辈子摸不到、别人也打不出，
+   等于没听。aliveWaits 把听死的听口滤掉；aliveLeft 是有效听口的「剩余张数之和」，
+   多个听法之间比它 —— 张数越多越容易胡。 */
+function aliveWaits(waits, p){
+  return (waits || []).filter(w => leftFor(w.t, p) > 0);
+}
+function aliveLeft(waits, p){
+  let n = 0;
+  for (const w of (waits || [])) n += leftFor(w.t, p);
+  return n;
+}
+// 当前手牌可敲听的打法：模拟每张牌，返回能进入听牌的 {discard, waits, left} 列表
 function potentialKnocks(p){
   if (p.knocked || p.isBot || p.hand.length % 3 !== 2) return [];
   const out = [];
@@ -2504,11 +2570,11 @@ function potentialKnocks(p){
     const h = p.hand.slice();
     const i = h.indexOf(t); if (i < 0) continue;
     h.splice(i, 1);
-    const waits = getWaitsHand(h, p.melds);
-    if (waits.length) out.push({ discard: t, waits });
+    const waits = aliveWaits(getWaitsHand(h, p.melds), p);   // v1.3.4：听死的听口不算听
+    if (waits.length) out.push({ discard: t, waits, left: aliveLeft(waits, p) });
   }
-  // 优先听得多、牌型大的打法（v1.2.36：勒子牌型按勒子数比较）
-  out.sort((a, b) => b.waits.length - a.waits.length ||
+  // v1.3.4：优先「听口剩余张数多」的打法（最容易胡），再看听口种类数与牌型大小
+  out.sort((a, b) => b.left - a.left || b.waits.length - a.waits.length ||
     Math.max(...b.waits.map(w => shapeValue(w.ev))) - Math.max(...a.waits.map(w => shapeValue(w.ev))));
   return out;
 }
@@ -2583,7 +2649,8 @@ function renderHUD(){
   const kt = $('knockTag');
   // v1.2.20：清混碰免敲——没有敲定概念，knockTag 显示「实时听牌/未听牌」；
   // 敲麻维持 已敲·听 / 可敲听 / 未敲·不能胡 三态
-  const liveWaits = (!CFG.lajiHu && G.running && p.hand.length % 3 === 1) ? getWaits(p) : [];
+  // v1.3.4：清混碰实时听牌只列「还看得见」的听口——全现完的不算听（与敲麻的敲定判定同口径）
+  const liveWaits = (!CFG.lajiHu && G.running && p.hand.length % 3 === 1) ? aliveWaits(getWaits(p), p) : [];
   if (!CFG.lajiHu){
     if (liveWaits.length){
       kt.textContent = '听 ' + liveWaits.map(w => tileName(w.t) + '(' + visibleLeft(w.t) + ')').join(' / ');
@@ -2823,7 +2890,7 @@ function knockPickResolve(k){
   const idx = h.indexOf(k.discard);
   if (idx >= 0){
     h.splice(idx, 1);
-    const ws = getWaitsHand(h, p.melds);
+    const ws = aliveWaits(getWaitsHand(h, p.melds), p);   // v1.3.4：听死牌不敲（与 knockCheck 同口径）
     if (ws.length && !NET.active){
       p.knocked = true; p.knockWaits = ws.map(w => w.t); p.noPromptSig = '';
       // v1.2.47j：这条路径（手点「敲听」按钮直接敲定）以前漏发了语音事件，
@@ -2913,7 +2980,7 @@ function renderActs(){
       // v1.2.20：清混碰免敲 = 当前实时唯一听张；敲麻 = 敲定后锁定的唯一听张
       let uniWait = null;
       if (!CFG.lajiHu && G.running && me0.hand.length % 3 === 1){
-        const lw = getWaits(me0);
+        const lw = aliveWaits(getWaits(me0), me0);   // v1.3.4：听死牌不提示「听牌中」
         if (lw.length === 1) uniWait = lw[0].t;
       } else if (me0.knocked && me0.knockWaits.length === 1){
         uniWait = me0.knockWaits[0];
@@ -3067,7 +3134,8 @@ async function knockCheck(p){
   // v1.2.20：清混碰免敲——没有「敲定」步骤，能胡的牌直接胡（点炮/自摸），不弹敲听
   if (!CFG.lajiHu) return;
   if (p.knocked || p.hand.length % 3 !== 1) return;
-  const waits = getWaitsHand(p.hand, p.melds);
+  // v1.3.4：听的牌全在台面现完（剩 0 张）= 听死，敲了也胡不了、还会锁死不能吃碰杠 —— 不敲，继续组牌
+  const waits = aliveWaits(getWaitsHand(p.hand, p.melds), p);
   if (!waits.length) return;
   if (p.isBot){
     p.knocked = true;

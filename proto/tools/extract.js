@@ -99,6 +99,7 @@ const EXPORTS = [
   'wuGuoHuaAt', 'isWuGuoHua', 'isDaDiaoChe', 'specialLezi', 'leziOf', 'leziTotal',
   'banKindName', 'hudReady',
   'claimOptions', 'selfKongOptions', 'potentialKnocks', 'capValue',
+  'leftFor', 'aliveWaits', 'aliveLeft', 'visibleLeft',
   'playerDiFan', 'scoreOf', 'fanBreakdownHtml', 'analyzeMe', 'diFanOf', 'typeDiFan', 'capValue', 'LEZI_DI', 'hudBreakdown',
   // 牌局流程
   'mkPlayer', 'initGame', 'buildWall', 'drawFront', 'drawTail', 'wallLeft',
