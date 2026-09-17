@@ -31,6 +31,10 @@
  *   AI_BOT_TIER             联机房间托管用哪档：off / fast / strong（默认 strong；
  *                           设 off 可让联机房间退回纯本地逻辑、不消耗额度）
  *   AI_TIMEOUT_MS           单次调用超时（默认 8000）
+ *   AI_RPM_PAUSE_MS         撞到配额（429 / EXCEED_*）后的退避基准（默认 5000，逐次翻倍、上限 30s）
+ *   AI_RPM_MAX              配额节流：每分钟最多发出多少次模型请求（默认 50）。
+ *                           网关硬限 60 请求/分，这里留余量 —— 该 CloudBase 环境
+ *                           还与其他应用共用同一份网关配额。设 0 = 关掉节流。
  */
 'use strict';
 
@@ -47,6 +51,13 @@ const AI_ENV = {
   })(),
   timeoutMs: Number(process.env.AI_TIMEOUT_MS || 8000),
   cacheMax: Number(process.env.AI_CACHE_MAX || 500),
+  rpmMax: (function(){
+    const n = Number(process.env.AI_RPM_MAX);
+    return Number.isFinite(n) && n >= 0 ? n : 50;
+  })(),
+  rpmWin: 60000,
+  rpmPauseMs: Number(process.env.AI_RPM_PAUSE_MS || 5000),   // 撞到配额后的退避基准
+  rpmPauseMax: 30000,                                        // 退避上限
   on: (process.env.AI_BOT || 'on') !== 'off',
   serverTier: (function(){
     // 默认 strong：只要配了环境变量，联机房间的机器人也默认走大模型（与单机「默认启用」一致）；
@@ -270,6 +281,33 @@ function breakerOpen(){
   return true;
 }
 
+/* 配额守卫（v1.3.5）：网关对模型限 60 请求/分钟，撞上会返 429；
+   而 429 与网络故障一样被算作「失败」，连败 3 次就开 30 秒熔断 ——
+   玩家看到的现象就是「打着打着 AI 掉了、变回快速出牌的机器人」。
+   与其撞上去再回退，不如自己先按配额排队：窗口内超过额度就**直接本地回退**
+   （不发请求、不计失败、不动熔断），配额一松就自动用回来。
+   用滑动窗口而非固定窗口：额度按时间均匀释放，饱和后会变成稳定的匀速放行，
+   而不是「每分钟开头一波、之后全哑」那种忽有忽无的手感。 */
+const _rpm = { at: [], skipped: 0, strikes: 0, pauseUntil: 0 };
+function rpmUsed(now){
+  const t0 = now - AI_ENV.rpmWin;
+  while (_rpm.at.length && _rpm.at[0] <= t0) _rpm.at.shift();
+  return _rpm.at.length;
+}
+/* 配额类失败：网关 429 / EXCEED_*。它说明「额度被占满了」，不是「模型坏了」——
+   这个环境的 60 次/分是与其他应用共享的，我们自己排队也拦不住别人占满，
+   所以必须把「撞上配额」和「真故障」区别对待（见 decide() 的 catch）。*/
+const QUOTA_CODES = new Set(['EXCEED_TOKEN_QUOTA_LIMIT', 'EXCEED_CONCURRENT_REQUEST_LIMIT',
+  'EXCEED_REQUEST_LIMIT', 'HTTP_429']);
+function quotaErr(kind, code){
+  return QUOTA_CODES.has(code) || (kind === 'http' && code === 'HTTP_429');
+}
+function rpmBlocked(now){
+  if (_rpm.pauseUntil && now < _rpm.pauseUntil) return true;   // 退避中（与是否限速无关）
+  if (!AI_ENV.rpmMax) return false;                            // 0 = 不限速
+  return rpmUsed(now) >= AI_ENV.rpmMax;
+}
+
 /* ========================================================================
    可用性 / 状态
    ======================================================================== */
@@ -296,6 +334,9 @@ function status(){
     timeoutMs: AI_ENV.timeoutMs,
     cache: _cache.size,
     failStreak: _failStreak,
+    // 配额水位：used = 当前窗口内已发出的请求数，skipped = 累计因节流回退本地的次数
+    rpm: { max: AI_ENV.rpmMax, winMs: AI_ENV.rpmWin, used: rpmUsed(Date.now()), skipped: _rpm.skipped,
+           strikes: _rpm.strikes, pauseLeftMs: Math.max(0, _rpm.pauseUntil - Date.now()) },
     lastError: _lastErr,
     envHint: AI_ENV.env ? AI_ENV.env.slice(0, 8) + '…' : '',
     keyLen: AI_ENV.key ? AI_ENV.key.length : 0          // 只报长度，绝不回显密钥
@@ -336,15 +377,31 @@ async function decide(req){
   const hit = _cache.get(key);
   if (hit) return Object.assign({ ok: true, cached: true, ms: 0 }, hit);
   if (breakerOpen()) return { ok: false, error: 'breaker' };
+  /* v1.3.5：配额内节流。先扣名额再发请求，并发决策也不会超卖；
+     被节流时立即回退（调用方用本地答案），不计失败、不动熔断，配额恢复即自动用回来。 */
+  const nowMs = Date.now();
+  if (rpmBlocked(nowMs)){ _rpm.skipped++; return { ok: false, error: 'throttled' }; }
+  _rpm.at.push(nowMs);
 
   let out;
   try {
     out = await enqueue(() => callModel(kind, model, view));
   } catch (e){
+    const ek = (e && e.kind) || 'error', ec = (e && e.code) || '';
+    _lastErr = { at: Date.now(), kind: ek, code: ec, detail: String((e && e.message) || e).slice(0, 160) };
+    /* v1.3.5：配额类失败**不算故障**。若照旧计入 3 连败熔断，
+       「网关偶尔被占满」就会被放大成「AI 整个掉线 30 秒」，正是玩家报的那个现象。
+       改成短退避：暂停一会儿自动重试，退避逐次翻倍、上限 30 秒，一旦成功立即清零。
+       真正的故障（网络 / 鉴权 / 解析）仍走原来的 3 连败熔断。 */
+    if (quotaErr(ek, ec)){
+      _rpm.strikes++;
+      const wait = Math.min(AI_ENV.rpmPauseMax, AI_ENV.rpmPauseMs * Math.pow(2, _rpm.strikes - 1));
+      _rpm.pauseUntil = Date.now() + wait;
+      return { ok: false, error: 'quota', detail: _lastErr.detail, retryInMs: wait };
+    }
     _failStreak++;
     if (_failStreak >= 3){ _openUntil = Date.now() + 30000; }
-    _lastErr = { at: Date.now(), kind: (e && e.kind) || 'error', code: (e && e.code) || '', detail: String((e && e.message) || e).slice(0, 160) };
-    return { ok: false, error: (e && e.kind) || 'upstream', detail: _lastErr.detail };
+    return { ok: false, error: ek, detail: _lastErr.detail };
   }
 
   const parsed = parseDecision(out && out.text);
@@ -356,6 +413,7 @@ async function decide(req){
 
   _failStreak = 0;
   _lastErr = null;
+  _rpm.strikes = 0; _rpm.pauseUntil = 0;             // 配额恢复了，清掉退避
   const res = Object.assign({ tier, model, ms: Date.now() - t0, usage: (out && out.usage) || null }, parsed);
   if (_cache.size >= AI_ENV.cacheMax) _cache.clear();
   _cache.set(key, res);
@@ -376,6 +434,7 @@ module.exports = {
   _env: AI_ENV,
   _reset(){
     _cache.clear(); _failStreak = 0; _openUntil = 0; _chain = Promise.resolve();
+    _rpm.at.length = 0; _rpm.skipped = 0; _rpm.strikes = 0; _rpm.pauseUntil = 0;
     _lastErr = null; _probe = { at: 0, ok: false, ms: 0, detail: '' };
   }
 };
