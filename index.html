@@ -603,7 +603,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 /* v1.2.43：等待页（房间）在极矮屏上允许内部滚动 —— #home 是 overflow:hidden，
    内容高于视口时上下两头会被截断；给盒子一个 100dvh 上限 + 自身滚动，保证
    「房间号」和「退出房间」永远够得着 */
-#homeRoom{max-height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding:6px 2px}
+#homeRoom{max-height:100dvh;overflow-y:auto;overscroll-behavior:contain;padding:6px 2px;margin:auto}
 @keyframes hIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .hTitle{font-size:36px;font-weight:900;color:var(--gold);letter-spacing:8px;margin:6px 0 2px;
   text-shadow:0 3px 16px rgba(0,0,0,.55),0 0 1px rgba(255,207,92,.8)}
@@ -652,11 +652,14 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
    而牌桌以外的内容固定约 385px，352px 的牌桌会把「房间号」和「退出房间」顶出屏幕
    （#home 是 position:fixed + overflow:hidden，超出部分直接被截断，必须全屏才看得见）。
    高屏上不影响（仍取 90vw/352px），矮屏自动缩小；极矮屏再由 .homeBox 的滚动兜底。 */
-.rBoard{margin-top:14px;width:min(352px, 90vw, calc(100dvh - 412px));min-width:150px;aspect-ratio:1;
+.rBoard{margin-top:14px;width:min(352px, 90vw, calc(100dvh - 500px));min-width:120px;aspect-ratio:1;
   margin-left:auto;margin-right:auto;
   /* v1.2.43：列必须用 minmax(0,1fr) —— 普通 1fr 带最小内容宽度，会把 JS 设定的窄宽度撑回去，
-     导致「按可用高度收窄牌桌」失效 */
-  display:grid;grid-template-columns:minmax(0,1fr) 88px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 88px minmax(0,1fr);gap:8px;
+     导致「按可用高度收窄牌桌」失效。
+     v1.3.6：外圈行列(西/东/北/南)用固定 84px、中心行列用 1fr —— 于是左右(西/东)是「竖窄方框」(84 宽 × 1fr 高)，
+     上下(北/南)是「横宽方框」(1fr 宽 × 84 高)，座位框形态贴合方位；并把高度预算从 412 提到 500，
+     矮屏上整张桌收得更小，保证顶部「房间号」与底部「退出房间」始终在视口内 */
+  display:grid;grid-template-columns:84px minmax(0,1fr) 84px;grid-template-rows:84px minmax(0,1fr) 84px;gap:8px;
   align-items:center;justify-items:center;position:relative}
 .rSeatSlot{min-width:0;width:100%;height:100%;border:1px dashed rgba(255,255,255,.18);border-radius:11px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -712,7 +715,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.5</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.6</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
