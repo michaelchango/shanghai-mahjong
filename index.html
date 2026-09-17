@@ -641,30 +641,32 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 .lErr{min-height:16px;margin-top:8px;font-size:11.5px;color:var(--red);letter-spacing:.5px}
 .lErr.ok{color:var(--green)}
 /* 房间等待 */
-.rNoWrap{margin:8px 0 2px}
-.rNoLab{font-size:11px;color:var(--dim);letter-spacing:3px}
-.rNo{font-size:38px;font-weight:900;color:var(--gold);letter-spacing:6px;
+.rNoWrap{margin:2px 0 0}
+.rNoLab{font-size:11px;color:var(--dim);letter-spacing:3px;margin-bottom:1px}
+.rNo{font-size:30px;font-weight:900;color:var(--gold);letter-spacing:5px;
   text-shadow:0 2px 14px rgba(0,0,0,.5);cursor:pointer}
-.rNoHint{font-size:11px;color:var(--dim2);margin-top:2px}
+.rNoHint{font-size:10.5px;color:var(--dim2);margin-top:3px}
 /* v1.2.4：等待页简易牌桌：中央迷你桌心圆 + 上下左右四个位置
    v1.2.41：整体放大（300→352 / 78vw→90vw），四個座位框更宽，长昵称不截断
    v1.2.43：牌桌再按**可用高度**封顶 —— 手机上浏览器地址栏/工具栏吃掉高度后可用视口常只有 ~640px，
    而牌桌以外的内容固定约 385px，352px 的牌桌会把「房间号」和「退出房间」顶出屏幕
    （#home 是 position:fixed + overflow:hidden，超出部分直接被截断，必须全屏才看得见）。
    高屏上不影响（仍取 90vw/352px），矮屏自动缩小；极矮屏再由 .homeBox 的滚动兜底。 */
-.rBoard{margin-top:14px;width:min(352px, 90vw, calc(100dvh - 500px));min-width:120px;aspect-ratio:1;
+.rBoard{margin-top:10px;width:min(280px, 84vw, calc(100dvh - 420px));min-width:160px;aspect-ratio:1;
   margin-left:auto;margin-right:auto;
   /* v1.2.43：列必须用 minmax(0,1fr) —— 普通 1fr 带最小内容宽度，会把 JS 设定的窄宽度撑回去，
      导致「按可用高度收窄牌桌」失效。
-     v1.3.6：外圈行列(西/东/北/南)用固定 84px、中心行列用 1fr —— 于是左右(西/东)是「竖窄方框」(84 宽 × 1fr 高)，
-     上下(北/南)是「横宽方框」(1fr 宽 × 84 高)，座位框形态贴合方位；并把高度预算从 412 提到 500，
-     矮屏上整张桌收得更小，保证顶部「房间号」与底部「退出房间」始终在视口内 */
-  display:grid;grid-template-columns:84px minmax(0,1fr) 84px;grid-template-rows:84px minmax(0,1fr) 84px;gap:8px;
+     v1.3.6：外圈行列(西/东/北/南)用固定 84px、中心行列用 1fr —— 于是左右(西/东)是「竖窄方框」(84 宽 × 1fr 高)、
+     上下(北/南)是「横宽方框」(1fr 宽 × 84 高)，座位框形态贴合方位。
+     v1.3.7：在上基础上进一步压缩 —— 外圈固定 60px(原84)、gap 6(原8)、整体上限 280(原352)、
+     高度预算 420(原500)；再配合房间号文字合一 + 按钮收紧，使等待页在 ~600px 高的笔记本上也完整显示
+     顶部「房间号」与底部「退出房间」 */
+  display:grid;grid-template-columns:60px minmax(0,1fr) 60px;grid-template-rows:60px minmax(0,1fr) 60px;gap:6px;
   align-items:center;justify-items:center;position:relative}
-.rSeatSlot{min-width:0;width:100%;height:100%;border:1px dashed rgba(255,255,255,.18);border-radius:11px;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+.rSeatSlot{min-width:0;width:100%;height:100%;border:1px dashed rgba(255,255,255,.18);border-radius:9px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   background:rgba(255,255,255,.03);cursor:pointer;transition:background .15s,border-color .15s;
-  padding:5px 4px;font-size:10.5px;color:var(--dim2)}
+  padding:3px 3px;font-size:9.5px;color:var(--dim2)}
 .rSeatSlot.empty{cursor:pointer}
 .rSeatSlot.empty:active{background:rgba(255,207,92,.10);transform:scale(.98)}
 .rSeatSlot.taken{cursor:default;border-style:solid;border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.06)}
@@ -674,7 +676,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   box-shadow:inset 0 0 0 1px rgba(78,201,138,.28)}
 .rSeatPos{font-size:9px;letter-spacing:1px;color:var(--dim2)}
 /* v1.2.41：昵称独占一行、最多两行自动换行（不再和「已准备」标签挤在一行截断） */
-.rSeatName{font-size:13px;font-weight:700;color:var(--txt);line-height:1.16;text-align:center;
+.rSeatName{font-size:12px;font-weight:700;color:var(--txt);line-height:1.12;text-align:center;
   max-width:100%;word-break:break-all;overflow:hidden;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .rSeatTags{display:flex;align-items:center;justify-content:center;gap:3px;flex:0 0 auto;min-height:14px}
@@ -687,7 +689,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   color:var(--dim2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;background:rgba(255,255,255,.04)}
 /* 中央迷你桌心圆 */
 .rCenter{grid-column:2;grid-row:2;display:flex;align-items:center;justify-content:center;pointer-events:none}
-.rDial{position:relative;width:88px;height:88px;border-radius:50%;
+.rDial{position:relative;width:72px;height:72px;border-radius:50%;
   background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.10),rgba(0,0,0,.34) 70%);
   border:1px solid rgba(255,255,255,.15);box-shadow:inset 0 2px 8px rgba(0,0,0,.5)}
 .rDw{position:absolute;width:18px;height:18px;border-radius:5px;display:flex;align-items:center;
@@ -703,6 +705,11 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 .rBoard .rSeatS{grid-column:2;grid-row:3}
 .rNoCopy{margin-top:4px;font-size:10.5px;color:var(--dim2);letter-spacing:.5px}
 .rStatus{margin-top:10px;font-size:11.5px;color:var(--dim);min-height:15px;letter-spacing:.5px}
+/* v1.3.7：等待房间内按钮/链接收紧，给牌桌腾出竖向空间（仅作用于房间视图，不影响首页/大厅） */
+#homeRoom .hBtn{margin-top:9px;padding:10px 14px;font-size:15px}
+#homeRoom .hBtn small{margin-top:2px}
+#homeRoom .hBack{margin-top:10px;padding:6px 12px}
+#homeRoom .rStatus{margin-top:7px}
 </style>
 </head>
 <body data-page-node-id="sDZMglh48EQFGwl77bY8If">
@@ -715,7 +722,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.6</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.7</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -732,8 +739,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="rNoWrap" data-page-node-id="w9jkU3Vz0tVJfeTOi6EA7H">
       <div class="rNoLab" data-page-node-id="wJhGYHYVyK6btwxnxADdgr">房 间 号</div>
       <div class="rNo" id="rNoTxt" title="点击复制" data-page-node-id="aTvj1eGI42Mdk01jNZUukF">······</div>
-      <div class="rNoCopy" data-page-node-id="j9TKKb1LMj54gNijFzAMoH">（点击数字复制）</div>
-      <div class="rNoHint" data-page-node-id="PdXPPRgi5hIEJUwvE6vAn4">告诉朋友：输入房间号加入 · 点空位可换座</div>
+      <div class="rNoHint" data-page-node-id="PdXPPRgi5hIEJUwvE6vAn4">点击数字复制 · 告诉朋友：输入房间号加入 · 点空位可换座</div>
     </div>
     <!-- v1.2.4：等待页改简易牌桌：中央迷你桌心圆 + 上下左右四个位置 -->
     <div class="rBoard" id="rBoard" data-page-node-id="UplCQvg3Lknmpo69WqdSfb">
@@ -5330,7 +5336,7 @@ function showRoom(){
   $('homePick').classList.add('hide');
   $('homeLobby').classList.add('hide');
   $('homeRoom').classList.remove('hide');
-  fitRoomBoard();          // v1.2.43：切到等待页时按可用高度定牌桌大小
+  fitRoomBoard(); requestAnimationFrame(fitRoomBoard);   // v1.2.43：切到等待页时按可用高度定牌桌大小（rAF 兜底：等布局落定再算一次）
 }
 function showLobby(){
   $('homePick').classList.add('hide');
@@ -5419,7 +5425,7 @@ function fitRoomBoard(){
   if (!box || !board || box.classList.contains('hide')) return;
   const vh = window.innerHeight || 0;
   if (!vh) return;
-  let w = Math.min(352, Math.round(window.innerWidth * 0.9));
+  let w = Math.min(280, Math.round(window.innerWidth * 0.9));
   board.style.width = w + 'px';
   let guard = 0;
   while (box.scrollHeight > box.clientHeight + 1 && w > ROOM_BOARD_MIN && guard++ < 60){
@@ -5499,7 +5505,7 @@ function renderRoom(){
   }
   const me = NET.players[NET.mySeat];
   $('rReady').textContent = (me && me.ready) ? '取消准备' : '准备';
-  fitRoomBoard();          // v1.2.43：内容填完后按可用高度定牌桌大小
+  fitRoomBoard(); requestAnimationFrame(fitRoomBoard);   // v1.2.43：内容填完后按可用高度定牌桌大小（rAF 兜底）
 }
 /* 客户端发送换座请求 */
 function netMoveSeat(seat){
