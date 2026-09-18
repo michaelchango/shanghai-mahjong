@@ -724,7 +724,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.9</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.10</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -2699,6 +2699,56 @@ function openHudWhy(){
     '<p class="dimc">本手牌当前的实时口径（与结算面板同一套算法）</p>' + hudBreakdown() +
     '<div class="btns"><button class="pri" onclick="closeSheet()">知道了</button></div>');
 }
+/* ---------- 听牌状态（顶部标签 + 底部听牌行共用同一判定，v1.3.10） ----------
+   判定**按各自玩法**，两模式并不相同、也不硬凑：
+     · 清混碰（免敲，CFG.lajiHu===false）：没有「敲定」这个动作 → 「听牌」= 当前手牌
+       形状可听（getWaits，含听死）。
+     · 敲麻（CFG.lajiHu===true）：必须敲定才算听（p.knocked + p.knockWaits）；未敲时
+       即使牌型已经是听牌形状也不算听（因为不能胡，与顶部「未敲 · 不能胡」同口径）。
+   统一的是「文案与语义表达」（都可听 / 听牌中），不是判定依据。
+   另：「是否轮到我出牌」用 PEND.kind==='discard' 判断，不用手牌张数 % 3——碰/杠后
+   张数会变、联机投影在起手花暂存期也会偏短，用张数当开关会漏显示。
+   返回：{ phase:'discard'|'wait', listening, waits:[{t}], knockable, knocks:[{discard,waits}] } */
+function tingState(){
+  const p = G.players && G.players[0];
+  if (!p || !G.running || G.finished) return null;
+  const myDiscard = !!(PEND && PEND.kind === 'discard' && !p.isBot && !NET.autoKnock);
+  if (p.knocked){
+    const w = (p.knockWaits || []).map(t => ({ t }));
+    return { phase: 'wait', listening: w.length > 0, waits: w, knockable: false, knocks: [] };
+  }
+  if (myDiscard){
+    // 出牌态：所有「打 X 就能听」的听口。优先活听口，一个活听都没有才回退到含听死。
+    const knLive = potentialKnocks(p);
+    const knAll = knLive.length ? knLive : potentialKnocks(p, true);
+    const seen = [], list = [];
+    for (const k of knAll) for (const w of k.waits) if (seen.indexOf(w.t) < 0){ seen.push(w.t); list.push(w.t); }
+    list.sort((a, b) => a - b);
+    return { phase: 'discard', listening: false, waits: list.map(t => ({ t })),
+             knockable: list.length > 0, knocks: knLive };
+  }
+  if (!CFG.lajiHu){
+    // 清混碰免敲（等牌态）：形状可听就报，含听死
+    const w = getWaits(p) || [];
+    return { phase: 'wait', listening: w.length > 0, waits: w, knockable: false, knocks: [] };
+  }
+  return { phase: 'wait', listening: false, waits: [], knockable: false, knocks: [] };
+}
+/* ---------- 底部听牌行（唯一渲染点） ----------
+   出牌态 → 「可听 X(n)」；等牌态 → 「听牌中 → X(n)」；n=0（听死）也显示并标红。 */
+function renderTingLine(){
+  const tl = $('tingLine');
+  const st = tingState();
+  const wrap = t => {
+    const n = visibleLeft(t);
+    return '<span class="w' + (n ? '' : ' dead') + '">' + tileName(t) + '(' + n + (n ? '' : '·已绝') + ')</span>';
+  };
+  let html = '';
+  if (st && st.listening) html = '听牌中 → ' + st.waits.map(w => wrap(w.t)).join(' ');
+  else if (st && st.phase === 'discard' && st.knockable) html = '可听 ' + st.waits.map(w => wrap(w.t)).join(' ');
+  tl.innerHTML = html;
+  tl.className = html ? 'tingline show' : 'tingline';
+}
 function renderHUD(){
   const p = G.players[0];
   const a = analyzeMe();
@@ -2706,61 +2756,36 @@ function renderHUD(){
   $('mDi').textContent = ready ? a.di : '—';
   $('mCap').textContent = ready ? capText(capValue()) : '—';
   $('myWind').textContent = SEAT_WIND[(0 - G.dealer + 4) % 4];
-  const knocks = CFG.lajiHu && !p.knocked && !NET.autoKnock && p.hand.length % 3 === 2 ? potentialKnocks(p) : [];
   const kt = $('knockTag');
-  // v1.2.20：清混碰免敲——没有敲定概念，knockTag 显示「实时听牌/未听牌」；
-  // 敲麻维持 已敲·听 / 可敲听 / 未敲·不能胡 三态
-  // v1.3.4：清混碰实时听牌只列「还看得见」的听口——全现完的不算听（与敲麻的敲定判定同口径）
-  const liveWaits = (!CFG.lajiHu && G.running && p.hand.length % 3 === 1) ? aliveWaits(getWaits(p), p) : [];
-  // v1.3.9：形状上已听、但听的牌台面上已全部现出（听死）时，明说「听死」而不是笼统「未听牌」，
-  //   底部听牌行也照样写出来（标 0·已绝），避免玩家对着空白猜「是不是没算出来」。
-  const deadWaits = (!CFG.lajiHu && G.running && p.hand.length % 3 === 1 && !liveWaits.length)
-    ? (getWaits(p) || []).filter(w => leftFor(w.t, p) <= 0) : [];
-  if (!CFG.lajiHu){
-    if (liveWaits.length){
-      kt.textContent = '听 ' + liveWaits.map(w => tileName(w.t) + '(' + visibleLeft(w.t) + ')').join(' / ');
+  // v1.3.10：顶部标签与底部听牌行共用 tingState()——同一判定、同一措辞，不再各算一套，
+  //   也就不会出现「顶部说未听牌/听死、底部说可听/听牌中」自相矛盾。
+  //   清混碰（免敲）：出牌态「可听 X(n)」／等牌态「听牌中 · X(n)」／否则「未听牌」；
+  //   敲麻：已敲「已敲 · 听 X」／未敲但可敲听「可敲听 · 打X 听Y」／否则「未敲 · 不能胡」。
+  const st = tingState();
+  const allDead = !!(st && st.waits.length && st.waits.every(w => leftFor(w.t, p) <= 0));
+  const tagTxt = st ? st.waits.map(w => tileName(w.t) + '(' + visibleLeft(w.t) + ')').join(' / ') : '';
+  if (CFG.lajiHu){
+    if (p.knocked){ kt.textContent = '已敲 · 听 ' + p.knockWaits.map(tileName).join('/'); kt.className = 'knockTag'; }
+    else if (st && st.knocks.length){
+      kt.textContent = '可敲听 · 打' + tileName(st.knocks[0].discard) + ' 听 ' + st.knocks[0].waits.map(w => tileName(w.t)).join('/');
       kt.className = 'knockTag';
-    } else if (deadWaits.length){
-      kt.textContent = '听死 · ' + deadWaits.map(w => tileName(w.t) + '(0)').join(' / ');
-      kt.className = 'knockTag off';
-    } else {
-      kt.textContent = '未听牌';
-      kt.className = 'knockTag off';
-    }
-  } else if (p.knocked){ kt.textContent = '已敲 · 听 ' + p.knockWaits.map(tileName).join('/'); kt.className = 'knockTag'; }
-  else if (knocks.length){ kt.textContent = '可敲听 · 打' + tileName(knocks[0].discard) + ' 听 ' + knocks[0].waits.map(w => tileName(w.t)).join('/'); kt.className = 'knockTag'; }
-  else { kt.textContent = '未敲 · 不能胡'; kt.className = 'knockTag off'; }
-
-  // v1.2.3：听牌行只显示「听牌中 → xx 牌」，放在页面底部边框下方；其他花字信息挪掉。
-  // v1.2.6：底部听牌行只在**已敲（听牌宣告）**后显示——没敲时即使牌型是听牌形状也不算听，
-  //         否则没选敲也会看到「听牌 → xx」误导玩家（可敲听的提示由 knockTag 负责）
-  // v1.2.7：已敲后永远显示「听牌中 →」，不再提示「打xx牌听牌 →」（已听牌的人摸到牌只需打出，
-  //         不需要再听一次；提示由顶部 knockTag 的「已敲 · 听 X/X」兜底）
-  // v1.2.20：清混碰免敲——听牌行随摸打实时刷新当前能和的牌
-  const tl = $('tingLine');
-  if (!CFG.lajiHu){
-    if (liveWaits.length){
-      // v1.2.23：免敲听牌提示恢复并带剩余张数——「听牌中 → 三萬(2) 白(0)」
-      tl.innerHTML = '听牌中 → ' + liveWaits.map(w => '<span class="w">' + tileName(w.t) + '(' + visibleLeft(w.t) + ')</span>').join(' ');
-      tl.className = 'tingline show';
-    } else if (deadWaits.length){
-      // v1.3.9：听死也说清楚——形状已听但听口全绝，别把整行清空
-      tl.innerHTML = '听牌已绝 → ' + deadWaits.map(w => '<span class="w dead">' + tileName(w.t) + '(0·已绝)</span>').join(' ');
-      tl.className = 'tingline show';
-    } else {
-      tl.innerHTML = '';
-      tl.className = 'tingline';
-    }
-  } else if (p.knocked){
-    // v1.2.12：已敲后听牌锁定——底部恒显示敲定时的听牌，不随摸到/打出而变
-    // v1.2.23：敲定后底部听牌也带上剩余张数
-    const wtxt = p.knockWaits.map(x => tileName(x) + '(' + visibleLeft(x) + ')').map(x => '<span class="w">' + x + '</span>').join(' ');
-    tl.innerHTML = '听牌中 → ' + wtxt;
-    tl.className = 'tingline show';
+    } else { kt.textContent = '未敲 · 不能胡'; kt.className = 'knockTag off'; }
+  } else if (st && st.listening){
+    kt.textContent = '听牌中 · ' + tagTxt;
+    kt.className = allDead ? 'knockTag off' : 'knockTag';
+  } else if (st && st.knockable){
+    kt.textContent = '可听 · ' + tagTxt;
+    kt.className = allDead ? 'knockTag off' : 'knockTag';
   } else {
-    tl.innerHTML = '';
-    tl.className = 'tingline';
+    kt.textContent = '未听牌';
+    kt.className = 'knockTag off';
   }
+
+  // v1.3.10：底部听牌行改由 renderTingLine() 统一渲染（定义见本文件）——
+  //   出牌态「可听 X(n)」／等牌态「听牌中 → X(n)」，n=0 也显示；敲麻与清混碰同文案同口径。
+  //   原先散在 renderHUD / renderActs 两处、以「手牌张数 % 3」当开关，碰/杠后或联机投影下
+  //   会漏显示，现收敛为一处、按回合状态判断。
+  renderTingLine();
   // v1.2.11：顶部「番 / 单份」实时计算，不再锁在已敲分支——
   // 听牌取最佳听口番，未听取当前牌型番（analyzeMe 两个分支都给出真番）
   // v1.2.37：得分同样走 hudScore()（与结算 scoreOf 同源），不再自己写一遍乘法
@@ -2986,6 +3011,7 @@ function pickKnock(i){
 
 /* ---------- 操作按钮 ---------- */
 function renderActs(){
+  renderTingLine();   // v1.3.10：底部听牌行（出牌态「可听」/等牌态「听牌中」）统一在此刷新
   const box = $('acts');
   box.innerHTML = '';
   const mkBtn = (txt, cls, fn) => {
@@ -3024,17 +3050,7 @@ function renderActs(){
     //   退一步把「形状上能听」的打法也列出来，张数写 0 并标「已绝」，把「为什么没提示」说清楚。
     const showKnocks = canKnocks.length ? canKnocks
       : ((!me0.knocked && !me0.isBot && me0.hand.length % 3 === 2 && !NET.autoKnock) ? potentialKnocks(me0, true) : []);
-    if (showKnocks.length){
-      const seen = [], list = [];
-      for (const k of showKnocks) for (const w of k.waits) if (seen.indexOf(w.t) < 0){ seen.push(w.t); list.push(w.t); }
-      list.sort((a, b) => a - b);
-      const ting = $('tingLine');
-      ting.innerHTML = '可听 ' + list.map(t => {
-        const n = visibleLeft(t);
-        return '<span class="w' + (n ? '' : ' dead') + '">' + tileName(t) + '(' + n + (n ? '' : '·已绝') + ')</span>';
-      }).join(' ');
-      ting.className = 'tingline show';
-    }
+    // v1.3.10：底部「可听 X(n)」已由 renderTingLine() 统一输出（见 renderActs 首行），此处不再重复写
     // v1.2.20：清混碰免敲没有「敲听」动作；敲麻才有 敲听 按钮
     const knocks = (CFG.lajiHu && !me0.knocked && !NET.autoKnock) ? canKnocks : [];
     if (knocks.length){
@@ -3055,18 +3071,10 @@ function renderActs(){
         });
       }
     } else {
-      // v1.2.18：只有一种听法（唯一听张）时，按钮上方醒目显示差什么牌、还剩几张；
-      // v1.2.20：清混碰免敲 = 当前实时唯一听张；敲麻 = 敲定后锁定的唯一听张
-      let uniWait = null;
-      if (!CFG.lajiHu && G.running && me0.hand.length % 3 === 1){
-        const lw = aliveWaits(getWaits(me0), me0);   // v1.3.4：听死牌不提示「听牌中」
-        if (lw.length === 1) uniWait = lw[0].t;
-      } else if (me0.knocked && me0.knockWaits.length === 1){
-        uniWait = me0.knockWaits[0];
-      }
-      if (uniWait !== null){
-        $('hint').innerHTML = '听牌中 → <b>' + tileName(uniWait) + '</b> · 还有 <b>' + visibleLeft(uniWait) + '</b> 张';
-      } else if (showKnocks.length && !canKnocks.length){
+      // v1.3.10：底部听牌行已由 renderTingLine() 统一显示「可听 X(n)」，这里只留「听死说明」与操作提示。
+      //   （原先的「唯一听张」提示判据用了 hand.length % 3 === 1，而出牌态恒为 % 3 === 2，
+      //     是一段从不触发的死代码，已删除。）
+      if (showKnocks.length && !canKnocks.length){
         // v1.3.9：唯一能成的听口已在台面现完——说清「打哪张能成听，但听的那张已经被打完了」
         const dseen = [], dlist = [];
         for (const k of showKnocks) for (const w of k.waits) if (dseen.indexOf(w.t) < 0){ dseen.push(w.t); dlist.push(tileName(w.t)); }

@@ -2,7 +2,8 @@
 #  A. 单机入口先弹设置：底部「返回 / 开始游戏」；开始后开局；局内改设置点「完成」弹
 #     「重新开局？」确认——取消=不改不重开、确定=应用并清记录重开（新发牌）
 #  B. 点手牌算牌：自己吃碰杠区（副露）同牌也高亮 + 高亮样式加强（3px 蓝 + 光晕）
-#  C. 已敲定且唯一听张：按钮上方显示「听牌中 → xx · 还有 n 张」
+#  C. 已敲定且唯一听张：底部听牌行显示「听牌中 → xx(n)」
+#     （v1.3.10 起底部行由 renderTingLine() 统一输出，原来写在提示行(hint)的那段已删）
 import sys, time
 from playwright.sync_api import sync_playwright
 
@@ -149,8 +150,8 @@ with sync_playwright() as pw:
     gone = pg.evaluate("() => document.querySelectorAll('#ml0 .meld .tile.hl').length")
     check('取消选中后副露高亮清除', gone == 0, gone)
 
-    # ===== Part C：唯一听张提示 =====
-    print('== Part C：唯一听法提示 ==')
+    # ===== Part C：唯一听张提示（v1.3.10：底部听牌行） =====
+    print('== Part C：唯一听法提示（底部行）==')
     # 构造：已敲定、只听说白板
     pg.evaluate("""() => {
       const me = G.players[0];
@@ -167,9 +168,10 @@ with sync_playwright() as pw:
         pg.wait_for_timeout(400)
     pg.evaluate("() => { renderActs(); }")
     pg.wait_for_timeout(200)
-    h = pg.evaluate("() => ({ hint: document.getElementById('hint').innerHTML, knocked: G.players[0].knocked, waits: G.players[0].knockWaits })")
-    check('唯一听法时按钮上方显示「听牌中 → 白」', '听牌中' in h['hint'] and '白' in h['hint'], h['hint'])
-    check('提示含剩余张数', '还有' in h['hint'] and '张' in h['hint'], h['hint'])
+    h = pg.evaluate("() => ({ hint: document.getElementById('hint').innerHTML, ting: document.getElementById('tingLine').innerHTML, knocked: G.players[0].knocked, waits: G.players[0].knockWaits })")
+    check('已敲定唯一听张：底部显示「听牌中 → 白(n)」', '听牌中' in h['ting'] and '白' in h['ting'], h['ting'])
+    check('底部行带剩余张数（n 可为 0）', '(' in h['ting'] and ')' in h['ting'], h['ting'])
+    check('提示行不再重复「听牌中」', '听牌中' not in h['hint'], h['hint'])
 
     pg.close(); b.close()
 
