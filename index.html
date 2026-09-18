@@ -354,6 +354,8 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 .tingline.show{opacity:1}
 .tingline b{color:var(--gold);font-weight:800}
 .tingline .w{color:var(--blue);font-weight:700}
+/* v1.3.9：听死提示——形状上已听、但听的牌台面已现完时不再留空，用告警色写明「已绝」 */
+.tingline .w.dead{color:var(--red);font-weight:700}
 
 /* ---------- 操作按钮 ---------- */
 .acts{flex:0 0 auto;display:flex;gap:6px;justify-content:center;height:46px;margin-top:3px;padding:0 4px}
