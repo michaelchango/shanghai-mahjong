@@ -35,10 +35,16 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
    （offsetWidth/clientHeight/style px 全保持原坐标系），游戏内 JS
    （fitRivers / fitLog / fitBacks / seatToast 视口定位）全部零改动。
    --pz 由主脚本 CUT 之后的客户端段按窗口设定：贴近 680px 设计高的最大倍率、上限 2 倍、手机恒为 1。 */
-#pcz{height:calc(100dvh / var(--pz));transform:scale(var(--pz));transform-origin:50% 0;
-  /* v1.2.42：will-change 让这层独立合成、并按 transform 的实际倍率栅格化 ——
-     否则部分 GPU 路径会按布局尺寸栅格化再由合成器放大，牌面/文字发糊；
-     #pcz 本来就有 transform（已是 fixed 后代的包含块），所以不会引入新的定位副作用 */ will-change:transform}
+#pcz{height:calc(100dvh / var(--pz));transform:scale(var(--pz));transform-origin:50% 0}
+/* v1.3.12：摘掉 #pcz 的 will-change:transform —— 但**它不是这次「糊」的原因**，别再把这条当结论。
+   2026-09-20 在真机（Chrome/Edge 153、dpr 1.25、--pz=1.21、线上页面）做了 DOM 锚定的逐张牌对照：
+   `will-change:transform` 开/关，同一帧、同一切图口径下的 n21 / 锐利笔画占比**完全相同**
+   （0.34624 / 0.21198，五位小数一致）→ 长期合成层的栅格倍率猜想在本机证伪。
+   之所以仍然摘掉：静态 transform 本来就不强制建层，留着它等于无条件把整棵子树放进一个
+   长期存活的合成层，白白多一层栅格缓存与重绘路径，没有任何收益。纯属减负，不是修 bug。
+   真正的原因见下面 .hand .tile.ban 的注释（38% 压暗把刚吃/碰进的那张牌洗白了）。
+   ⚠️ 仍然别往 #pcz 上加 will-change / filter / 元素级 opacity：这三类写法在缩放子树里
+   只会带来「独立渲染表面」的额外开销，收益为零。 */
 
 /* ---------- 顶栏 ---------- */
 .topbar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);padding:0 2px 3px;flex:0 0 auto}
@@ -339,22 +345,18 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
    视觉上「不可打出」由选中态与提示行表达，不再用 cursor:default */
 .hand .tile.locked{cursor:pointer}
 /* v1.2.40：刚吃/碰进、本次不能打出的牌——压暗 + 加一道斜线，点它会弹提示 */
-/* v1.3.11：压暗不再用元素级 opacity。
-   .tile.ban 只在「吃/碰后等待出牌」这一瞬间挂上手牌，是南家**唯一**带透明度的元素；
-   在 #pcz 的 transform:scale 容器内，元素级透明度会逼浏览器为它单独建一层渲染表面
-   （render surface）；该表面若按布局尺寸栅格化、再由祖先放大，整个南家就会「发糊」。
-   与用户反馈完全吻合：吃/碰后等待出牌才糊、浏览器缩放一下（重建图层树）即恢复。
-   v1.2.47e 去掉 filter 是同一类问题的第一步，opacity 只是把症状减弱、并未根除。
-   这里改成「在牌面直接画一层半透明色」的纯绘制画法（与 .tile:before 同一手法），
-   斜线也并入同一层 ::after 背景，全程不产生透明度图层。 */
+/* v1.3.13：压暗覆盖从 38% 降到 12%（真机上逐张牌量出来的）。
+   v1.3.11 把元素级 opacity 换成纯绘制层方向是对的：实测「锐利笔画占比」从 −54.7% 收窄到 −21.4%。
+   但 38% 的绿灰覆盖仍然吃掉 −26.5% 亮度 —— PC 上牌只有 ~36 设备像素宽（手机是 24×3=72），
+   笔画本来就细，再盖一层雾就正好越过「看得清」的阈值，表现出来就是刚吃/碰进的那张牌「糊」。
+   降到 12% 后亮度/锐利笔画基本回到未禁水平；而「本次不能打」这个意思由红斜线 + not-allowed
+   光标 + 点它弹提示三重表达，不靠压暗。 */
 .hand .tile.ban{cursor:not-allowed}
 .hand .tile.ban::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   background:
     linear-gradient(166deg,rgba(255,90,90,0) calc(50% - 1px),rgba(255,90,90,.92) calc(50% - 1px) calc(50% + 1px),rgba(255,90,90,0) calc(50% + 1px)),
     linear-gradient(166deg,rgba(0,0,0,0) calc(50% - 2px),rgba(0,0,0,.5) calc(50% - 2px) calc(50% + 2px),rgba(0,0,0,0) calc(50% + 2px)),
-    /* 覆盖色/透明度 = 实测反解原 opacity:.58 的等效混色（牌面 = 62%牌 + 38%牌桌绿），
-       所以观感与原版几乎一致，只是不再产生透明度图层 */
-    linear-gradient(rgba(21,67,52,.38) 0%,rgba(21,67,52,.38) 100%)}
+    linear-gradient(rgba(21,67,52,.12) 0%,rgba(21,67,52,.12) 100%)}
 .hand .drawgap{width:7px;flex:0 0 7px}
 .hint{text-align:center;font-size:11px;color:var(--dim);height:15px;line-height:15px;margin-top:2px;flex:0 0 auto}
 .hint b{color:var(--gold)}
@@ -734,7 +736,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.11</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.13</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
