@@ -325,4 +325,4 @@ for f in tests/m*.py; do python3 "$f" || exit 1; done
 
 ## 版本
 
-当前 **v1.3.13**。完整版本历史见 `CHANGELOG.md`。
+当前 **v1.3.14**。完整版本历史见 `CHANGELOG.md`。

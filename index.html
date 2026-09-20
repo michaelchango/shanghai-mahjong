@@ -31,20 +31,20 @@ button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer
   padding:calc(env(safe-area-inset-top,0px) + 4px) 5px calc(env(safe-area-inset-bottom,0px) + 4px)}
 
 /* ---------- v1.2.26 PC 自适应整体放大（只等比缩放渲染，不改布局/功能） ----------
-   #pcz 包住 首页+牌桌+浮层，transform:scale 等比放大；transform 不影响任何布局计算值
-   （offsetWidth/clientHeight/style px 全保持原坐标系），游戏内 JS
-   （fitRivers / fitLog / fitBacks / seatToast 视口定位）全部零改动。
+   v1.3.14：#pcz 从 transform:scale 改为 **zoom**（布局级缩放）。这是「吃/碰后整排手牌发糊」的根治。
+   实测同一帧对照（Chrome 153 / dpr 1.25 / --pz 1.21 / 14 张手牌等待出牌态）：
+     transform:scale 且强制 .hand 提升为合成层  → 锐利笔画占比 0.1503（比不提升掉 42%）＝ 用户看到的「整排糊」
+     zoom 且同样强制 .hand 提升为合成层        → 锐利笔画占比 0.2739（与不提升 0.2704 持平，甚至略好）
+   原理：transform:scale 是「先按布局尺寸栅格化、再由合成器放大」——子树里任何元素一旦被 Chrome
+   提升成独立合成层（重叠启发式 / 动画 / 遮罩等动态触发），就会按 1× 栅格化再被放大 → 整块发糊；
+   zoom 是布局级缩放，布局与绘制直接发生在目标尺寸上，不存在「低分辨率图层被放大」这一步，
+   所以**这一类 bug 被整类消灭**。也解释了：为什么只有手牌糊、为什么手牌越多越容易、
+   为什么打出一张牌（手牌重建重绘）就恢复、为什么手机免疫（--pz=1 无缩放）。
+   ⚠️ 代价：zoom 下布局像素 = 设计像素 × pz，因此 **JS 里量出来的尺寸必须除回 pz**
+   才能和设计常数混算（见 fitRivers / fitBacks / fitLog 里的 pzNum()）；
+   getBoundingClientRect / clientX 等视口坐标两种方案下都是视觉像素，相关代码零改动。
    --pz 由主脚本 CUT 之后的客户端段按窗口设定：贴近 680px 设计高的最大倍率、上限 2 倍、手机恒为 1。 */
-#pcz{height:calc(100dvh / var(--pz));transform:scale(var(--pz));transform-origin:50% 0}
-/* v1.3.12：摘掉 #pcz 的 will-change:transform —— 但**它不是这次「糊」的原因**，别再把这条当结论。
-   2026-09-20 在真机（Chrome/Edge 153、dpr 1.25、--pz=1.21、线上页面）做了 DOM 锚定的逐张牌对照：
-   `will-change:transform` 开/关，同一帧、同一切图口径下的 n21 / 锐利笔画占比**完全相同**
-   （0.34624 / 0.21198，五位小数一致）→ 长期合成层的栅格倍率猜想在本机证伪。
-   之所以仍然摘掉：静态 transform 本来就不强制建层，留着它等于无条件把整棵子树放进一个
-   长期存活的合成层，白白多一层栅格缓存与重绘路径，没有任何收益。纯属减负，不是修 bug。
-   真正的原因见下面 .hand .tile.ban 的注释（38% 压暗把刚吃/碰进的那张牌洗白了）。
-   ⚠️ 仍然别往 #pcz 上加 will-change / filter / 元素级 opacity：这三类写法在缩放子树里
-   只会带来「独立渲染表面」的额外开销，收益为零。 */
+#pcz{height:calc(100dvh / var(--pz));zoom:var(--pz)}
 
 /* ---------- 顶栏 ---------- */
 .topbar{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);padding:0 2px 3px;flex:0 0 auto}
@@ -736,7 +736,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.13</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.14</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -2875,13 +2875,14 @@ function fitBacks(){
       const bk = $('bk' + i), n = bk.children.length;
       if (!n) continue;
       const tile = bk.children[0].firstChild;       // 牌的实际高度即 --th
-      const th = (tile && tile.offsetHeight) || 33; // 上下 padding 各 th/2，合计 th
+      const PZ = pzNum();                            // v1.3.14：zoom 下测量值 ÷ pz = 设计像素
+      const th = tile ? tile.offsetHeight / PZ : 33; // 上下 padding 各 th/2，合计 th
       // v1.2.28：可用高度改量座位容器（原来量牌背自身内容高度，会越压越扁、永远重叠）
       // v1.2.29：槽位目标 18 → 14px——用户反馈左右家手牌展开后「分的有点开」，
       // 改成与对家同密度：对家 24px 牌 margin -3px（中心距 21 = 87.5%），
       // xs 牌旋转视觉高 16 × 0.875 = 14px，紧拢略叠；空间不够仍按比例压缩（下限 4）
       const seat = bk.parentNode;
-      const avail = (seat && seat.clientHeight ? seat.clientHeight : bk.clientHeight) - th - 3;
+      const avail = ((seat && seat.clientHeight ? seat.clientHeight : bk.clientHeight) / PZ) - th - 3;
       if (avail <= 8) continue;
       const h = Math.max(4, Math.min(14, Math.floor(avail / n)));
       for (const s of bk.children) s.style.height = h + 'px';
@@ -2926,6 +2927,13 @@ const RV_TILE_W = 16, RV_TILE_H = 22;   // 上下牌河牌 .tile.xs（开局无�
 function riverW(n, tileW){
   return n * tileW + (n - 1) * RV_GAP + 2 * RV_PAD + 2 * RV_BD;
 }
+/* v1.3.14：#pcz 改用 zoom 后，布局像素 = 设计像素 × pz。
+   所有「量 DOM 尺寸再和设计常数混算」的地方都必须先除回 pz；
+   getBoundingClientRect / clientX 等视口坐标两种缩放方案下都是视觉像素，不受影响、不换算。 */
+function pzNum(){
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pz'));
+  return (isFinite(v) && v > 0) ? v : 1;
+}
 function fitRivers(){
   const row = document.querySelector('.rowmid2');
   if (!row) return;
@@ -2934,7 +2942,7 @@ function fitRivers(){
   // v1.2.32：行数与容器高度用同一个公式（内容高 = rows×槽高 + (rows-1)×间隙），
   // 容器高 = 内容高 + 上下内边距(1×2) + 上下边框(1×2)（全局 box-sizing:border-box）。
   // 旧写法少算这 4px，导致每行实际少放一张、牌河底部空出约 12px
-  const avail = row.clientHeight;
+  const avail = row.clientHeight / pzNum();   // v1.3.14：zoom 下量到的是缩放后像素，除回 pz 才是设计像素
   const rows = Math.max(RV_ROWS_MIN, Math.min(RV_ROWS_MAX, Math.floor((avail - 3) / (RV_SLOT_H + RV_GAP))));
   // v1.2.28：按当前行数（=左右家视角的牌河长度）与槽位尺寸推算两排是否放得下，放不下自动变三排；
   // v1.2.30：三排只在宽屏（PC）启用——手机/窄窗口恒两排（屏幕窄，三排既放不下也不好看）
@@ -2953,15 +2961,16 @@ function fitRivers(){
   //   每排张数 = min(容量需求 ceil(RV_NEED/行数), 可用宽能放下的最大整数张 nmax)
   //   宽屏：容量需求 15 张 → 宽度锁 260 居中；窄屏：触到 nmax → 取满宽，仍不留零头
   //   （v1.2.30 的「四家围成方形」在宽屏让位于「宽度与牌精确匹配」，居中留白由 margin auto 消化）
-  const W = row.clientWidth;
-  // 牌尺寸：优先量真实牌（布局像素，不受 --pz 缩放影响），开局无牌时用常量兜底
+  const W = row.clientWidth / pzNum();
+  // 牌尺寸：优先量真实牌（zoom 下量到的是缩放后像素，除回 pz = 设计像素），开局无牌时用常量兜底
   const probe = document.querySelector('#rvS .tile') || document.querySelector('#rvN .tile');
-  const tw = probe ? probe.offsetWidth : RV_TILE_W;
-  const th = probe ? probe.offsetHeight : RV_TILE_H;
+  const PZ = pzNum();
+  const tw = probe ? probe.offsetWidth / PZ : RV_TILE_W;
+  const th = probe ? probe.offsetHeight / PZ : RV_TILE_H;
   for (const id of ['rvN', 'rvS']){
     const el = $(id);
     if (!el) continue;
-    const inner = el.clientHeight - 2 * RV_PAD - 2 * RV_BD;
+    const inner = el.clientHeight / PZ - 2 * RV_PAD - 2 * RV_BD;
     const lines = Math.max(1, Math.floor((inner + RV_GAP) / (th + RV_GAP)));
     const nmax = Math.max(6, Math.floor((W - 2 * RV_PAD - 2 * RV_BD + RV_GAP) / (tw + RV_GAP)));
     const n = Math.min(Math.ceil(RV_NEED / lines), nmax);
@@ -2983,8 +2992,9 @@ function fitLog(){
   const log = $('log');
   if (!bot || !log) return;
   const more = document.querySelector('.logmore');
-  const avail = bot.clientHeight;
-  const fixed = (more ? more.offsetHeight : 15) + 4;
+  const PZ = pzNum();                                  // v1.3.14：zoom 下测量值 ÷ pz = 设计像素
+  const avail = bot.clientHeight / PZ;
+  const fixed = (more ? more.offsetHeight / PZ : 15) + 4;
   const rows = Math.max(0, Math.min(3, Math.floor((avail - fixed) / 13)));
   log.style.height = rows * 13 + 'px';
   log.style.display = rows === 0 ? 'none' : 'flex';
@@ -5339,7 +5349,8 @@ function remap(seat){ return NET.active ? (seat - NET.mySeat + 4) % 4 : seat; }
 
 /* 网络帧合并渲染：把同一帧内到达的多条 view/ask 合并成「每动画帧最多一次」整页渲染。
    原因：服务器常在同一批次先发 view 再发 ask，原逻辑各调一次 render() → 连续两整页重建，
-   在 #pcz(transform:scale) 下等于连续两次整层重栅格化，联机时表现为「卡卡」。 */
+   在整页缩放（v1.3.14 前 #pcz 用 transform:scale，现为 zoom）下等于连续两次整层重栅格化，
+   联机时表现为「卡卡」。 */
 let _netRaf = 0;
 function scheduleNetRender(){
   if (_netRaf) return;
