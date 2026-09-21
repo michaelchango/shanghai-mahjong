@@ -1,3 +1,14 @@
+## v1.3.16 — 白板牌面图案消失修复（clip-path 全局 defs）
+
+- **现象**：牌河/手牌里的白板只剩白底，双线框图案整体消失（2026-09-21 用户截图实报）。
+- **根因**：每张牌的 SVG 自带 `<defs><clipPath id="haku_a">`，而 `url(#id)` 按「文档中第一个同 id」解析；
+  实测（hakuprobe）文档里第一个 `#haku_a` 落在 display:none 的隐藏容器里，当前 Chrome 拒绝从
+  display:none 子树解析 clip-path → 全页白板裁剪失效。与 v1.3.14 的 zoom 改造无关（transform:scale 同样会坏）。
+- **修复**：启动时把 STD_FACES 里所有 defs 去重后注入一个可见的全局 defs SVG（`#__global_defs`，
+  width/height 0、absolute），插到 body 第一个子节点 —— 保证生效实例永远可见；各牌面内重复 defs 无害保留。
+  该修复同时消除「任意牌面图案偶发消失」这类同机制隐患（不止白板）。
+- **验证**：hakuprobe 真游戏环境注入四家牌河白板，修复前 firstHakuState=display-none，修复后 visible，
+  8/8 张牌河白板框线像素实测在位（dpr 1.25）；extract 9 patch/导出 106/106；unit.js 63/63。
 # 更新日志
 
 ## v1.3.15（2026-09-20）
