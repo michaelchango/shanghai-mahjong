@@ -1,3 +1,10 @@
+## v1.3.17 — 白板框线抗缩放加固（non-scaling-stroke）
+
+- 用户反馈 v1.3.16 后生产仍见白板空白；本机真 Chrome 对生产页实测（GPU/软件渲染 × 多缩放档）
+  四家牌河注入白板 8/8 框线在位 → 部署代码已生效，用户侧现象指向旧标签页未刷新或 WorkBuddy 地址（v1.3.13）。
+- 加固：haku 主框线路径加 `vector-effect="non-scaling-stroke" stroke="#1A1A1A" stroke-width="0.6"`，
+  任何牌面尺寸 / 页面缩放 / 设备像素比下框线恒定保底 ~0.6 设备像素，杜绝「细线随缩放相位淡出」一类问题。
+- 验证：hakuprobe GPU 关/开两轮 8/8 RING OK；extract 9 patch/106；unit.js 63/63。
 ## v1.3.16 — 白板牌面图案消失修复（clip-path 全局 defs）
 
 - **现象**：牌河/手牌里的白板只剩白底，双线框图案整体消失（2026-09-21 用户截图实报）。
