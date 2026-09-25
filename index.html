@@ -611,7 +611,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   .fslot{width:21px;height:15px}
 }
 
-/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.0） ---------- */
+/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.1） ---------- */
 #mlm{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;
   background:radial-gradient(130% 90% at 50% 12%,var(--felt5) 0%,var(--felt4) 72%)}
 .mlmTop{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 14px 2px}
@@ -797,7 +797,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
     <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.0</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.1</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -836,7 +836,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   </div>
 </div><!-- /#home -->
 
-<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.0） ========== -->
+<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.1） ========== -->
 <div id="mlm" class="hide">
   <div class="mlmTop">
     <span class="mlmTitle">麻了个麻</span>
@@ -5827,7 +5827,7 @@ window.testAi = testAi;            // 「测试连接」：真打一次模型，
 window.resetAll = resetAll;
 
 /* ========================================================================
-   麻了个麻 —— 堆叠消除小游戏（v1.4.0）
+   麻了个麻 —— 堆叠消除小游戏（v1.4.1）
    玩法（参考羊了个羊第二关，无热身关）：全屏堆叠麻将牌，只有没被上层
    压住的牌可点；点入底部牌槽（同牌自动靠拢），同牌满 3 自动消除；
    牌槽共 8 格，满且未消除即失败；场上牌全部消除即胜利。
@@ -5895,27 +5895,34 @@ function mlmPatternCells(name, e, cr, cc){
   return cells;
 }
 /* 生成堆叠（参考羊了个羊真实结构「大平铺底座 + 多塔并行」）：
-   ① 底座 4 层：全版式大铺满场地——开局外圈大量可点、好消；
+   ① 底座 4 层：全版式大铺 + 随机抽空——下层有露出来可直接点的牌，
+      上下层可以穿插着消，不再是「上层把下层全密封」；
    ② 四角四塔并行堆叠：层间恒差半张（上层骑在下层 4 张交点上，错落叠放），
       配额不均 → 逐塔封顶，局面逐渐收窄到最后一塔，难度渐增；
-   ③ 全局占位表保证任何两张牌都不完全重合（所有叠压至少留半张错位），
+   ③ ΔL≤2 禁完全重合（挖开一张原地又冒一张的观感根因），ΔL≥3 深堆允许；
       同层牌互不叠压。
+   ④ 发面三元组交错：每层混多种面、同种三组分居相邻层带（见发面段注释）。
    牌型 27 种（万/筒/条）× 9 = 243 张。 */
 function mlmGen(){
   const T = []; let id = 0, L = 0;
-  /* 占位表：位置 → 该位置现有牌的层号。相邻层（|ΔL|≤1）禁止完全重合——
-     这是「上下两层完全重叠」的根因；隔 2 层以上的重合在挖到之前不可见
-     （盖住它的牌早被拿走），允许存在（羊了个羊式深堆），彻底解锁容量 */
+  /* 占位表：位置 → 该位置现有牌的层号。ΔL≤2 禁止完全重合——
+     「挖开一张、原地又冒一张」的观感就来自隔层精确堆叠，一并禁掉；
+     ΔL≥3 的深堆允许（挖到那时周边早清空，不会看成重叠） */
   const occ = new Map();
   const keyOf = (x, y) => Math.round(x * 2) + '_' + Math.round(y * 2);
   const overlap = (a, b) => Math.abs(a[0] - b[0]) < 1 && Math.abs(a[1] - b[1]) < 1;
   const layerPosAll = {};                      // 每层已放位置：同层互不叠压（含跨塔）
   /* 在以 (cr,cc) 为中心、半宽 e 的版式上放 want 张（off 为该层半张错位），
-     clip 为可选象限裁剪（塔与塔互不越界、互不压牌），返回实放数 */
-  const place = (cr, cc, e, name, want, off, lay, g, clip) => {
-    const cells = mlmPatternCells(name, e, cr, cc).filter(rc =>
+     clip 为可选象限裁剪（塔与塔互不越界、互不压牌），skipP 为随机抽空比例
+     （版式留出空洞：下层有露出来可直接点的牌，牌面疏落有致），返回实放数 */
+  const place = (cr, cc, e, name, want, off, lay, g, clip, skipP) => {
+    let cells = mlmPatternCells(name, e, cr, cc).filter(rc =>
       !clip || (rc[0] >= clip[0] && rc[0] <= clip[1] && rc[1] >= clip[2] && rc[1] <= clip[3]));
     mlmShuffle(cells);
+    if (skipP && cells.length > want + 6){
+      const kept = cells.filter(() => Math.random() >= skipP);
+      if (kept.length >= want) cells = kept;   // 有富余才抽空，保证放满 want
+    }
     const lp = layerPosAll[lay] || (layerPosAll[lay] = []);
     let placed = 0;
     for (let i = 0; i < cells.length && placed < want; i++){
@@ -5928,7 +5935,7 @@ function mlmGen(){
         if (clip && (c < clip[2] || c > clip[3] || r < clip[0] || r > clip[1])) continue;
         const p = [c + off, r + off];
         const prevL = occ.get(keyOf(p[0], p[1]));
-        if (prevL !== undefined && L - prevL <= 1) continue; // 相邻层完全重合 → 换位
+        if (prevL !== undefined && L - prevL <= 2) continue; // ΔL≤2 完全重合 → 换位
         let clash = false;
         for (const q of lp) if (overlap(p, q)){ clash = true; break; }
         if (clash) continue;                                 // 保持同层互不叠压
@@ -5941,10 +5948,10 @@ function mlmGen(){
     }
     return placed;
   };
-  /* 阶段一：底座 4 层，全版式大铺——开局外圈大量可点、好消（羊了个羊前期体验） */
+  /* 阶段一：底座 4 层，全版式大铺（带随机抽空：上层抽得多，下层有露出可点的牌） */
   const BASE_PAT = ['rect', 'circle', 'diamond', 'corners', 'ring'];
   for (let b = 0; b < 4; b++, L++)
-    place(4, 4, 4, BASE_PAT[mlmRi(BASE_PAT.length)], 27, (L % 2) * 0.5, L, 0);
+    place(4, 4, 4, BASE_PAT[mlmRi(BASE_PAT.length)], 27, (L % 2) * 0.5, L, 0, null, b < 2 ? 0.08 : 0.16);
   /* 阶段二：四角四塔并行，各自锁在 4×4 专属象限（中缝第 4/5 行列留空），
      塔间永不互压 → 每塔可独立挖穿；配额 36/36/36/27（每塔 3~4 种面），先后封顶、局面收窄 */
   const QUADS = [
@@ -5970,7 +5977,7 @@ function mlmGen(){
       const k = Math.min(p.left, p.left > 30 ? 5 : p.left > 16 ? 4 : 3);
       const got = place(p.cr, p.cc, eff,
         eff >= 2 ? TOWER2[mlmRi(TOWER2.length)] : TOWER1[mlmRi(TOWER1.length)],
-        k, off, L, 1 + i, p.clip);
+        k, off, L, 1 + i, p.clip, 0.10);
       if (got === 0) p.esc = Math.min(4, eff + 1);          // 卡死 → 扩版式兜底（仍在象限内），保证塔恰好收尾
       p.left -= got;
     });
@@ -5980,18 +5987,50 @@ function mlmGen(){
     L++;
     if (!place(4, 4, 4, 'rect', MLM_TOTAL - T.length, (L % 2) * 0.5, L, 0)) break;
   }
-  /* 牌面分配（羊了个羊式「同种牌就近成串」）：把 27 种面各自 9 张连成整块、
-     只洗块的顺序拉成段流，按 底座→各塔、层号递增 顺序连续切给各区——
-     一个面种基本完整落在单个区里（仅区边界 ~4 种面跨界），底座每层恰好
-     3 个整面种、塔内 3~4 个整面种：挖开一片即连锁消，垫牌速度 < 消牌速度 */
+  /* 牌面分配 v2（三元组交错，破「整层铺同种」）：每种面 9 张切成 3 个三元组，
+     仍整区发放（同种不跨区，保可解性），但区内三元组按「目标间隔」交错排布——
+     底座同种相邻组隔 4 槽（跨 1~2 层）、塔内隔 2 槽：每一层都混 4~8 种面，
+     看到一张同种，搭档常要跨层找，必须用牌槽垫牌，不能再整层连锁白捡。 */
   {
     const faces = mlmShuffle([...Array(27).keys()]);
-    const seq = [];
-    for (const f of faces) for (let k = 0; k < 9; k++) seq.push(f);
-    let p = 0;
+    let fp = 0;
     for (let g = 0; g <= 4; g++){
-      T.filter(t => t.g === g).sort((a, b) => a.L - b.L)
-        .forEach(t => { t.face = seq[p++]; });
+      const arr = T.filter(t => t.g === g).sort((a, b) => a.L - b.L);
+      if (arr.length % 9 !== 0){
+        /* 兜底区（非 9 整除，罕见）：整块连发 */
+        let left = arr.length;
+        for (let t = 0; left > 0; t++){
+          const f = faces[fp++], take = Math.min(9, left);
+          for (let k = 0; k < take; k++) arr[arr.length - left + k].face = f;
+          left -= take;
+        }
+        continue;
+      }
+      const n = arr.length / 9;                        // 本区面种数
+      const S = g === 0 ? 5 : 2;                       // 同种面相邻三元组的目标间隔（槽数）；
+                                                       // 底座 5 槽保证同种必跨层（层=9 槽）
+      const rk = [];
+      for (let i = 0; i < n; i++) rk.push(faces[fp++]);
+      const lastAt = new Array(n).fill(-99);
+      const leftK = new Array(n).fill(3);
+      for (let t = 0; t < 3 * n; t++){
+        let best = -1, bestScore = -1e9;
+        for (let k = 0; k < n; k++){
+          if (!leftK[k]) continue;
+          if (3 * n - 1 - t < (leftK[k] - 1) * S) continue;   // 剩余槽位不够按间隔收尾 → 缓放
+          const gap = t - lastAt[k];
+          if (lastAt[k] >= 0 && gap < S) continue;            // 间隔未到
+          const due = lastAt[k] < 0 ? 0 : gap - S;            // 越欠账越优先
+          const score = -due + Math.random() * 0.5;           // 并列随机，避免呆板
+          if (score > bestScore){ bestScore = score; best = k; }
+        }
+        if (best < 0)
+          for (let k = 0; k < n; k++)
+            if (leftK[k] && (best < 0 || leftK[k] > leftK[best])) best = k;
+        const f = rk[best], b3 = t * 3;
+        arr[b3].face = f; arr[b3 + 1].face = f; arr[b3 + 2].face = f;
+        leftK[best]--; lastAt[best] = t;
+      }
     }
   }
   /* 牌堆外接框中心（按整堆算一次、固定不变）：渲染时把整堆平移到面板正中，
