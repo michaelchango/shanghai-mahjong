@@ -611,6 +611,62 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   .fslot{width:21px;height:15px}
 }
 
+/* ---------- 麻了个麻（堆叠消除小游戏，v1.3.19） ---------- */
+#mlm{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;
+  background:radial-gradient(130% 90% at 50% 12%,var(--felt5) 0%,var(--felt4) 72%)}
+.mlmTop{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 14px 2px}
+.mlmTitle{font-size:20px;font-weight:900;color:var(--gold);letter-spacing:3px;
+  text-shadow:0 2px 10px rgba(0,0,0,.5)}
+.mlmLeft{flex:1;text-align:right;font-size:12px;color:var(--dim);letter-spacing:1px}
+.mlmGear{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);
+  background:rgba(255,255,255,.07);color:var(--txt);font-size:17px;line-height:1;
+  display:flex;align-items:center;justify-content:center}
+.mlmGear:active{background:rgba(255,255,255,.14)}
+/* 牌场做成一个明确的圆角面板：边界可见、内留白充足，牌和牌影不会被裁 */
+.mlmBoardWrap{flex:1;position:relative;overflow:hidden;margin:4px 10px 6px;
+  background:radial-gradient(120% 100% at 50% 28%,rgba(255,255,255,.05),rgba(0,0,0,.16));
+  border:1px solid rgba(255,255,255,.09);border-radius:14px}
+/* z-index:1 让牌的层级（L*10，可到 160+）被困在牌场自己的层叠上下文里，
+   否则会盖住 z-index:9 的结算/设置面板 */
+.mlmBoard{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1}
+.mlmT{position:absolute;cursor:pointer}
+/* 被上层压住的牌：rgba 色层压暗（不用 opacity/filter） */
+.mlmT.covered:after{content:"";position:absolute;inset:0;border-radius:4px;background:rgba(16,28,24,.30)}
+.mlmT:not(.covered):active{box-shadow:0 1px 0 #c6bda6,0 1px 2px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.95)}
+/* 飞行牌（点入牌槽 / 移出 / 撤回 / 回槽 共用的过渡动画载体） */
+.mlmFlyT{position:absolute;z-index:50;pointer-events:none;margin:0;
+  transition:transform .28s cubic-bezier(.45,1.25,.5,1)}
+/* 打乱重排：错落波浪重铺 */
+@keyframes mlmShufA{from{transform:scale(.5)}to{transform:scale(1)}}
+.mlmT.mlmSh{animation:mlmShufA .3s ease backwards}
+.mlmPending{display:flex;justify-content:center;align-items:flex-end;gap:3px;
+  min-height:calc(var(--su,26px)*0.95);padding:2px 0 0}
+.mlmPending .tile{cursor:pointer}
+.mlmSlot{display:flex;justify-content:center;gap:4px;padding:8px 0 4px}
+.mlmSlotCell{width:var(--su,26px);height:calc(var(--su,26px)*1.32);border-radius:6px;
+  border:1px dashed rgba(255,255,255,.16);background:rgba(0,0,0,.18);
+  display:flex;align-items:center;justify-content:center}
+.mlmSlotCell .tile{border-radius:5px}
+.mlmActs{display:flex;justify-content:center;gap:10px;padding:6px 0 max(10px,env(safe-area-inset-bottom))}
+.mlmAct{flex:0 0 auto;min-width:96px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04));color:var(--txt);
+  font-size:14px;font-weight:700;letter-spacing:1px;display:flex;flex-direction:column;align-items:center;gap:1px}
+.mlmAct small{font-size:9.5px;font-weight:400;color:var(--dim2);letter-spacing:.5px}
+.mlmAct:active{transform:scale(.97)}
+.mlmAct.off{color:var(--dim2);background:rgba(255,255,255,.02);border-color:rgba(255,255,255,.08);pointer-events:none}
+@keyframes mlmPop{from{transform:scale(1.28)}to{transform:scale(1)}}
+.tile.pop{animation:mlmPop .18s ease}
+/* 满 3 消除：错落上浮消散（delay 由 JS 按第几张注入 animation-delay） */
+@keyframes mlmBye{to{transform:translateY(-10px) scale(.15);opacity:0}}
+.tile.gone{animation:mlmBye .32s ease forwards}
+.mlmMask{position:absolute;inset:0;z-index:9;background:rgba(0,0,0,.55);
+  display:flex;align-items:center;justify-content:center}
+.mlmPanel{width:min(280px,84vw);background:linear-gradient(180deg,#243c33,#1a2d26);
+  border:1px solid var(--line);border-radius:14px;padding:16px 16px 6px;text-align:center;animation:hIn .22s ease}
+.mlmResT{font-size:22px;font-weight:900;letter-spacing:3px;color:var(--gold);margin:4px 0 10px}
+.mlmResT.lose{color:var(--red)}
+.mlmResD{font-size:12.5px;color:var(--dim);margin:-4px 0 10px;letter-spacing:.5px}
+
 /* ---------- 首页 / 多人大厅 / 房间 ---------- */
 #home{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
   background:radial-gradient(130% 90% at 50% 18%,var(--felt5) 0%,var(--felt4) 72%);
@@ -636,6 +692,8 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 .hBtn.solo::before{content:'🀄';font-size:19px}
 .hBtn.multi{border-color:rgba(99,179,255,.35)}
 .hBtn.multi::before{content:'👥';font-size:16px}
+.hBtn.mini{border-color:rgba(120,220,160,.35)}
+.hBtn.mini::before{content:'🎴';font-size:16px}
 .hBtn.pri{background:linear-gradient(180deg,var(--priHi),var(--priLo));border-color:rgba(var(--priGlow),.5)}
 .hBtn.danger{background:linear-gradient(180deg,#9e3a3a,#6e2222);border-color:rgba(255,120,120,.5)}
 .hBtn:active{transform:scale(.985);filter:brightness(1.12)}
@@ -738,7 +796,8 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <div class="hTitle" data-page-node-id="yRLcO2LhthO4P7jL5N82c9">一道来麻将<span class="sub" data-page-node-id="R5gd9BMbDpwJnuWNDEaKkU">敲麻 / 清混碰</span></div>
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.18</div>
+    <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.3.19</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -776,6 +835,32 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBack" id="rLeave" data-page-node-id="PZolnBY1G4jGq8rGQA4Xz3">退出房间</button>
   </div>
 </div><!-- /#home -->
+
+<!-- ========== 麻了个麻（堆叠消除小游戏，v1.3.19） ========== -->
+<div id="mlm" class="hide">
+  <div class="mlmTop">
+    <span class="mlmTitle">麻了个麻</span>
+    <span class="mlmLeft" id="mlmLeft"></span>
+    <button class="mlmGear" id="mlmGear" title="设置">⚙</button>
+  </div>
+  <div class="mlmBoardWrap" id="mlmBoardWrap"><div class="mlmBoard" id="mlmBoard"></div></div>
+  <div class="mlmPending" id="mlmPending"></div>
+  <div class="mlmSlot" id="mlmSlot"></div>
+  <div class="mlmActs">
+    <button class="mlmAct" id="mlmOut">移出<small>移出前 3 张 · 点暂存牌取回</small></button>
+    <button class="mlmAct" id="mlmUndo">撤回<small>撤回上一步</small></button>
+    <button class="mlmAct" id="mlmShuf">打乱<small>重排场上牌面</small></button>
+  </div>
+  <div class="mlmMask hide" id="mlmMenu">
+    <div class="mlmPanel">
+      <div class="mlmResT">设置</div>
+      <button class="hBtn pri" id="mlmResume">继续游戏</button>
+      <button class="hBtn" id="mlmRestart">重新开始</button>
+      <button class="hBtn" id="mlmHome">返回首页</button>
+    </div>
+  </div>
+  <div class="mlmMask hide" id="mlmResult"></div>
+</div>
 
 <div id="app" data-page-node-id="keDzkr1sB8bzq5wlIJrGII">
   <div class="topbar" data-page-node-id="aovWvuvv7ue9Th9aeiVIio">
@@ -5740,6 +5825,400 @@ window.setCfg10 = setCfg10;
 window.setAiSeat = setAiSeat;      // v1.3.1：按座位设「这台机器人用不用 AI」（v1.3.2 起不再有速度设置）
 window.testAi = testAi;            // 「测试连接」：真打一次模型，把耗时 / 失败原因写在状态行
 window.resetAll = resetAll;
+
+/* ========================================================================
+   麻了个麻 —— 堆叠消除小游戏（v1.3.19）
+   玩法（参考羊了个羊第二关，无热身关）：全屏堆叠麻将牌，只有没被上层
+   压住的牌可点；点入底部牌槽（同牌自动靠拢），同牌满 3 自动消除；
+   牌槽共 8 格，满且未消除即失败；场上牌全部消除即胜利。
+   牌型：万 9 + 筒 9 + 条 9 + 风 4 + 中发白 3 = 34 种 × 9 张 = 306 张。
+   道具：移出 / 撤回 / 打乱重排，每局各一次。
+   ======================================================================== */
+const MLM = { tiles:[], slot:[], pending:[], picks:[], used:{}, lock:false, over:false,
+  LU:null, justShuf:false };
+const MLM_TOTAL = 306;
+const MLM_GRID = 9;            // 场地网格：9×9 个牌位（三层错位模式轮换）
+function mlmRi(n){ return Math.floor(Math.random() * n); }
+function mlmShuffle(a){
+  for (let i = a.length - 1; i > 0; i--){ const j = mlmRi(i + 1); const t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+function mlmOpen(){
+  $('home').classList.add('hide');
+  $('mlm').classList.remove('hide');
+  mlmStart();
+}
+function mlmExit(){
+  $('mlm').classList.add('hide');
+  $('mlmMenu').classList.add('hide');
+  $('home').classList.remove('hide');
+}
+function mlmStart(){
+  MLM.tiles = mlmGen();
+  MLM.slot = []; MLM.pending = []; MLM.picks = [];
+  MLM.used = { out:false, undo:false, shuf:false };
+  MLM.lock = false; MLM.over = false; MLM.justShuf = false;
+  $('mlmMenu').classList.add('hide');
+  $('mlmResult').classList.add('hide');
+  mlmLayout(); mlmLayout();   // 量两次：第一次定 --su 后布局会变，第二次收敛，避免开局后尺寸漂移
+  mlmRender();
+}
+/* 固定版式库（参考羊了个羊：关卡由若干固定布局版式拼成，而不是随机撒矩形）。
+   全部以 9×9 网格中心 (4,4) 对称生成，逐层从大版式到小版式取用：
+   rect 矩形 / circle 椭圆 / diamond 菱形 / ring 回字环 / cross 十字 / corners 四角块 */
+function mlmPatternCells(name, s){
+  const cells = [];
+  const push = (r, c) => { if (r >= 0 && r <= 8 && c >= 0 && c <= 8) cells.push([r, c]); };
+  if (name === 'rect'){
+    for (let r = 4 - s; r <= 4 + s; r++)
+      for (let c = 4 - s - 1; c <= 4 + s; c++) push(r, c);
+  } else if (name === 'circle'){
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++){
+      const dr = r - 4, dc = (c - 4) * 1.15;
+      if (dr * dr + dc * dc <= (s + 1.3) * (s + 1.3)) push(r, c);
+    }
+  } else if (name === 'diamond'){
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++)
+      if (Math.abs(r - 4) + Math.abs(c - 4) <= s + 1) push(r, c);
+  } else if (name === 'ring'){
+    for (let r = 4 - s; r <= 4 + s; r++)
+      for (let c = 4 - s; c <= 4 + s; c++)
+        if (Math.max(Math.abs(r - 4), Math.abs(c - 4)) >= Math.max(1, s - 1)) push(r, c);
+  } else if (name === 'cross'){
+    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++)
+      if ((Math.abs(r - 4) <= 1 && Math.abs(c - 4) <= s + 2) ||
+          (Math.abs(c - 4) <= 1 && Math.abs(r - 4) <= s + 2)) push(r, c);
+  } else if (name === 'corners'){
+    const bs = Math.min(2, s);
+    for (const rc of [[0, 0], [0, 8 - bs + 1], [8 - bs + 1, 0], [8 - bs + 1, 8 - bs + 1], [4, 4]])
+      for (let r = rc[0]; r < rc[0] + bs; r++)
+        for (let c = rc[1]; c < rc[1] + bs; c++) push(r, c);
+  }
+  return cells;
+}
+/* 生成堆叠：逐层取一个固定版式，从大版式过渡到小版式；层内版式格点上散铺
+   （want 张 ≤ 格点数，位置随机），层间三种半张错位轮换；恰好铺满 306 张。
+   版式以半格精度严格居中（允许 ±0.5 行/列整体偏移，层内间距仍 ≥1 不互叠），
+   保证牌堆在面板里上下左右留白对称，不会沉底。 */
+function mlmGen(){
+  const T = []; let id = 0, remain = MLM_TOTAL, L = 0;
+  const OFFS = [[0.5, 0.5], [0.5, 0], [0, 0.5]];
+  const POOL_BIG = ['rect', 'circle', 'diamond', 'ring'];
+  const POOL_MID = ['diamond', 'cross', 'ring', 'circle', 'rect'];
+  const POOL_SMALL = ['cross', 'diamond', 'corners', 'ring'];
+  while (remain > 0 && L < 40){
+    const s = Math.max(1, 4 - Math.floor(L / 2.5));           // 版式规模：底大顶小
+    const pool = s >= 3 ? POOL_BIG : (s === 2 ? POOL_MID : POOL_SMALL);
+    const cells = mlmPatternCells(pool[mlmRi(pool.length)], s);
+    mlmShuffle(cells);
+    let want = Math.min(remain, 13 + mlmRi(8));               // 每层 13..20 张，散铺
+    if (want > cells.length) want = cells.length;
+    if (want < 8 && remain >= 8) want = Math.min(8, cells.length);
+    /* 半格居中 + 有界抖动：把版式整体平移到 9×9 场地正中（可落在半格上），
+       抖动 ±0.5 格，但保证平移后仍在场地内（最上行/最下行不出界） */
+    let minR = 9, maxR = -1, minC = 9, maxC = -1;
+    for (const rc of cells){
+      minR = Math.min(minR, rc[0]); maxR = Math.max(maxR, rc[0]);
+      minC = Math.min(minC, rc[1]); maxC = Math.max(maxC, rc[1]);
+    }
+    const rowOff = Math.max(-minR, Math.min(8 - maxR, (mlmRi(3) - 1) * 0.5));
+    const colOff = Math.max(-minC, Math.min(8 - maxC, (mlmRi(3) - 1) * 0.5));
+    const off = OFFS[L % 3];
+    for (let i = 0; i < want; i++){
+      T.push({ id: id++, L: L, r: cells[i][0] + rowOff, c: cells[i][1] + colOff,
+        ox: off[0], oy: off[1], face: 0, removed: false, hide: false });
+    }
+    remain -= want; L++;
+  }
+  const deck = [];
+  for (let f = 0; f < 34; f++) for (let k = 0; k < 9; k++) deck.push(f);
+  mlmShuffle(deck);
+  for (let i = 0; i < T.length; i++) T[i].face = deck[i];
+  /* 牌堆外接框中心（按整堆算一次、固定不变）：渲染时把整堆平移到面板正中，
+     上下左右留白严格对称，不会沉底/顶格 */
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  for (const t of T){
+    const x = t.c + t.ox, y = t.r + t.oy;
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+  }
+  MLM.CX = (minX + maxX) / 2; MLM.CY = (minY + maxY) / 2;
+  return T;
+}
+/* 牌渲染坐标：整堆按外接框中心（MLM.CX/CY，生成时算好）平移到面板正中，
+   上下左右留白严格对称，不会沉底/顶格 */
+function mlmXY(t, LU){
+  return { x: (t.c + t.ox - MLM.CX) * LU.TW + LU.bw / 2 - LU.TW / 2,
+    y: (t.r + t.oy - MLM.CY) * LU.TH + LU.bh / 2 - LU.TH / 2 };
+}
+/* 可点 = 没有任何更高层的牌与它有面积重叠（错位判据：两轴位移都 < 1 张） */
+function mlmIsFree(t){
+  for (const u of MLM.tiles){
+    if (u === t || u.removed || u.L <= t.L) continue;
+    if (Math.abs(t.c + t.ox - u.c - u.ox) < 1 && Math.abs(t.r + t.oy - u.r - u.oy) < 1) return false;
+  }
+  return true;
+}
+function mlmCountFace(f){ let n = 0; for (const e of MLM.slot) if (e.face === f) n++; return n; }
+/* 牌槽插入：同牌自动靠拢（插到最右一个同牌右侧），返回插入下标 */
+function mlmInsert(e){
+  let at = -1;
+  for (let i = MLM.slot.length - 1; i >= 0; i--){ if (MLM.slot[i].face === e.face){ at = i; break; } }
+  e.pop = true;
+  if (at >= 0) MLM.slot.splice(at + 1, 0, e); else MLM.slot.push(e);
+  return at + 1;
+}
+/* ---------- 过渡动画：飞行牌克隆 ---------- */
+function mlmZoom(){
+  const z = parseFloat(getComputedStyle($('pcz')).zoom);
+  return (z > 0 && !isNaN(z)) ? z : 1;    // 整页 zoom 缩放下，视觉坐标 ÷ zoom = 布局坐标
+}
+function mlmPosRel(el){                   // 元素相对 #mlm 的布局坐标
+  const m = $('mlm').getBoundingClientRect(), r = el.getBoundingClientRect(), z = mlmZoom();
+  return { x: (r.left - m.left) / z, y: (r.top - m.top) / z, w: r.width / z, h: r.height / z };
+}
+function mlmFly(from, to, face, ms, done){
+  const c = document.createElement('div');
+  c.className = 'tile mlmFlyT';
+  c.style.cssText = 'left:' + from.x + 'px;top:' + from.y + 'px;width:' + from.w + 'px;height:' + from.h + 'px';
+  c.innerHTML = faceSVG(face);
+  $('mlm').appendChild(c);
+  void c.offsetWidth;                     // 强制回流，保证过渡从起点出发
+  c.style.transform = 'translate(' + (to.x - from.x) + 'px,' + (to.y - from.y) + 'px) scale(' + (to.w / from.w) + ')';
+  setTimeout(() => { c.remove(); if (done) done(); }, (ms || 280) + 30);
+}
+function mlmPick(id){
+  if (MLM.lock || MLM.over) return;
+  const t = MLM.tiles[id];
+  if (!t || t.removed || !mlmIsFree(t)) return;
+  const fromEl = $('mlmBoard').querySelector('.mlmT[data-id="' + id + '"]');
+  const fromRect = fromEl ? mlmPosRel(fromEl) : null;
+  t.removed = true;
+  MLM.picks.push(id);
+  const entry = { id: id, face: t.face };
+  const idx = mlmInsert(entry);
+  const willClear = mlmCountFace(t.face) >= 3;
+  if (!willClear && MLM.slot.length >= 8){ mlmRender(); mlmFail('牌槽已满（8 张），挑战失败'); return; }
+  if (!willClear && fromRect){
+    /* 未凑满 3：真牌先藏住，克隆牌飞进牌槽后落位（凑满 3 直接走消除动画） */
+    entry.hide = true;
+    mlmRender();
+    const cell = $('mlmSlot').children[idx];
+    if (cell) mlmFly(fromRect, mlmPosRel(cell), t.face, 280, () => { entry.hide = false; mlmRender(); });
+    else entry.hide = false;
+  } else {
+    mlmRender();
+    if (willClear) mlmEliminate(t.face);
+  }
+}
+/* 同牌满 3 消除：三张错落上浮消散；「移出」暂存的牌不自动回槽，等玩家手动点击入槽 */
+function mlmEliminate(face){
+  MLM.lock = true;
+  let n = 0;
+  for (const e of MLM.slot){ if (e.face === face && n < 3){ e.gone = true; e.goneDelay = n * 80; n++; } }
+  mlmRender();
+  setTimeout(() => {
+    let k = 0;
+    MLM.slot = MLM.slot.filter(e => { if (e.face === face && k < 3){ k++; return false; } return true; });
+    MLM.lock = false;
+    mlmRender();
+    mlmSettle();
+  }, 520);
+}
+/* 暂存区（移出的牌）手动点击入槽：同样走飞行动画，凑满 3 照样消除；
+   槽满时点入会直接判负（和点场上牌同一规则） */
+function mlmPickPending(i){
+  if (MLM.lock || MLM.over) return;
+  const e = MLM.pending[i];
+  if (!e) return;
+  const fromEl = $('mlmPending').children[i];
+  const fromRect = fromEl ? mlmPosRel(fromEl) : null;
+  MLM.pending.splice(i, 1);
+  const idx = mlmInsert(e);
+  const willClear = mlmCountFace(e.face) >= 3;
+  if (!willClear && MLM.slot.length >= 8){ mlmRender(); mlmFail('牌槽已满（8 张），挑战失败'); return; }
+  if (!willClear && fromRect){
+    e.hide = true;
+    mlmRender();
+    const cell = $('mlmSlot').children[idx];
+    if (cell) mlmFly(fromRect, mlmPosRel(cell), e.face, 280, () => { e.hide = false; mlmRender(); });
+    else { e.hide = false; mlmRender(); }
+  } else {
+    mlmRender();
+    if (willClear) mlmEliminate(e.face);
+  }
+}
+/* 每次状态变化后判定终局 */
+function mlmSettle(){
+  if (MLM.over) return;
+  if (MLM.tiles.some(t => !t.removed)) return;
+  if (!MLM.slot.length && !MLM.pending.length){
+    MLM.over = true;
+    mlmResult(true, '');
+  } else {
+    mlmFail('场上已无牌，牌槽剩 ' + (MLM.slot.length + MLM.pending.length) + ' 张无法消除');
+  }
+}
+function mlmFail(msg){
+  MLM.over = true;
+  mlmRender();
+  setTimeout(() => mlmResult(false, msg), 400);
+}
+function mlmResult(win, msg){
+  const R = $('mlmResult');
+  const left = MLM.tiles.filter(t => !t.removed).length +
+               MLM.slot.length + MLM.pending.length;
+  R.innerHTML = '<div class="mlmPanel">' +
+    '<div class="mlmResT' + (win ? '' : ' lose') + '">' + (win ? '🎉 通关！' : '挑战失败') + '</div>' +
+    '<div class="mlmResD">' + (win ? '场上 306 张牌全部消除，太强了！' : msg + ' · 还剩 ' + left + ' 张') + '</div>' +
+    '<button class="hBtn pri" id="mlmAgain">重新开始</button>' +
+    '<button class="hBtn" id="mlmBackHome">返回首页</button></div>';
+  R.classList.remove('hide');
+  $('mlmAgain').onclick = mlmStart;
+  $('mlmBackHome').onclick = mlmExit;
+}
+/* ---------- 三个道具（每局各一次） ---------- */
+function mlmUseOut(){
+  if (MLM.lock || MLM.over || MLM.used.out) return;
+  if (MLM.slot.length < 3){ toast('牌槽不足 3 张，不能移出', 'red'); return; }
+  MLM.used.out = true;
+  const fromRects = [];
+  for (let i = 0; i < 3; i++){
+    const cell = $('mlmSlot').children[i];
+    fromRects.push(cell && cell.firstChild ? mlmPosRel(cell.firstChild) : null);
+  }
+  const three = MLM.slot.splice(0, 3);
+  three.forEach(e => { e.hide = true; MLM.pending.push(e); });
+  mlmRender();
+  /* 起终点坐标全部先取好（数字），错落起飞；中途任何重渲染都不影响飞行落点 */
+  const pendEls = Array.from($('mlmPending').children);
+  const toRects = pendEls.map(el => mlmPosRel(el));
+  let flying = 0;
+  const landed = () => { if (--flying === 0) mlmRender(); };
+  three.forEach((e, i) => {
+    if (fromRects[i] && toRects[i]){
+      flying++;
+      setTimeout(() => mlmFly(fromRects[i], toRects[i], e.face, 280, () => {
+        e.hide = false; landed();
+      }), i * 90);
+    }
+  });
+  if (!flying) mlmRender();
+}
+function mlmUseUndo(){
+  if (MLM.lock || MLM.over || MLM.used.undo) return;
+  let id = -1;
+  while (MLM.picks.length){
+    const x = MLM.picks.pop();
+    if (MLM.slot.some(e => e.id === x)){ id = x; break; }
+  }
+  if (id < 0){ toast('没有可撤回的操作', 'red'); return; }
+  MLM.used.undo = true;
+  const i = MLM.slot.findIndex(e => e.id === id);
+  const cellEl = $('mlmSlot').children[i];
+  const fromRect = (cellEl && cellEl.firstChild) ? mlmPosRel(cellEl.firstChild) : null;
+  MLM.slot.splice(i, 1);
+  const t = MLM.tiles[id];
+  t.removed = false;
+  t.hide = true;
+  mlmRender();
+  if (fromRect){
+    const LU = MLM.LU, bp = mlmPosRel($('mlmBoard'));
+    const xy = mlmXY(t, LU);
+    const toRect = { x: bp.x + xy.x, y: bp.y + xy.y, w: LU.TW, h: LU.TH };
+    mlmFly(fromRect, toRect, t.face, 300, () => { t.hide = false; mlmRender(); });
+  } else { t.hide = false; mlmRender(); }
+}
+function mlmUseShuf(){
+  if (MLM.lock || MLM.over || MLM.used.shuf) return;
+  const live = MLM.tiles.filter(t => !t.removed);
+  const faces = mlmShuffle(live.map(t => t.face));
+  live.forEach((t, i) => { t.face = faces[i]; t.shufDelay = (i % 34) * 16; });
+  MLM.used.shuf = true;
+  MLM.justShuf = true;
+  MLM.lock = true;
+  mlmRender();
+  setTimeout(() => { MLM.justShuf = false; MLM.lock = false; mlmRender(); }, 750);
+}
+/* ---------- 布局（只在开局 / 窗口变化时计算并缓存；点击渲染一律复用，
+   杜绝「边玩边重测容器 → 牌宽微调 → 容器高度又变」的反馈抖动） ---------- */
+function mlmLayout(){
+  const wrap = $('mlmBoardWrap');
+  const W = wrap.clientWidth - 12, H = wrap.clientHeight - 12;   // 面板四周留白（含牌影余量）
+  /* 牌堆实际占 9.5×9.5 张（9×9 网格 + 半张错位）；除数 9.9/13.0 比 9.5/12.54 大，
+     多出的就是四周安全边——牌和 box-shadow 都不会贴到面板边被裁 */
+  const U = Math.max(15, Math.min(W / 9.9, H / 13.0, 46));       // 牌宽 px（上限防大屏过大）
+  const TW = U, TH = U * 1.32, su = Math.round(U * 0.92);
+  MLM.LU = { U: U, TW: TW, TH: TH, su: su, bw: Math.ceil(9.55 * TW), bh: Math.ceil(9.55 * TH) };
+  $('mlm').style.setProperty('--su', su + 'px');
+  const B = $('mlmBoard');
+  B.style.width = MLM.LU.bw + 'px';
+  B.style.height = MLM.LU.bh + 'px';
+}
+/* ---------- 渲染 ---------- */
+function mlmRender(){
+  if (!MLM.LU) mlmLayout();
+  const LU = MLM.LU;
+  const liveN = MLM.tiles.filter(t => !t.removed).length;
+  $('mlmLeft').textContent = '剩余 ' + liveN + ' 张';
+  let h = '';
+  for (const t of MLM.tiles){
+    if (t.removed) continue;
+    const xy = mlmXY(t, LU);
+    const cls = 'tile mlmT' + (mlmIsFree(t) ? '' : ' covered') + (MLM.justShuf ? ' mlmSh' : '');
+    h += '<div class="' + cls + '" data-id="' + t.id +
+      '" style="--tw:' + LU.TW.toFixed(1) + 'px;--th:' + LU.TH.toFixed(1) + 'px;left:' + xy.x.toFixed(1) +
+      'px;top:' + xy.y.toFixed(1) + 'px;z-index:' + (t.L * 10) +
+      (t.hide ? ';visibility:hidden' : '') +
+      (MLM.justShuf ? ';animation-delay:' + (t.shufDelay || 0) + 'ms' : '') +
+      '">' + faceSVG(t.face) + '</div>';
+  }
+  $('mlmBoard').innerHTML = h;
+  let sh = '';
+  for (let i = 0; i < 8; i++){
+    const e = MLM.slot[i];
+    sh += '<div class="mlmSlotCell">' + (e ?
+      '<div class="tile' + (e.gone ? ' gone' : e.pop && !e.hide ? ' pop' : '') +
+      '" style="--tw:100%;--th:100%' +
+      (e.hide ? ';visibility:hidden' : '') +
+      (e.goneDelay ? ';animation-delay:' + e.goneDelay + 'ms' : '') +
+      '">' + faceSVG(e.face) + '</div>' : '') + '</div>';
+  }
+  $('mlmSlot').innerHTML = sh;
+  let ph = '';
+  for (const e of MLM.pending){
+    ph += '<div class="tile" style="--tw:calc(var(--su,26px)*0.66);--th:calc(var(--su,26px)*0.87)' +
+      (e.hide ? ';visibility:hidden' : '') + '">' + faceSVG(e.face) + '</div>';
+  }
+  $('mlmPending').innerHTML = ph;
+  for (const e of MLM.slot){ e.pop = false; e.gone = false; e.goneDelay = 0; }
+  $('mlmOut').classList.toggle('off', MLM.used.out);
+  $('mlmUndo').classList.toggle('off', MLM.used.undo);
+  $('mlmShuf').classList.toggle('off', MLM.used.shuf);
+}
+/* ---------- 绑定（脚本在 body 末尾，DOM 已就绪） ---------- */
+$('hBtnMlm').onclick = mlmOpen;
+$('mlmGear').onclick = () => $('mlmMenu').classList.toggle('hide');
+$('mlmResume').onclick = () => $('mlmMenu').classList.add('hide');
+$('mlmRestart').onclick = mlmStart;
+$('mlmHome').onclick = mlmExit;
+$('mlmOut').onclick = mlmUseOut;
+$('mlmUndo').onclick = mlmUseUndo;
+$('mlmShuf').onclick = mlmUseShuf;
+$('mlmBoard').addEventListener('click', e => {
+  const el = e.target.closest('.mlmT');
+  if (el) mlmPick(+el.dataset.id);
+});
+/* 暂存区（移出的牌）点击入槽 */
+$('mlmPending').addEventListener('click', e => {
+  const el = e.target.closest('.tile');
+  if (!el) return;
+  const kids = Array.from($('mlmPending').children);
+  mlmPickPending(kids.indexOf(el));
+});
+window.addEventListener('resize', () => {
+  if (!$('mlm').classList.contains('hide')){ mlmLayout(); mlmRender(); }
+});
 </script>
 </body>
 </html>
