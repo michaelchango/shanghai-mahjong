@@ -611,7 +611,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   .fslot{width:21px;height:15px}
 }
 
-/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.2） ---------- */
+/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.3） ---------- */
 #mlm{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;
   background:radial-gradient(130% 90% at 50% 12%,var(--felt5) 0%,var(--felt4) 72%)}
 .mlmTop{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 14px 2px}
@@ -659,6 +659,9 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 /* 满 3 消除：错落上浮消散（delay 由 JS 按第几张注入 animation-delay） */
 @keyframes mlmBye{to{transform:translateY(-10px) scale(.15);opacity:0}}
 .tile.gone{animation:mlmBye .32s ease forwards}
+/* v1.4.3：消除改用「原位克隆牌」播放消散，牌槽状态立即结算、不再锁输入
+   （旧实现靠 MLM.lock 锁 520ms，期间点牌被静默丢弃 = 「点了没反应」） */
+.mlmFlyT.mlmByeC{animation:mlmBye .32s ease forwards}
 .mlmMask{position:absolute;inset:0;z-index:9;background:rgba(0,0,0,.55);
   display:flex;align-items:center;justify-content:center}
 .mlmPanel{width:min(280px,84vw);background:linear-gradient(180deg,#243c33,#1a2d26);
@@ -797,7 +800,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
     <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.2</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.3</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -836,7 +839,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   </div>
 </div><!-- /#home -->
 
-<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.2） ========== -->
+<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.3） ========== -->
 <div id="mlm" class="hide">
   <div class="mlmTop">
     <span class="mlmTitle">麻了个麻</span>
@@ -5827,17 +5830,19 @@ window.testAi = testAi;            // 「测试连接」：真打一次模型，
 window.resetAll = resetAll;
 
 /* ========================================================================
-   麻了个麻 —— 堆叠消除小游戏（v1.4.2）
+   麻了个麻 —— 堆叠消除小游戏（v1.4.3）
    玩法（参考羊了个羊第二关，无热身关）：全屏堆叠麻将牌，只有没被上层
    压住的牌可点；点入底部牌槽（同牌自动靠拢），同牌满 3 自动消除；
-   牌槽共 8 格（羊了个羊式上限），满且未消除即失败；场上牌全部消除即胜利。
+   牌槽共 7 格（v1.4.3 由 8 收紧到 7 = 羊了个羊标准上限，难度主轴之一），
+   满且未消除即失败；场上牌全部消除即胜利。
    牌型：万 9 + 筒 9 + 条 9 = 27 种 × 6 张 = 162 张（少而精：冗余低=更难、
    牌面更疏落，呼应羊了个羊「每种张数少」的设计）。
-   堆叠（羊了个羊式剪影：底盘 + 居中尖顶 + 四角辅助塔，越往后横截面越小越难）：
+   堆叠（羊了个羊式剪影：底盘 + 居中主峰 + 四角辅助塔，越往后横截面越小越难）：
      ① 底盘 2 层：大版式 + 抽空留白，前期好消、有呼吸感；
-     ② 中央「主峰」：仅 3 层的浅尖顶（9→3），给羊了个羊式居中轮廓，
-        刻意做浅以免像深塔那样无解；
-     ③ 四角「辅助塔」：4 座独立并行的小塔，羊了个羊式辅助牌堆的视觉节奏 +
+     ② 中央「主峰」：v1.4.3 升为视觉主体，4 层平滑收窄 9×9→7×7→5×5→3×3
+        （14/10/8/4 共 36 张）。⚠️ 主峰越高越难，60 张/6 层实测 0% 通关
+        （中央深堆封死自己的下层），36 张/4 层是「中央突出」与「仍可解」的平衡点；
+     ③ 四角「辅助塔」：4 座并行小塔（各 18 张，锁象限互不压），退为辅助堆，
         可独立挖穿，局面逐渐收口、越往后越难；
    ④ ΔL≤2 禁完全重合（挖开一张原地又冒一张的观感根因）；
    ⑤ 发面三元组交错（每种 2 个三元组，按间隔错层发，破整层铺同）。
@@ -5846,6 +5851,7 @@ window.resetAll = resetAll;
 const MLM = { tiles:[], slot:[], pending:[], picks:[], used:{}, lock:false, over:false,
   LU:null, justShuf:false };
 const MLM_TOTAL = 162;
+const MLM_SLOT = 7;            // 牌槽格数：v1.4.3 由 8 收紧到 7（羊了个羊标准上限）
 const MLM_GRID = 9;            // 场地网格：9×9 个牌位（三层错位模式轮换）
 function mlmRi(n){ return Math.floor(Math.random() * n); }
 function mlmShuffle(a){
@@ -5958,28 +5964,30 @@ function mlmGen(){
   const BASE_PAT = ['rect', 'circle', 'diamond', 'corners'];
   for (let b = 0; b < 2; b++, L++)
     place(4, 4, 4, BASE_PAT[mlmRi(BASE_PAT.length)], 27, (L % 2) * 0.5, L, 0, null, b === 0 ? 0.12 : 0.22);
-  /* 阶段二：中央「主峰」—— 羊了个羊式视觉焦点（刻意做浅：仅 3 层 9→3，
-     共 18 张），既不至于像深塔那样无解，又给出居中的尖顶轮廓。半张错位骑放。 */
+  /* 阶段二：中央「主峰」—— v1.4.3 把主体从四角挪回中央（羊了个羊的视觉焦点
+     就是「居中高楼」）。4 层平滑收窄：9×9→7×7→5×5→3×3，共 36 张。
+     每层只在自己版式里稀疏摆放（抽空 5%），层与层之间留出一圈可直接点的「露台」。
+     ⚠️ 主峰越高越难，且很容易过头：实测 60 张/6 层 → 0% 通关（中央深堆会把
+     自己的下层封死，这正是羊了个羊第二关近乎无解的机制）；36 张/4 层是
+     「中央更突出」与「仍可解」的平衡点。 */
   const PEAK_PAT = ['rect', 'diamond', 'ring', 'cross'];
-  const peakWants = [9, 6, 3];   // 共 18 张，3 层小尖顶
-  for (const pw of peakWants){
+  const PEAK = [[14, 4], [10, 3], [8, 2], [4, 1]];   // [张数, 版式半宽]：9×9→7×7→5×5→3×3 平滑收尖
+  for (let pi = 0; pi < PEAK.length; pi++){
     L++;
-    const off = (L % 2) * 0.5;
-    const eff = Math.max(1, Math.ceil(pw / 3) - 1);
-    place(4, 4, eff, PEAK_PAT[mlmRi(PEAK_PAT.length)], pw, off, L, 1, null, 0.05);
+    place(4, 4, PEAK[pi][1], PEAK_PAT[mlmRi(PEAK_PAT.length)], PEAK[pi][0], (L % 2) * 0.5, L, 1, null, 0.05);
   }
   /* 阶段三：四角「辅助塔」并行（羊了个羊式辅助牌堆的视觉节奏 + 可独立挖穿）：
      每塔锁在 4×4 专属象限（中缝留空），塔间永不互压 → 每塔可独立挖穿、局面
-     逐渐收窄；配额 24/24/24/18，底盘小、塔独立 → 越往后越收口、越难。
-     居中小尖顶 + 四角塔 + 底盘 = 羊了个羊式「底盘+尖顶+辅助堆」剪影。 */
+     逐渐收窄；配额 12×4（v1.4.3：中央主峰升为主体，四角退为辅助小堆）。
+     中央主峰 + 四角辅塔 + 底盘 = 羊了个羊式「底盘 + 居中高楼 + 辅助堆」剪影。 */
   const QUADS = [
     { cr: 2, cc: 2, clip: [0, 3, 0, 3] },
     { cr: 2, cc: 6, clip: [0, 3, 5, 8] },
     { cr: 6, cc: 2, clip: [5, 8, 0, 3] },
     { cr: 6, cc: 6, clip: [5, 8, 5, 8] }
   ];
-  const remain = MLM_TOTAL - T.length;          // = 90
-  const quotas = mlmShuffle([24, 24, 24, 18]);
+  const remain = MLM_TOTAL - T.length;          // = 72（底盘 54 + 主峰 36）
+  const quotas = mlmShuffle([18, 18, 18, 18]);
   quotas[0] += remain - quotas.reduce((a, b) => a + b, 0);   // 吸收舍入差，保证总量恰好
   const piles = mlmShuffle(QUADS.slice()).map((q, i) =>
     ({ cr: q.cr, cc: q.cc, left: quotas[i], half: 2, esc: 0, clip: q.clip }));
@@ -6116,7 +6124,7 @@ function mlmPick(id){
   const entry = { id: id, face: t.face };
   const idx = mlmInsert(entry);
   const willClear = mlmCountFace(t.face) >= 3;
-  if (!willClear && MLM.slot.length >= 8){ mlmRender(); mlmFail('牌槽已满（8 张），挑战失败'); return; }
+  if (!willClear && MLM.slot.length >= MLM_SLOT){ mlmRender(); mlmFail('牌槽已满（' + MLM_SLOT + ' 张），挑战失败'); return; }
   if (!willClear && fromRect){
     /* 未凑满 3：真牌先藏住，克隆牌飞进牌槽后落位（凑满 3 直接走消除动画） */
     entry.hide = true;
@@ -6129,19 +6137,37 @@ function mlmPick(id){
     if (willClear) mlmEliminate(t.face);
   }
 }
-/* 同牌满 3 消除：三张错落上浮消散；「移出」暂存的牌不自动回槽，等玩家手动点击入槽 */
+/* 消散动画：在牌槽原格位置生成克隆牌，错落上浮淡出。纯装饰，不占用 MLM.lock */
+function mlmByeFx(rect, face, delay){
+  const c = document.createElement('div');
+  c.className = 'tile mlmFlyT mlmByeC';
+  c.style.cssText = 'left:' + rect.x + 'px;top:' + rect.y + 'px;width:' + rect.w +
+    'px;height:' + rect.h + 'px;animation-delay:' + delay + 'ms';
+  c.innerHTML = faceSVG(face);
+  $('mlm').appendChild(c);
+  setTimeout(() => c.remove(), 380 + delay);
+}
+/* 同牌满 3 消除（v1.4.3：状态立即结算，动画交给克隆牌，全程可点）
+   旧实现把三张留在槽里、MLM.lock 锁 520ms 等动画播完——这半秒里所有点牌都被
+   静默丢弃，快速连点就会出现「点了没反应 / 卡一下」。现在改为：先取好三张的
+   起飞坐标（数字）→ 立刻出槽 → 重渲染 → 播消散 → 判终局，全程无锁。 */
 function mlmEliminate(face){
-  MLM.lock = true;
+  if (MLM.over) return;
+  const cells = $('mlmSlot').children, fromRects = [];
   let n = 0;
-  for (const e of MLM.slot){ if (e.face === face && n < 3){ e.gone = true; e.goneDelay = n * 80; n++; } }
+  for (let i = 0; i < cells.length && n < 3; i++){
+    const e = MLM.slot[i];
+    if (!e || e.face !== face) continue;
+    const c = cells[i] && cells[i].firstChild;
+    fromRects.push(c ? mlmPosRel(c) : null);
+    n++;
+  }
+  let k = 0;
+  MLM.slot = MLM.slot.filter(e => { if (e.face === face && k < 3){ k++; return false; } return true; });
   mlmRender();
-  setTimeout(() => {
-    let k = 0;
-    MLM.slot = MLM.slot.filter(e => { if (e.face === face && k < 3){ k++; return false; } return true; });
-    MLM.lock = false;
-    mlmRender();
-    mlmSettle();
-  }, 520);
+  for (let i = 0; i < fromRects.length; i++)
+    if (fromRects[i]) mlmByeFx(fromRects[i], face, i * 80);
+  mlmSettle();
 }
 /* 暂存区（移出的牌）手动点击入槽：同样走飞行动画，凑满 3 照样消除；
    槽满时点入会直接判负（和点场上牌同一规则） */
@@ -6154,7 +6180,7 @@ function mlmPickPending(i){
   MLM.pending.splice(i, 1);
   const idx = mlmInsert(e);
   const willClear = mlmCountFace(e.face) >= 3;
-  if (!willClear && MLM.slot.length >= 8){ mlmRender(); mlmFail('牌槽已满（8 张），挑战失败'); return; }
+  if (!willClear && MLM.slot.length >= MLM_SLOT){ mlmRender(); mlmFail('牌槽已满（' + MLM_SLOT + ' 张），挑战失败'); return; }
   if (!willClear && fromRect){
     e.hide = true;
     mlmRender();
@@ -6293,7 +6319,7 @@ function mlmRender(){
   }
   $('mlmBoard').innerHTML = h;
   let sh = '';
-  for (let i = 0; i < 8; i++){
+  for (let i = 0; i < MLM_SLOT; i++){
     const e = MLM.slot[i];
     sh += '<div class="mlmSlotCell">' + (e ?
       '<div class="tile' + (e.gone ? ' gone' : e.pop && !e.hide ? ' pop' : '') +
