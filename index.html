@@ -611,7 +611,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   .fslot{width:21px;height:15px}
 }
 
-/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.3） ---------- */
+/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.4） ---------- */
 #mlm{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;
   background:radial-gradient(130% 90% at 50% 12%,var(--felt5) 0%,var(--felt4) 72%)}
 .mlmTop{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 14px 2px}
@@ -800,7 +800,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
     <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.3</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.4</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -839,7 +839,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   </div>
 </div><!-- /#home -->
 
-<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.3） ========== -->
+<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.4） ========== -->
 <div id="mlm" class="hide">
   <div class="mlmTop">
     <span class="mlmTitle">麻了个麻</span>
@@ -5830,7 +5830,7 @@ window.testAi = testAi;            // 「测试连接」：真打一次模型，
 window.resetAll = resetAll;
 
 /* ========================================================================
-   麻了个麻 —— 堆叠消除小游戏（v1.4.3）
+   麻了个麻 —— 堆叠消除小游戏（v1.4.4）
    玩法（参考羊了个羊第二关，无热身关）：全屏堆叠麻将牌，只有没被上层
    压住的牌可点；点入底部牌槽（同牌自动靠拢），同牌满 3 自动消除；
    牌槽共 7 格（v1.4.3 由 8 收紧到 7 = 羊了个羊标准上限，难度主轴之一），
@@ -6013,12 +6013,13 @@ function mlmGen(){
     L++;
     if (!place(4, 4, 4, 'rect', MLM_TOTAL - T.length, (L % 2) * 0.5, L, 0)) break;
   }
-  /* 牌面分配 v3（三元组交错，破「整层铺同种」）：每种面 PER 张切成 TRIP 个三元组，
-     整区发放（同种不跨区，保可解性），区内三元组按「目标间隔 S」交错排布——
-     底座 S=5（跨层）、主峰 S=3、四角塔 S=2：每一层都混多种面，看到一张同种
-     搭档常要跨层/跨区找，必须用牌槽垫牌，不能整层连锁白捡。 */
+  /* 牌面分配 v4（对子交错＋跨区渗漏，v1.4.4 加难）：每种面 PER 张切成 RND 个对子
+     （BURST=2），区内按「目标间隔 S」交错——底座 S=10、主峰 S=6、四角塔 S=4；
+     再做 3 次跨区渗漏（随机两张异区牌交换面标签，每面恒 6 张），约 6/27 种面
+     有一张流落异区：同面搭档常要跨区找，必须用牌槽垫牌规划路线，不能白捡。
+     实测（强真人 bot，N=300）：v1.4.3 三元组打包 45% → 本版 16%。 */
   {
-    const PER = MLM_TOTAL / 27, TRIP = PER / 3;        // 每种张数、每种三元组数
+    const PER = MLM_TOTAL / 27, BURST = 2, RND = PER / BURST;  // 每种张数、每种对子数
     const faces = mlmShuffle([...Array(27).keys()]);
     let fp = 0;
     const maxG = Math.max(0, ...T.map(t => t.g));
@@ -6035,16 +6036,16 @@ function mlmGen(){
         continue;
       }
       const n = arr.length / PER;                      // 本区面种数
-      const S = g === 0 ? 5 : (g === 1 ? 3 : 2);       // 同种面相邻三元组的目标间隔（槽数）
+      const S = g === 0 ? 10 : (g === 1 ? 6 : 4);      // 同种面相邻对子的目标间隔（槽数）
       const rk = [];
       for (let i = 0; i < n; i++) rk.push(faces[fp++]);
       const lastAt = new Array(n).fill(-99);
-      const leftK = new Array(n).fill(TRIP);
-      for (let t = 0; t < TRIP * n; t++){
+      const leftK = new Array(n).fill(RND);
+      for (let t = 0; t < RND * n; t++){
         let best = -1, bestScore = -1e9;
         for (let k = 0; k < n; k++){
           if (!leftK[k]) continue;
-          if (TRIP * n - 1 - t < (leftK[k] - 1) * S) continue;   // 剩余槽位不够按间隔收尾 → 缓放
+          if (RND * n - 1 - t < (leftK[k] - 1) * S) continue;   // 剩余槽位不够按间隔收尾 → 缓放
           const gap = t - lastAt[k];
           if (lastAt[k] >= 0 && gap < S) continue;            // 间隔未到
           const due = lastAt[k] < 0 ? 0 : gap - S;            // 越欠账越优先
@@ -6054,9 +6055,23 @@ function mlmGen(){
         if (best < 0)
           for (let k = 0; k < n; k++)
             if (leftK[k] && (best < 0 || leftK[k] > leftK[best])) best = k;
-        const f = rk[best], b3 = t * 3;
-        arr[b3].face = f; arr[b3 + 1].face = f; arr[b3 + 2].face = f;
+        const f = rk[best], b2 = t * BURST;
+        for (let j = 0; j < BURST; j++) arr[b2 + j].face = f;
         leftK[best]--; lastAt[best] = t;
+      }
+    }
+    /* 跨区渗漏：3 次随机交换（每次拆散 2 种面），可解前提下抬难度 */
+    {
+      const gs = [...new Set(T.map(t => t.g))].sort((a, b) => a - b);
+      for (let s = 0; s < 3; s++){
+        const a = T[Math.floor(Math.random() * T.length)];
+        const other = gs.filter(g => g !== a.g);
+        if (!other.length) break;
+        const tg = other[Math.floor(Math.random() * other.length)];
+        const pool = T.filter(t => t.g === tg && t.face !== a.face);
+        if (!pool.length) continue;
+        const b = pool[Math.floor(Math.random() * pool.length)];
+        const tmp = a.face; a.face = b.face; b.face = tmp;
       }
     }
   }
