@@ -611,7 +611,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   .fslot{width:21px;height:15px}
 }
 
-/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.4） ---------- */
+/* ---------- 麻了个麻（堆叠消除小游戏，v1.4.5） ---------- */
 #mlm{position:fixed;inset:0;z-index:70;display:flex;flex-direction:column;
   background:radial-gradient(130% 90% at 50% 12%,var(--felt5) 0%,var(--felt4) 72%)}
 .mlmTop{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 14px 2px}
@@ -800,7 +800,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
     <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.4</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.5</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -839,7 +839,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   </div>
 </div><!-- /#home -->
 
-<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.4） ========== -->
+<!-- ========== 麻了个麻（堆叠消除小游戏，v1.4.5） ========== -->
 <div id="mlm" class="hide">
   <div class="mlmTop">
     <span class="mlmTitle">麻了个麻</span>
@@ -5830,7 +5830,7 @@ window.testAi = testAi;            // 「测试连接」：真打一次模型，
 window.resetAll = resetAll;
 
 /* ========================================================================
-   麻了个麻 —— 堆叠消除小游戏（v1.4.4）
+   麻了个麻 —— 堆叠消除小游戏（v1.4.5）
    玩法（参考羊了个羊第二关，无热身关）：全屏堆叠麻将牌，只有没被上层
    压住的牌可点；点入底部牌槽（同牌自动靠拢），同牌满 3 自动消除；
    牌槽共 7 格（v1.4.3 由 8 收紧到 7 = 羊了个羊标准上限，难度主轴之一），
@@ -5907,13 +5907,15 @@ function mlmPatternCells(name, e, cr, cc){
   }
   return cells;
 }
-/* 生成堆叠（羊了个羊式剪影：大底盘 + 居中浅尖顶 + 四角辅助塔）：
-   ① 底盘 2 层：大版式 + 随机抽空（留白透气），前期好消、上下层可穿插；
-   ② 中央「主峰」：3 层浅尖顶（9→3），羊了个羊式居中轮廓，刻意做浅保可解；
-   ③ 四角「辅助塔」：4 座并行小塔（锁象限、互不压），可独立挖穿、逐塔收口；
+/* 生成堆叠（v1.4.5「越往下越集中」羊了个羊式剪影）：
+   ① 底盘 2 层＝两块密排实心板块（dense 近心取格、无抽空）——下密；
+   ② 中央「主峰」4 层（14/10/8/4）＋ 四座「内环塔」收拢在中央四象限（行/列 2-6）
+      ——高楼群全部居中，高层不再散落四角；越往上越集中、越往下越铺开；
+   ③ 块内密排、块间错布：扇出动力学保留（完美嵌套密堆实测 0% 通关，见阶段一注）；
    ④ ΔL≤2 禁完全重合（挖开一张原地又冒一张的观感根因），ΔL≥3 深堆允许；
       同层牌互不叠压。
-   ⑤ 发面三元组交错（每种 2 个三元组，按间隔错层发，破整层铺同，见发面段）。
+   ⑤ 发面单张散布＋表面去重（每种 6 张按间隔逐张散布 BURST=1，破整层铺同与
+      「挖开就见对」；表面重复面压到 12，见发面段）。
    牌型 27 种（万/筒/条）× 6 = 162 张。 */
 function mlmGen(){
   const T = []; let id = 0, L = 0;
@@ -5924,13 +5926,21 @@ function mlmGen(){
   const keyOf = (x, y) => Math.round(x * 2) + '_' + Math.round(y * 2);
   const overlap = (a, b) => Math.abs(a[0] - b[0]) < 1 && Math.abs(a[1] - b[1]) < 1;
   const layerPosAll = {};                      // 每层已放位置：同层互不叠压（含跨塔）
-  /* 在以 (cr,cc) 为中心、半宽 e 的版式上放 want 张（off 为该层半张错位），
-     clip 为可选象限裁剪（簇与簇互不越界、互不压牌），skipP 为随机抽空比例
-     （版式留出空洞：牌面疏落有致、下层有露出来可直接点的牌），返回实放数 */
-  const place = (cr, cc, e, name, want, off, lay, g, clip, skipP) => {
+  /* 在以 (cr,cc) 为中心、半宽 e 的版式上放 want 张。off 为该层错位：数字=双轴同值，
+     数组=[ox,oy]（4 相对角半移）。clip 为可选象限裁剪（簇与簇互不越界、互不压牌），
+     skipP 为随机抽空比例；dense=true 时按「离中心近的格优先」密排（同心圆块，
+     羊了个羊式土墩），否则随机撒点。返回实放数 */
+  const place = (cr, cc, e, name, want, off, lay, g, clip, skipP, dense) => {
+    const ox = Array.isArray(off) ? off[0] : off, oy = Array.isArray(off) ? off[1] : off;
     let cells = mlmPatternCells(name, e, cr, cc).filter(rc =>
       !clip || (rc[0] >= clip[0] && rc[0] <= clip[1] && rc[1] >= clip[2] && rc[1] <= clip[3]));
-    mlmShuffle(cells);
+    if (dense){
+      cells = cells.map(rc => ({ rc,
+          d: (rc[0] - cr) * (rc[0] - cr) + (rc[1] - cc) * (rc[1] - cc) + Math.random() * 0.05 }))
+        .sort((a, b) => a.d - b.d).map(o => o.rc);   // 近心优先 → 同心圆块；并列微随机破呆板
+    } else {
+      mlmShuffle(cells);
+    }
     if (skipP && cells.length > want + 6){
       const kept = cells.filter(() => Math.random() >= skipP);
       if (kept.length >= want) cells = kept;   // 有富余才抽空，保证放满 want
@@ -5945,7 +5955,7 @@ function mlmGen(){
         const c = c0 + d[0], r = r0 + d[1];
         if (c < -0.5 || c > 8.5 || r < -0.5 || r > 8.5) continue;   // 场地扩容 ±半张（缓解全局半格位容量）
         if (clip && (c < clip[2] || c > clip[3] || r < clip[0] || r > clip[1])) continue;
-        const p = [c + off, r + off];
+        const p = [c + ox, r + oy];
         const prevL = occ.get(keyOf(p[0], p[1]));
         if (prevL !== undefined && L - prevL <= 2) continue; // ΔL≤2 完全重合 → 换位
         let clash = false;
@@ -5953,38 +5963,38 @@ function mlmGen(){
         if (clash) continue;                                 // 保持同层互不叠压
         occ.set(keyOf(p[0], p[1]), L);
         lp.push(p);
-        T.push({ id: id++, L: lay, g: g, r: r, c: c, ox: off, oy: off, face: 0, removed: false, hide: false });
+        T.push({ id: id++, L: lay, g: g, r: r, c: c, ox: ox, oy: oy, face: 0, removed: false, hide: false });
         placed++;
         break;
       }
     }
     return placed;
   };
-  /* 阶段一：底盘 2 层，全版式大铺 + 抽空（上层抽得更多 → 下层露出可点，留白透气） */
-  const BASE_PAT = ['rect', 'circle', 'diamond', 'corners'];
-  for (let b = 0; b < 2; b++, L++)
-    place(4, 4, 4, BASE_PAT[mlmRi(BASE_PAT.length)], 27, (L % 2) * 0.5, L, 0, null, b === 0 ? 0.12 : 0.22);
-  /* 阶段二：中央「主峰」—— v1.4.3 把主体从四角挪回中央（羊了个羊的视觉焦点
-     就是「居中高楼」）。4 层平滑收窄：9×9→7×7→5×5→3×3，共 36 张。
-     每层只在自己版式里稀疏摆放（抽空 5%），层与层之间留出一圈可直接点的「露台」。
-     ⚠️ 主峰越高越难，且很容易过头：实测 60 张/6 层 → 0% 通关（中央深堆会把
-     自己的下层封死，这正是羊了个羊第二关近乎无解的机制）；36 张/4 层是
-     「中央更突出」与「仍可解」的平衡点。 */
+  /* 阶段一（v1.4.5「越往下越集中」）：L0＝密排实心大板块（dense 近心取格、无抽空），
+     L1＝同尺寸板块留 10% 气孔（扇出用）——底部是紧贴的大板块，羊了个羊式下密上疏。
+     ⚠️ 实测教训：①整墩「完美嵌套密堆」（每层取最近 N 格逐层收窄）在 1:1/2:1/4:1
+     覆盖下全部 0% 通关——剥离顺序被强制、无扇出、槽必满；②双层全密也只 5-6.5%
+     且无棋死局偏多。密度做在观感上（L0 板块紧贴），L1 留气孔保「挖开多张、
+     多岛可选」的扇出动力学。 */
+  const OFFS = [[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5]];
+  place(4, 4, 4, 'rect', 27, OFFS[0], L, 0, null, 0, true); L++;       // L0 实心板块
+  place(4, 4, 4, 'rect', 27, OFFS[1], L, 0, null, 0.10, false); L++;   // L1 板块＋10% 气孔
+  /* 阶段二：中央「主峰」4 层（14/10/8/4，同 v1.4.3/44，稀疏摆放保露台可点）。 */
   const PEAK_PAT = ['rect', 'diamond', 'ring', 'cross'];
   const PEAK = [[14, 4], [10, 3], [8, 2], [4, 1]];   // [张数, 版式半宽]：9×9→7×7→5×5→3×3 平滑收尖
   for (let pi = 0; pi < PEAK.length; pi++){
     L++;
     place(4, 4, PEAK[pi][1], PEAK_PAT[mlmRi(PEAK_PAT.length)], PEAK[pi][0], (L % 2) * 0.5, L, 1, null, 0.05);
   }
-  /* 阶段三：四角「辅助塔」并行（羊了个羊式辅助牌堆的视觉节奏 + 可独立挖穿）：
-     每塔锁在 4×4 专属象限（中缝留空），塔间永不互压 → 每塔可独立挖穿、局面
-     逐渐收窄；配额 12×4（v1.4.3：中央主峰升为主体，四角退为辅助小堆）。
-     中央主峰 + 四角辅塔 + 底盘 = 羊了个羊式「底盘 + 居中高楼 + 辅助堆」剪影。 */
+  /* 阶段三：四座「内环塔」——v1.4.5 把四角塔整体内收一环（clip 从 0-3 收到 1-4），
+     与主峰同构一座居中高楼群：高层全部收拢在场地中央，越往下才越铺开（羊了个羊
+     的土墩剪影）。⚠️ 不能收得更狠（clip 2-4 的 3×3 实测 0%：塔挤进主峰区互相
+     覆盖、前台太瘦）；1-4 的 4×4 象限 = 集中与扇出的平衡点。 */
   const QUADS = [
-    { cr: 2, cc: 2, clip: [0, 3, 0, 3] },
-    { cr: 2, cc: 6, clip: [0, 3, 5, 8] },
-    { cr: 6, cc: 2, clip: [5, 8, 0, 3] },
-    { cr: 6, cc: 6, clip: [5, 8, 5, 8] }
+    { cr: 2, cc: 2, clip: [1, 4, 1, 4] },
+    { cr: 2, cc: 6, clip: [1, 4, 4, 7] },
+    { cr: 6, cc: 2, clip: [4, 7, 1, 4] },
+    { cr: 6, cc: 6, clip: [4, 7, 4, 7] }
   ];
   const remain = MLM_TOTAL - T.length;          // = 72（底盘 54 + 主峰 36）
   const quotas = mlmShuffle([18, 18, 18, 18]);
@@ -6013,13 +6023,16 @@ function mlmGen(){
     L++;
     if (!place(4, 4, 4, 'rect', MLM_TOTAL - T.length, (L % 2) * 0.5, L, 0)) break;
   }
-  /* 牌面分配 v4（对子交错＋跨区渗漏，v1.4.4 加难）：每种面 PER 张切成 RND 个对子
-     （BURST=2），区内按「目标间隔 S」交错——底座 S=10、主峰 S=6、四角塔 S=4；
-     再做 3 次跨区渗漏（随机两张异区牌交换面标签，每面恒 6 张），约 6/27 种面
-     有一张流落异区：同面搭档常要跨区找，必须用牌槽垫牌规划路线，不能白捡。
-     实测（强真人 bot，N=300）：v1.4.3 三元组打包 45% → 本版 16%。 */
+  /* 牌面分配 v5（单张散布＋表面去重＋跨区渗漏，v1.4.5 加难）：每种面 PER 张按
+     BURST=1 逐张散布（v1.4.4 是对子打包 BURST=2，挖开深层常一对一对冒出——
+     「一眼看到一样的牌」观感的重要来源），区内按「目标间隔 S」交错——底盘（g0）
+     S=10、主峰（g1）S=6、内环塔（g2-5）S=4；再做 3 次跨区渗漏
+     （随机两张异区牌交换面标签，每面恒 6 张）；
+     最后表面去重：把表面多余重复张与「表面没有的面的深处埋牌」换面标签
+     （每面总张数不变 → 3 的倍数可解性不破坏，只动标签不动位置 → 覆盖关系不变）。
+     实测（强真人 bot，N=400）：v1.4.4 19% → 本版 7.3%；开局重复面 17.6 → 12.0。 */
   {
-    const PER = MLM_TOTAL / 27, BURST = 2, RND = PER / BURST;  // 每种张数、每种对子数
+    const PER = MLM_TOTAL / 27, BURST = 1, RND = PER / BURST;  // 每种张数、每种单张段数（v1.4.5：对子打包→单张全散布）
     const faces = mlmShuffle([...Array(27).keys()]);
     let fp = 0;
     const maxG = Math.max(0, ...T.map(t => t.g));
@@ -6072,6 +6085,33 @@ function mlmGen(){
         if (!pool.length) continue;
         const b = pool[Math.floor(Math.random() * pool.length)];
         const tmp = a.face; a.face = b.face; b.face = tmp;
+      }
+    }
+    /* 表面去重（v1.4.5）：把表面多余重复张与「表面没有的面的深处埋牌」换面标签。
+       每面总张数不变 → 3 的倍数可解性不破坏；只动标签不动位置 → 覆盖关系不变。
+       目标 12（鸽笼下限 ≈ freeN0−27 ≈ 7，取 12 兼顾「不再一眼见对」与开局仍有起手对）。
+       ⚠️ 表面内部互换面标签不改变面多重集（无效），必须与埋牌交换才真正减少可见对。 */
+    {
+      MLM.tiles = T;   // mlmIsFree 读活局；生成期先把本局牌挂上（mlmStart 随后再挂同引用）
+      const TARGET = 12;
+      const surf = T.filter(t => mlmIsFree(t));
+      const surfCnt = {};
+      for (const t of surf) surfCnt[t.face] = (surfCnt[t.face] || 0) + 1;
+      const dupN = () => Object.values(surfCnt).reduce((n, c) => n + Math.max(0, c - 1), 0);
+      let gd = 400;
+      while (dupN() > TARGET && gd-- > 0){
+        const dupTiles = surf.filter(t => surfCnt[t.face] > 1);
+        if (!dupTiles.length) break;
+        const A = dupTiles[mlmRi(dupTiles.length)];
+        let B = null, bestL = -1;
+        for (const t of T){
+          if (t.removed || mlmIsFree(t)) continue;
+          if (surfCnt[t.face]) continue;   // 该面已在表面 → 换入会造新重复
+          if (t.L > bestL){ bestL = t.L; B = t; }
+        }
+        if (!B) break;
+        surfCnt[A.face]--; surfCnt[B.face] = (surfCnt[B.face] || 0) + 1;
+        const tmp = A.face; A.face = B.face; B.face = tmp;
       }
     }
   }
