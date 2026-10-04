@@ -670,6 +670,154 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 .mlmResT.lose{color:var(--red)}
 .mlmResD{font-size:12.5px;color:var(--dim);margin:-4px 0 10px;letter-spacing:.5px}
 
+/* ---------- 麻三（4 人暗牌合牌竞速小游戏，v1.5.0） ----------
+   皮肤沿用本项目：同一套 CSS 变量 / .tile 牌面底板 / 深绿毡桌，
+   只有布局按截图重排（中央四季转盘 + 四家牌墙 + 底部两行手牌）。 */
+#ms3{position:fixed;inset:0;z-index:71;display:flex;flex-direction:column;
+  /* 手牌牌宽：7 张铺一行留边距，再按屏宽收放（无需 JS 重算，纯 CSS 跟着视口走） */
+  --m3tw:min(48px,calc((100vw - 62px) / 7));
+  background:radial-gradient(130% 90% at 50% 12%,var(--felt5) 0%,var(--felt4) 72%)}
+.m3Top{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 14px 2px}
+.m3Title{font-size:20px;font-weight:900;color:var(--gold);letter-spacing:3px;
+  text-shadow:0 2px 10px rgba(0,0,0,.5)}
+.m3Left{flex:1;text-align:right;font-size:12px;color:var(--dim);letter-spacing:1px}
+.m3Gear{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);
+  background:rgba(255,255,255,.07);color:var(--txt);font-size:17px;line-height:1;
+  display:flex;align-items:center;justify-content:center}
+.m3Gear:active{background:rgba(255,255,255,.14)}
+/* 桌：中央转盘 + 四家信息。吃掉剩余竖向空间（手牌按内容定高，不参与分配） */
+.m3Table{flex:1 1 auto;position:relative;margin:2px 10px 4px;border-radius:14px;
+  min-height:200px;
+  background:radial-gradient(120% 100% at 50% 34%,rgba(255,255,255,.05),rgba(0,0,0,.18));
+  border:1px solid rgba(255,255,255,.09);overflow:hidden}
+/* 转盘：离四边留足余量，别让四季字贴边 */
+.m3Center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(138px,38vw);aspect-ratio:1}
+/* 四季转盘：外圈四季字 + 当前季节高亮 + 中央状态 */
+.m3Dial{position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle at 50% 40%,#2c4a3d,#14251f 78%);
+  border:2px solid rgba(255,255,255,.13);box-shadow:inset 0 3px 12px rgba(0,0,0,.6)}
+/* 四季字压在转盘圆盘上（内外各一半），不再飘到桌边 */
+.m3Season{position:absolute;z-index:2;font-size:14px;font-weight:900;color:#7e9c90;
+  letter-spacing:1px;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.m3Season.s{left:50%;bottom:-9px;transform:translateX(-50%)}
+.m3Season.e{right:-8px;top:50%;transform:translateY(-50%)}
+.m3Season.n{left:50%;top:-9px;transform:translateX(-50%)}
+.m3Season.w{left:-8px;top:50%;transform:translateY(-50%)}
+.m3Season.on{color:var(--gold);text-shadow:0 0 10px rgba(255,207,92,.6)}
+.m3Count{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;
+  font-size:30px;font-weight:900;color:var(--txt);letter-spacing:1px;
+  text-shadow:0 2px 8px rgba(0,0,0,.6)}
+.m3Count.hot{color:var(--red)}
+.m3Tick{position:absolute;left:50%;top:50%;width:3px;height:50%;margin-left:-1.5px;
+  transform-origin:50% 0;background:linear-gradient(180deg,var(--gold),rgba(255,207,92,0));
+  border-radius:2px;transform:rotate(0deg);opacity:0;pointer-events:none;z-index:1}
+.m3Tick.on{opacity:.85}
+/* 四家：N=上 E=右 S=下(我) W=左。座位条贴桌边，副露排成一条向内的横排 */
+.m3Wall{position:absolute;z-index:2;display:flex;align-items:center;gap:5px}
+.m3Wall.n{top:5px;left:50%;transform:translateX(-50%);flex-direction:column}
+.m3Wall.e{right:5px;top:50%;transform:translateY(-50%);flex-direction:row-reverse}
+.m3Wall.s{bottom:7px;left:50%;transform:translateX(-50%);flex-direction:column-reverse}
+.m3Wall.w{left:5px;top:50%;transform:translateY(-50%);flex-direction:row}
+.m3Seat{position:relative;padding:2px 6px;border-radius:8px;font-size:10px;font-weight:700;
+  color:var(--dim);letter-spacing:.3px;white-space:nowrap;background:rgba(0,0,0,.42);
+  border:1px solid rgba(255,255,255,.10)}
+.m3Seat.act{color:var(--gold);border-color:rgba(255,207,92,.55);background:rgba(255,207,92,.14)}
+.m3Seat.me{color:var(--green)}
+/* 暗合组（只显示张数，不显示图案 = 保密）：沿桌边向内排，横排不换行 */
+.m3Melds{position:absolute;z-index:2;display:flex;gap:3px;max-width:100%}
+.m3Melds.n{top:56px;left:50%;transform:translateX(-50%);max-width:150px;flex-wrap:wrap;justify-content:center}
+.m3Melds.e{right:6px;top:calc(50% + 8px);max-width:96px;flex-wrap:wrap;justify-content:flex-end}
+/* 「我」是座位 0（下方），其副露统一在底部 .m3MeldRow 显示，桌面里不再重复画 */
+.m3Melds.w{left:6px;top:calc(50% + 8px);max-width:96px;flex-wrap:wrap}
+.m3CountBar.n{top:33px;left:50%;transform:translateX(-50%);max-width:150px;flex-wrap:wrap;justify-content:center}
+.m3CountBar.e{right:6px;top:calc(50% - 26px);max-width:96px;flex-wrap:wrap;justify-content:flex-end}
+.m3CountBar.w{left:6px;top:calc(50% - 26px);max-width:96px;flex-wrap:wrap}
+/* 三家手牌张数：一条牌背缩略条（只报数量，不暴露图案 —— 暗牌游戏的关键信息边界）。
+   左右两家用竖排会拉得很长（最多 20 张），故统一横排贴在座位条下方 */
+.m3CountBar{position:absolute;z-index:1;display:flex;gap:2px;opacity:.5}
+.m3CountBar .bk{width:6px;height:9px;border-radius:2px;flex:0 0 auto;
+  background:linear-gradient(158deg,#2f8f70,#11513f);border:1px solid #0b3c2d}
+.m3CountBar:empty{display:none}
+.m3Meld{width:17px;height:23px;border-radius:3px;background:linear-gradient(158deg,#33a07c,#11513f);
+  border:1px solid #0b3c2d;box-shadow:0 1px 2px rgba(0,0,0,.4);position:relative;flex:0 0 auto}
+.m3Meld:after{content:"";position:absolute;inset:2px;border-radius:2px;
+  border:1px solid rgba(255,255,255,.22)}
+.m3Meld.gold{background:linear-gradient(178deg,#fff3cf,#e8c87a);border-color:#c9a75c}
+.m3Meld.gold:after{border-color:rgba(0,0,0,.18)}
+.m3Meld.gold svg{width:100%;height:100%;display:block;shape-rendering:geometricPrecision}
+.m3Melds:empty{display:none}
+/* 中央弃牌区：打出的牌公开，堆在转盘外围的「环带」里（贴着转盘，不占桌面边缘）。
+   只保留最近 16 张；超出的滚出，避免撑破桌面的固定高度。 */
+.m3River{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  height:132px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-content:center;
+  pointer-events:none;overflow:hidden;padding:0 96px}
+.m3River .tile{--tw:18px;--th:24px;border-radius:3px}
+.m3River .tile.hot{box-shadow:0 0 0 2px var(--gold),0 2px 6px rgba(0,0,0,.5)}
+/* 还没人出牌时的占位提示，避免空桌看起来像卡住 */
+.m3RiverHint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  font-size:11px;color:rgba(255,255,255,.13);letter-spacing:3px;pointer-events:none}
+/* 底部：我的手牌。牌区吃掉桌面省下的竖向空间，但**内容必须顶到底**：
+   align-content:flex-end + 高度自适应会让空带把牌挤到屏幕外（曾出现牌面溢出屏幕底）。
+   用 flex-start（牌从提示区上方开始排）+ 牌宽由 CSS 变量按屏宽定死，最稳。 */
+.m3Mine{flex:0 0 auto;display:flex;flex-direction:column;padding:0 10px max(4px,env(safe-area-inset-bottom));
+  overflow:hidden}
+/* 我的副露（已合成的组，暗合显示牌背）：桌面下沿一条 */
+.m3MeldRow{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;flex:0 0 auto;min-height:0}
+.m3MeldRow:empty{display:none}
+.m3MeldRow .m3Meld{width:22px;height:30px}
+/* 手牌：flex 居中换行。flex:0 0 auto（不吃剩余高度）+ align-content:center：
+   牌区高度由内容决定，剩下的竖向空间留在桌面侧，不会把牌顶出屏幕 */
+.m3Hand{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:5px;justify-content:center;align-content:center;
+  padding:2px 0 4px}
+.m3Hand .tile{--tw:calc(var(--m3tw,44px));--th:calc(var(--m3tw,44px) * 1.36);
+  border-radius:5px;cursor:pointer}
+.m3Hand .tile.canMeld{box-shadow:0 0 0 2px var(--green),0 3px 8px rgba(0,0,0,.5)}
+/* 提示条 */
+.m3Tip{text-align:center;font-size:12px;color:var(--dim);letter-spacing:.5px;
+  min-height:16px;padding:1px 0 3px}
+/* 提示条里的行动按钮（暗合 / 过） */
+.m3Tip .m3Act2{display:inline-flex;align-items:center;gap:4px;margin:0 4px;padding:5px 12px;
+  border-radius:8px;border:1px solid rgba(46,160,90,.55);
+  background:linear-gradient(180deg,rgba(46,160,90,.30),rgba(46,160,90,.14));
+  color:#cfeedd;font-size:12px;font-weight:800;letter-spacing:1px;vertical-align:middle}
+.m3Tip .m3Act2:active{transform:scale(.96)}
+.m3Tip .m3Act2.pass{border-color:var(--line);background:rgba(255,255,255,.06);color:var(--dim)}
+.m3Tip .tile{--tw:15px;--th:20px;border-radius:3px;vertical-align:middle}
+/* 兜底：任何裸插进普通容器的卡面 svg 都限死在行内尺寸，绝不撑爆布局
+   （曾因ms3Face() 裸 SVG 插进提示条，把一张牌撑成全屏） */
+.m3Tip>svg,.m3Seat>svg,.m3Left>svg{width:15px;height:20px;vertical-align:middle}
+.m3Tip.hot{color:var(--gold)}
+.m3Tip.warn{color:var(--red)}
+/* 弹层（规则 / 设置 / 结算） */
+.m3Mask{position:absolute;inset:0;z-index:9;background:rgba(0,0,0,.62);
+  display:flex;align-items:center;justify-content:center;padding:16px}
+.m3Panel{width:min(330px,92vw);max-height:88dvh;overflow-y:auto;
+  background:linear-gradient(180deg,#243c33,#1a2d26);
+  border:1px solid var(--line);border-radius:14px;padding:16px 16px 8px;text-align:center;
+  animation:hIn .22s ease}
+.m3Panel .m3RuleT{text-align:left;font-size:12px;line-height:1.75;color:var(--txt);
+  letter-spacing:.2px;max-height:52dvh;overflow-y:auto;margin:2px 0 10px;padding-right:2px}
+.m3Panel .m3RuleT b{color:var(--gold)}
+.m3Panel .m3RuleT ol{margin:4px 0;padding-left:18px}
+.m3Panel .m3RuleT li{margin:3px 0}
+.m3Panel .m3RuleT p{margin:5px 0}
+.m3Panel .m3Acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 8px}
+.m3Btn{padding:9px 16px;border-radius:10px;border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.04));
+  color:var(--txt);font-size:14px;font-weight:700;letter-spacing:1px}
+.m3Btn.pri{background:linear-gradient(180deg,var(--priHi),var(--priLo));
+  border-color:rgba(var(--priGlow),.5);color:#fff}
+.m3Btn:active{transform:scale(.97)}
+.m3Btn[disabled]{color:var(--dim2);background:rgba(255,255,255,.02);
+  border-color:rgba(255,255,255,.08);pointer-events:none}
+.m3Bar{display:flex;gap:6px;justify-content:center;margin:2px 0 10px;flex-wrap:wrap}
+.m3Bar .m3p{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.14)}
+.m3Bar .m3p.on{background:linear-gradient(180deg,#ffe0a3,#e8a927);border-color:#ffe0a3}
+.m3Score{font-size:12.5px;color:var(--dim);letter-spacing:.5px;line-height:1.7;margin:0 0 10px}
+.m3Score b{color:var(--gold)}
+
 /* ---------- 首页 / 多人大厅 / 房间 ---------- */
 #home{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
   background:radial-gradient(130% 90% at 50% 18%,var(--felt5) 0%,var(--felt4) 72%);
@@ -697,6 +845,8 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 .hBtn.multi::before{content:'👥';font-size:16px}
 .hBtn.mini{border-color:rgba(120,220,160,.35)}
 .hBtn.mini::before{content:'🎴';font-size:16px}
+.hBtn.tri{border-color:rgba(255,150,120,.38)}
+.hBtn.tri::before{content:'🀫';font-size:16px}
 .hBtn.pri{background:linear-gradient(180deg,var(--priHi),var(--priLo));border-color:rgba(var(--priGlow),.5)}
 .hBtn.danger{background:linear-gradient(180deg,#9e3a3a,#6e2222);border-color:rgba(255,120,120,.5)}
 .hBtn:active{transform:scale(.985);filter:brightness(1.12)}
@@ -800,7 +950,8 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
     <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.4.5</div>
+    <button class="hBtn tri" id="hBtnMs3">麻三<small>四家合牌竞速 · 先成五组者胜</small></button>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.5.0</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -863,6 +1014,72 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     </div>
   </div>
   <div class="mlmMask hide" id="mlmResult"></div>
+</div>
+
+<!-- ========== 麻三（4 人暗牌合牌竞速小游戏，v1.5.0） ========== -->
+<div id="ms3" class="hide">
+  <div class="m3Top">
+    <span class="m3Title">麻三</span>
+    <span class="m3Left" id="m3Left"></span>
+    <button class="m3Gear" id="m3Gear" title="设置">⚙</button>
+  </div>
+  <div class="m3Table" id="m3Table">
+    <div class="m3Wall n"><div class="m3Seat" id="m3Seat3"></div><div class="m3Melds n" id="m3Melds3"></div><div class="m3CountBar n" id="m3Hand3"></div></div>
+    <div class="m3Wall w"><div class="m3Seat" id="m3Seat2"></div><div class="m3Melds w" id="m3Melds2"></div><div class="m3CountBar w" id="m3Hand2"></div></div>
+    <div class="m3Wall e"><div class="m3Seat" id="m3Seat1"></div><div class="m3Melds e" id="m3Melds1"></div><div class="m3CountBar e" id="m3Hand1"></div></div>
+    <div class="m3Wall s"><div class="m3Seat me" id="m3Seat0"></div><div class="m3Melds s" id="m3Melds0"></div></div>
+    <div class="m3River" id="m3River"></div>
+    <div class="m3Center">
+      <div class="m3Dial">
+        <div class="m3Tick" id="m3Tick"></div>
+        <div class="m3Season s" id="m3Sea0">春</div>
+        <div class="m3Season e" id="m3Sea1">夏</div>
+        <div class="m3Season n" id="m3Sea2">秋</div>
+        <div class="m3Season w" id="m3Sea3">冬</div>
+        <div class="m3Count" id="m3Count">4</div>
+      </div>
+    </div>
+  </div>
+  <div class="m3Mine">
+    <div class="m3MeldRow" id="m3MineMelds"></div>
+    <div class="m3Hand" id="m3Hand"></div>
+    <div class="m3Tip" id="m3Tip"></div>
+  </div>
+  <div class="m3Mask hide" id="m3Rule">
+    <div class="m3Panel">
+      <div class="mlmResT">玩法规则</div>
+      <div class="m3RuleT">
+        <p><b>基本规则</b></p>
+        <ol>
+          <li>砖块数量：16 种砖块图案，每种图案 7 块，共 112 块。</li>
+          <li>玩家人数：4 人（你 + 3 家 AI）。</li>
+          <li>首次出牌玩家：随机，由转盘上的「春」先出。</li>
+          <li>出牌顺序按<b>春 → 夏 → 秋 → 冬</b>依次出牌（逆时针）。</li>
+          <li>合牌顺序：以当前出牌玩家的<b>逆时针</b>顺序优先合牌。</li>
+          <li><b>合牌</b>：3 个相同图案的砖块可合成一组。当手中有 2 张相同图案的砖块时，其他玩家打出相同图案的砖块时可合（<b>点炮</b>）。</li>
+          <li><b>暗合</b>：自己手中 3 个相同图案的砖块可暗合；<b>暗合的砖块图案不会被其他玩家看到</b>。</li>
+          <li><b>胜出</b>：率先合成 <b>5 组</b>的玩家胜出。</li>
+          <li><b>平局</b>：当砖块全部打完时，没有玩家胜出。</li>
+          <li>可点炮、可自摸、可<b>一炮多响</b>（多家同时点同一张牌都算合）。</li>
+        </ol>
+        <p class="dimc">每回合摸 1 张后必须打出 1 张；轮到你时可暗合手中任意三张同图案。合牌只算组数、不比大小，先到 5 组者获胜。</p>
+      </div>
+      <div class="m3Acts"><button class="m3Btn pri" id="m3RuleOk">确定</button></div>
+    </div>
+  </div>
+  <div class="m3Mask hide" id="m3Menu">
+    <div class="m3Panel">
+      <div class="mlmResT">设置</div>
+      <div class="m3Score" id="m3Score"></div>
+      <div class="m3Acts">
+        <button class="m3Btn" id="m3RuleBtn">玩法规则</button>
+        <button class="m3Btn pri" id="m3Resume">继续游戏</button>
+        <button class="m3Btn" id="m3Restart">重新开始</button>
+        <button class="m3Btn" id="m3Home">返回首页</button>
+      </div>
+    </div>
+  </div>
+  <div class="m3Mask hide" id="m3Over"></div>
 </div>
 
 <div id="app" data-page-node-id="keDzkr1sB8bzq5wlIJrGII">
@@ -4883,6 +5100,270 @@ function openRule(){
 }
 
 /* ========================================================================
+   麻三（MS3）—— 4 人暗牌合牌竞速小游戏（v1.5.0）
+   --------------------------------------------------------------------
+   规则（按官方玩法说明）：
+     · 16 种图案，每种 7 块，共 112 块；4 人各起手 14 块，牌墙 56 块
+     · 首次出牌玩家随机 → 决定「春」位；之后按 春→夏→秋→冬 逆时针依次出牌
+     · 每回合摸 1 张后必须打出 1 张
+     · 合牌（3 块同图案 = 1 组）：
+         点炮 —— 手里已有 2 块同图案，其他玩家打出第 3 块时可合（公开）
+         暗合 —— 自己手里 3 块同图案，可主动合；图案不公开
+     · 合牌优先级：以当前出牌玩家的**逆时针**顺序依次询问
+     · 一炮多响：多家同时可合同一张打出的牌，全都算合
+     · 先合成 5 组者胜；砖块全部打完无人满 5 组 = 平局
+   --------------------------------------------------------------------
+   分层（与麻将引擎同构，便于后续 4 人联网）：
+     本段是**纯规则层**（无 DOM 触碰，只有 ms3Ask 这个决策出口）。
+     ms3Ask 默认走单机 UI；联机时服务端注入 ms3Ask 实现即可，
+     规则代码一行不用改 —— 与 NET 模块的 server-authoritative 思路一致。
+   ======================================================================== */
+const MS3_KIND = 16;              // 16 种图案
+const MS3_EACH = 7;               // 每种 7 块
+const MS3_TOTAL = MS3_KIND * MS3_EACH;   // 112 块
+const MS3_SEATS = 4;
+const MS3_DEAL = 14;              // 每家起手 14 块（4×14=56，牌墙 56）
+const MS3_WIN = 5;                // 先成 5 组者胜
+/* 节奏（毫秒，显式给值而不是拿一个大盘数乘系数 —— 乘系数会让单回合
+   累加到十几秒，三个 AI 回合一夹玩家就一分钟没动静） */
+const MS3_MS = {
+  draw: 260,      // 摸牌停顿
+  melds: 420,     // 暗合停顿
+  aiDiscard: 700, // AI 想出牌
+  discard: 340,   // 弃牌落定
+  aiPon: 620,     // AI 想点炮
+  pon: 340,       // 点炮合牌落定
+  next: 220       // 换家
+};
+const MS3_SEASON = ['春', '夏', '秋', '冬'];
+/* 16 种图案的名字（卡面 SVG 在客户端渲染层；此处只做文字，供日志/结算用） */
+const MS3_NAMES = ['草丛','胡萝卜','玉米','树桩','苦瓜','棉花','铁锤','罐头',
+                   '手套','篝火','毛线球','铃铛','橡果','苹果','小溪','枫叶'];
+
+function ms3Shuffle(a){
+  for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+/* 数一个数组里各图案的张数 → {kind: count} */
+function ms3Counts(arr){
+  const c = {};
+  for (const k of arr) c[k] = (c[k] || 0) + 1;
+  return c;
+}
+function ms3Count(arr, k){ let n = 0; for (const x of arr) if (x === k) n++; return n; }
+
+/* ---------- 一局的状态 ---------- */
+/* M = {
+     players: [{ hand:[kind], melds:[{k, hidden}], meldCount, name, bot }],
+     wall: [kind],          // 牌墙（未摸）
+     river: [{seat, kind}], // 公开弃牌（打出即公开）
+     turn: 0,               // 已完成的回合数
+     first: 0,              // 「春」是哪个座位（0=我 1=右 2=对 3=左）
+     over, winner, reason
+   }
+   座位与季节：出牌顺序 春→夏→秋→冬 逆时针，即座位 0→1→2→3→0 */
+function ms3New(){
+  const deck = [];
+  for (let k = 0; k < MS3_KIND; k++) for (let i = 0; i < MS3_EACH; i++) deck.push(k);
+  ms3Shuffle(deck);
+  const names = ['你', '阿芳', '阿明', '阿强'];
+  const players = [];
+  for (let s = 0; s < MS3_SEATS; s++){
+    const hand = [];
+    for (let i = 0; i < MS3_DEAL; i++) hand.push(deck.pop());
+    hand.sort(function(a, b){ return a - b; });
+    players.push({ seat: s, name: names[s], bot: s !== 0, hand: hand,
+                   melds: [], meldCount: 0 });
+  }
+  return { players: players, wall: deck, river: [], turn: 0,
+           first: Math.floor(Math.random() * MS3_SEATS),   // 随机首出 = 随机「春」位
+           over: false, winner: -1, reason: '', ponMeldN: 0, ponTileN: 0 };
+}
+/* 当前该谁出牌：春位 first 起，逆时针（座位 +1 方向）走 */
+function ms3TurnSeat(M){ return (M.first + M.turn) % MS3_SEATS; }
+/* 该座位对应的季节字（春=first，夏=first+1 …） */
+function ms3SeasonOf(M, seat){ return MS3_SEASON[(seat - M.first + MS3_SEATS) % MS3_SEATS]; }
+/* 合牌优先级：出牌者的逆时针顺序（座位 +1 方向），即下一家先问 */
+function ms3ClaimOrder(M, from){
+  const o = [];
+  for (let i = 1; i < MS3_SEATS; i++) o.push((from + i) % MS3_SEATS);
+  return o;
+}
+/* 手里能否暗合：有某种图案 ≥3 张。返回可暗合的图案列表 */
+function ms3MeldsInHand(p){
+  const c = ms3Counts(p.hand), out = [];
+  for (const k in c) if (c[k] >= 3) out.push(+k);
+  out.sort(function(a, b){ return a - b; });
+  return out;
+}
+/* 摸牌 */
+function ms3Draw(M, p){
+  if (!M.wall.length) return -1;
+  const k = M.wall.pop();
+  p.hand.push(k);
+  p.hand.sort(function(a, b){ return a - b; });
+  return k;
+}
+/* 暗合：从手里拿走 3 张 k，合成一组（hidden=true → 图案不公开） */
+function ms3DoMelds(p, k, hidden){
+  let left = 3;
+  for (let i = p.hand.length - 1; i >= 0 && left > 0; i--){
+    if (p.hand[i] === k){ p.hand.splice(i, 1); left--; }
+  }
+  p.melds.push({ k: k, hidden: !!hidden });
+  p.meldCount++;
+}
+/* 点炮合牌：手里拿走 2 张 k + 收下打出的那张 = 1 组（公开）
+   ⚠️ 一炮多响（规则 10）：多家可同合一张打出的牌，那张物理牌被多家共用，
+   所以「张数守恒」只在「多家共用」时按共用量多算。ponTileN 记被取走的
+   弃牌张数、ponMeldN 记点炮合成的组数，两者之差即共用带来的增量。 */
+function ms3DoPon(M, p, k, riverIdx){
+  let left = 2;
+  for (let i = p.hand.length - 1; i >= 0 && left > 0; i--){
+    if (p.hand[i] === k){ p.hand.splice(i, 1); left--; }
+  }
+  p.melds.push({ k: k, hidden: false });
+  p.meldCount++;
+  M.ponMeldN++;
+  /* 打出这张牌被首家点炮收走 → 从弃牌区移除（之后合的是同一张牌的「共用」） */
+  if (riverIdx != null && riverIdx >= 0 && riverIdx < M.river.length &&
+      M.river[riverIdx].kind === k){
+    M.river.splice(riverIdx, 1);
+    M.ponTileN++;
+  }
+}
+/* 打出一张：进公开弃牌区 */
+function ms3Discard(M, p, k){
+  const i = p.hand.indexOf(k);
+  if (i < 0) return false;
+  p.hand.splice(i, 1);
+  M.river.push({ seat: p.seat, kind: k });
+  return true;
+}
+/* 该座位是否有机会点炮刚打出的 k：手里正好/至少 2 张 k */
+function ms3CanPon(p, k){ return ms3Count(p.hand, k) >= 2; }
+
+/* ---------- 单机 AI 决策 ---------- */
+/* 出牌策略：手里有 2 张的图案要留着点炮（优先打孤张），孤张里挑「别人已经打过很多、
+   自己最没希望凑到」的先打。同分加随机，避免三家行为完全一致。 */
+function ms3AiDiscard(M, p){
+  const seen = {};                    // 公开信息：弃牌区各图案已出现张数
+  for (const r of M.river) seen[r.kind] = (seen[r.kind] || 0) + 1;
+  const c = ms3Counts(p.hand);
+  const left = {};                    // 剩余未现的块数（112 中除自己手里的）
+  let cand = [], best = null, bs = -1;
+  for (const k in c){
+    const n = c[k];
+    const pool = M.wall.length;       // 池子越大越有希望
+    const gone = seen[k] || 0;
+    /* 评分：孤张(n=1)最该打；成组的留着；已被打光的先打 */
+    let s = (n === 1 ? 10 : -6 * n);
+    s -= gone * 1.2;                  // 别人打得越多 → 我越没必要留
+    s += (MS3_EACH - gone) * 0.4 * (pool / MS3_TOTAL);
+    s += Math.random() * 3;
+    if (s > bs){ bs = s; best = k; }
+    cand.push(k);
+  }
+  return best == null ? (p.hand[0] != null ? p.hand[0] : 0) : +best;
+}
+/* AI 是否要暗合：有 3 张就直接暗合（不暗合等于把好牌白送别人点炮） */
+function ms3AiMelds(M, p){
+  const t = ms3MeldsInHand(p);
+  return t.length ? t : [];
+}
+/* AI 要不要点炮：手里有 2 张就合，除非自己已经 4 组且能立刻自摸冲 5（简化：永远合） */
+function ms3AiPon(M, p, k){ return ms3CanPon(p, k); }
+
+/* ---------- 主循环（单机版） ---------- */
+/* 决策出口：默认单机 UI 提供。若装了 MS3.ASK_IMPL（联机版注入），则由其接管。
+   这样规则层保持纯函数，联机时服务端跑同一份 ms3MainLoop 即可。 */
+let MS3_ASK = null;                    // 联机注入点：function(kind, payload) -> Promise
+function ms3Ask(kind, payload){
+  if (MS3_ASK) return MS3_ASK(kind, payload);
+  return ms3AskLocal(kind, payload);   // 客户端默认实现（定义在渲染层）
+}
+/* 节奏等待：默认真sleep；自测/服务端可注入 MS3_SLEEP 做零延迟回放 */
+let MS3_SLEEP = null;
+function ms3Sleep(ms){
+  if (MS3_SLEEP) return MS3_SLEEP(ms);
+  return new Promise(function(res){ setTimeout(res, ms); });
+}
+
+/* 主循环：一直跑到有人成 5 组（胜）或牌墙+手牌耗尽（平局）。
+   这是规则层的「唯一权威流程」，单机与将来的服务端联机都调它。 */
+async function ms3MainLoop(M){
+  while (!M.over){
+    if (!M.wall.length && M.players.every(function(p){ return p.hand.length === 0; })){
+      M.over = true; M.winner = -1; M.reason = 'liuju';
+      return M;
+    }
+    const seat = ms3TurnSeat(M);
+    const p = M.players[seat];
+    /* ① 摸牌 */
+    ms3Draw(M, p);
+    if (typeof ms3Hook === 'function') ms3Hook('turn', M, seat);
+    await ms3Sleep(MS3_MS.draw);
+    /* ② 暗合（可反复，直到手里没有 3 张同图案为止） */
+    for (;;){
+      const t = ms3MeldsInHand(p);
+      if (!t.length) break;
+      const kind = p.bot ? (ms3AiMelds(M, p)[0]) : (await ms3Ask('melds', { hand: p.hand.slice(), kinds: t }));
+      if (kind == null) break;
+      ms3DoMelds(p, kind, true);
+      if (typeof ms3Hook === 'function') ms3Hook('melds', M, seat);
+      if (p.meldCount >= MS3_WIN){
+        M.over = true; M.winner = seat; M.reason = 'win';
+        if (typeof ms3Hook === 'function') ms3Hook('over', M, seat);
+        return M;
+      }
+      await ms3Sleep(MS3_MS.melds);
+    }
+    /* ③ 打出一张 */
+    let out = null;
+    while (!M.over && out == null){
+      if (p.bot){
+        out = ms3AiDiscard(M, p);
+        await ms3Sleep(MS3_MS.aiDiscard);
+      } else {
+        out = await ms3Ask('discard', { hand: p.hand.slice() });
+      }
+    }
+    if (M.over) return M;
+    ms3Discard(M, p, out);
+    const riverIdx = M.river.length - 1;      // 本次弃牌在弃牌区的位置（点炮要按它移除）
+    if (typeof ms3Hook === 'function') ms3Hook('discard', M, seat, out);
+    await ms3Sleep(MS3_MS.discard);
+    /* ④ 点炮：出牌者逆时针顺序依次询问，可一炮多响 */
+    const order = ms3ClaimOrder(M, seat);
+    for (let i = 0; i < order.length; i++){
+      const s = order[i], q = M.players[s];
+      if (!ms3CanPon(q, out)) continue;
+      let yes = false;
+      if (q.bot){ yes = ms3AiPon(M, q, out); await ms3Sleep(MS3_MS.aiPon); }
+      else yes = (await ms3Ask('pon', { kind: out, from: seat, hand: q.hand.slice() })) === 'pon';
+      if (!yes) continue;
+      /* 一炮多响：首家收走弃牌，后续合的是同一张牌的共用（riverIdx 只对首家有效，
+         之后 riverIdx 可能已越界，ms3DoPon 内部有边界校验，不会误删别人的弃牌） */
+      ms3DoPon(M, q, out, riverIdx);
+      if (typeof ms3Hook === 'function') ms3Hook('pon', M, s, out);
+      if (q.meldCount >= MS3_WIN && M.winner < 0){
+        /* 一炮多响同时达标时，按逆时针先到者记胜（规则 5 的自然延伸） */
+        M.over = true; M.winner = s; M.reason = 'win';
+      }
+      await ms3Sleep(MS3_MS.pon);
+    }
+    if (M.over){
+      if (typeof ms3Hook === 'function') ms3Hook('over', M, M.winner);
+      return M;
+    }
+    M.turn++;
+    await ms3Sleep(MS3_MS.next);
+  }
+  return M;
+}
+let ms3Hook = null;                    // 渲染/联机层的推进钩子（纯规则层不直接碰 DOM）
+
+/* ========================================================================
    多人联机（NET）
    架构：服务器权威。服务端跑规则引擎，客户端只渲染投影 + 上报动作。
    投影（view）经 applyView 座位重映射后直接物化进全局 G：
@@ -6418,6 +6899,320 @@ $('mlmPending').addEventListener('click', e => {
 window.addEventListener('resize', () => {
   if (!$('mlm').classList.contains('hide')){ mlmLayout(); mlmRender(); }
 });
+
+/* ========================================================================
+   麻三 · 渲染层与单机交互（客户端专属）
+   规则在引擎层（本文件前段的 MS3_*），这里只做：画卡面、渲染投影、把人的
+   决策通过 ms3Ask 回填。将来上 4 人联网，只要把 ms3Ask 换成服务端回包，
+   规则一行不改。
+   ======================================================================== */
+/* ---------- 16 种卡面（简笔卡通，呼应截图里的户外/杂物题材） ---------- */
+const MS3_FACES = [
+  /* 0 草丛 */ '<path d="M6 30c0-7 2-12 5-16M15 30c0-9 1-15 2-20M24 30c0-6-1-10-4-14" stroke="#5aa84e" stroke-width="2.4" fill="none" stroke-linecap="round"/><path d="M11 21c-3-1-5-3-6-6 4 0 6 1 8 3M19 15c3-1 5-3 6-5-4 0-6 1-8 3" stroke="#78c46a" stroke-width="2" fill="none" stroke-linecap="round"/><ellipse cx="15" cy="32" rx="11" ry="2.6" fill="#8a5a34"/>',
+  /* 1 胡萝卜 */ '<path d="M15 12c3 0 4 3 3 7-1 6-4 11-7 13-2-3-4-7-4-11 0-5 3-9 8-9z" fill="#f0913d" stroke="#c4681f" stroke-width="1.6"/><path d="M15 12c-1-4 0-7 2-9M15 12c1-4 4-6 7-6M13 12c-4-1-6-3-7-6" stroke="#4f9a3f" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M12 20l3 2M11 26l3 2" stroke="#c4681f" stroke-width="1.4" stroke-linecap="round"/>',
+  /* 2 玉米 */ '<ellipse cx="15" cy="21" rx="7" ry="10" fill="#f2c94c" stroke="#c9a02c" stroke-width="1.6"/><path d="M10 14h10M9 19h12M9 24h12M11 29h8" stroke="#c9a02c" stroke-width="1.3"/><path d="M8 24c-2-3-2-7 0-10 1 3 1 7 0 10zM22 24c2-3 2-7 0-10-1 3-1 7 0 10z" fill="#7cc45f" stroke="#4f9a3f" stroke-width="1.2"/>',
+  /* 3 树桩 */ '<rect x="8" y="16" width="14" height="13" rx="2" fill="#a9713f" stroke="#7a4c22" stroke-width="1.6"/><ellipse cx="15" cy="16" rx="7" ry="3" fill="#c98d55" stroke="#7a4c22" stroke-width="1.6"/><ellipse cx="15" cy="16" rx="3" ry="1.3" fill="none" stroke="#7a4c22" stroke-width="1.2"/><path d="M11 22v5M19 22v5" stroke="#7a4c22" stroke-width="1.3" stroke-linecap="round"/>',
+  /* 4 苦瓜 */ '<ellipse cx="15" cy="19" rx="6" ry="11" fill="#7fbf3f" stroke="#5a8a26" stroke-width="1.6"/><path d="M12 10v18M15 9v20M18 10v18" stroke="#5a8a26" stroke-width="1.3" stroke-linecap="round"/><path d="M15 8V5" stroke="#5a8a26" stroke-width="1.8" stroke-linecap="round"/>',
+  /* 5 棉花 */ '<circle cx="12" cy="17" r="5.4" fill="#fdfdf6" stroke="#cfd4c8" stroke-width="1.4"/><circle cx="19" cy="17" r="4.6" fill="#fdfdf6" stroke="#cfd4c8" stroke-width="1.4"/><circle cx="15" cy="23" r="5" fill="#f4f6ee" stroke="#cfd4c8" stroke-width="1.4"/><path d="M15 28v5" stroke="#8a9a5a" stroke-width="2" stroke-linecap="round"/><path d="M15 30c-3 0-5 1-6 3 2-1 4-1 6-1s4 0 6 1c-1-2-3-3-6-3z" fill="#6aa84e"/>',
+  /* 6 铁锤 */ '<path d="M9 13h12v6H9z" fill="#8b9299" stroke="#5f666d" stroke-width="1.6"/><path d="M9 13l-3-2v10l3-2z" fill="#a9b0b6" stroke="#5f666d" stroke-width="1.4"/><path d="M15 19l-2 13h5l-2-13z" fill="#a9713f" stroke="#7a4c22" stroke-width="1.4"/>',
+  /* 7 罐头 */ '<rect x="8" y="12" width="14" height="18" rx="2.5" fill="#d9d3c4" stroke="#8a8371" stroke-width="1.6"/><rect x="8" y="12" width="14" height="3.6" rx="1.6" fill="#b9b2a1" stroke="#8a8371" stroke-width="1.4"/><path d="M11 20h8M11 24h8M11 28h5" stroke="#8a8371" stroke-width="1.4" stroke-linecap="round"/><circle cx="15" cy="19" r="2" fill="#b8452f"/>',
+  /* 8 手套 */ '<path d="M11 30V17c0-2 1-3 2-3s2 1 2 3v-4c0-2 1-3 2-3s2 1 2 3v4c0-2 1-3 2-3s2 1 2 3v13c0 3-2 5-6 5s-6-2-6-5z" fill="#4a86c8" stroke="#2f5c92" stroke-width="1.6"/><path d="M11 24h8" stroke="#2f5c92" stroke-width="1.4"/>',
+  /* 9 篝火 */ '<path d="M15 6c4 5 6 8 6 12a6 6 0 0 1-12 0c0-3 2-5 3-7 0 2 1 3 2 3 0-3-1-5 1-8z" fill="#f2913d" stroke="#c4681f" stroke-width="1.5"/><path d="M15 15c2 3 3 4 3 6a3 3 0 0 1-6 0c0-2 2-3 3-6z" fill="#f7d14c"/><path d="M9 31l6-3 6 3-6 3z" fill="#a9713f" stroke="#7a4c22" stroke-width="1.3"/>',
+  /* 10 毛线球 */ '<circle cx="15" cy="20" r="10" fill="#c98bc0" stroke="#9c5a92" stroke-width="1.6"/><path d="M9 13c6 2 10 7 12 14M8 22c6-3 12-2 15 2M14 11c-1 7 1 13 6 17M20 13c-4 4-6 9-5 14" stroke="#9c5a92" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
+  /* 11 铃铛 */ '<path d="M15 5v3" stroke="#8a6a2a" stroke-width="2" stroke-linecap="round"/><path d="M9 25c2-3 3-6 3-10a3 3 0 0 1 6 0c0 4 1 7 3 10z" fill="#e8b53c" stroke="#a8801f" stroke-width="1.6"/><path d="M7 25h16v3H7z" fill="#c99a24" stroke="#a8801f" stroke-width="1.5"/><circle cx="15" cy="30" r="2.4" fill="#a8801f"/>',
+  /* 12 橡果 */ '<ellipse cx="15" cy="21" rx="8" ry="9" fill="#b5834f" stroke="#8a5c2a" stroke-width="1.6"/><path d="M6 13c3-3 15-3 18 0-1 3-17 3-18 0z" fill="#8a5c2a" stroke="#6b4520" stroke-width="1.4"/><path d="M15 4v6" stroke="#6b4520" stroke-width="2" stroke-linecap="round"/><path d="M11 22v6M19 22v6" stroke="#8a5c2a" stroke-width="1.3" stroke-linecap="round"/>',
+  /* 13 苹果 */ '<path d="M15 12c4-3 9 0 9 6s-4 14-9 14-9-8-9-14 5-9 9-6z" fill="#e05c4a" stroke="#a83a2c" stroke-width="1.6"/><path d="M15 12V7" stroke="#7a4c22" stroke-width="2" stroke-linecap="round"/><path d="M16 8c3-3 6-2 7-1-2 3-5 3-7 1z" fill="#5aa84e" stroke="#3f7a2a" stroke-width="1.3"/><path d="M11 16c1-1 2-2 3-2" stroke="#f5a294" stroke-width="1.6" stroke-linecap="round"/>',
+  /* 14 小溪 */ '<path d="M3 15c4 0 5 4 9 4s5-4 9-4 5 4 8 4" stroke="#5aa8d8" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M3 24c4 0 5 4 9 4s5-4 9-4 5 4 8 4" stroke="#7cc4ea" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="8" cy="9" r="3" fill="#8bc46a" stroke="#4f9a3f" stroke-width="1.3"/>',
+  /* 15 枫叶 */ '<path d="M15 4c3 3 5 5 8 6-1 2-1 4 0 6-2 1-4 1-6 0-1 3-2 6-2 8-2-2-3-5-3-8-2 1-4 1-6 0 1-2 1-4 0-6 3-1 5-3 8-6z" fill="#e0763c" stroke="#a84a1c" stroke-width="1.5"/><path d="M15 6v14" stroke="#a84a1c" stroke-width="1.3" stroke-linecap="round"/>'
+];
+const MS3_FACE_SVG = MS3_FACES.map(function(s){
+  return '<svg viewBox="0 0 30 36" preserveAspectRatio="xMidYMid meet">' + s + '</svg>';
+});
+function ms3Face(k){ return MS3_FACE_SVG[k]; }
+function ms3Tile(k, extra){
+  return '<div class="tile ' + (extra || '') + '">' + ms3Face(k) + '</div>';
+}
+
+/* ---------- 运行时状态（客户端投影） ---------- */
+const MS3 = { M: null, run: 0, cdTimer: null, cdLeft: 0, cdMax: 1, cdToken: 0, waiting: null };
+function ms3Open(){
+  $('home').classList.add('hide');
+  $('ms3').classList.remove('hide');
+  ms3Start();
+}
+function ms3Exit(){
+  MS3.run++;                       // 作废当前回合循环
+  if (MS3.cdTimer){ clearInterval(MS3.cdTimer); MS3.cdTimer = null; }
+  MS3.M = null; MS3.waiting = null;
+  $('ms3').classList.add('hide');
+  $('m3Menu').classList.add('hide');
+  $('m3Over').classList.add('hide');
+  $('home').classList.remove('hide');
+}
+function ms3Start(){
+  MS3.run++;
+  const my = MS3.run;
+  if (MS3.cdTimer){ clearInterval(MS3.cdTimer); MS3.cdTimer = null; }
+  MS3.waiting = null;
+  $('m3Menu').classList.add('hide');
+  $('m3Over').classList.add('hide');
+  $('m3Tip').textContent = '';
+  MS3.M = ms3New();
+  /* 推进钩子：每一步之后重画 */
+  ms3Hook = function(ev, M, seat, kind){
+    if (MS3.run !== my) return;
+    ms3Render(M, seat);
+    if (ev === 'turn' || ev === 'discard') ms3StartCd();   // 换人/出牌 → 转盘重新起拍
+    else ms3PaintCd();
+    if (ev === 'over') ms3Over(M);
+  };
+  ms3Render(MS3.M, ms3TurnSeat(MS3.M));
+  ms3StartCd();
+  ms3MainLoop(MS3.M);
+}
+/* 中央转盘倒计时：按本回合实际节奏长度走完一圈，纯视觉节拍 */
+/* 转盘节拍：AI 思考时指针走一圈（纯视觉）。
+   ⚠️ 必须用 cdToken 做「代际令牌」：只 clearInterval 挡不住旧 interval 里
+   已经排队的那次回调 —— 它醒来后照样改 MS3.cdLeft，多个 interval 叠加
+   就会把计数器减成大负数、拼出 "1038" 这种怪数字（曾真实发生）。
+   令牌不一致就自杀，保证同一时刻只有一个 interval 在动 cdLeft。 */
+function ms3StartCd(){
+  if (MS3.cdTimer) clearInterval(MS3.cdTimer);
+  MS3.cdToken = (MS3.cdToken || 0) + 1;
+  const myToken = MS3.cdToken;
+  const M = MS3.M;
+  const bot = M && !M.over && M.players[ms3TurnSeat(M)].bot;
+  if (!bot){ MS3.cdLeft = 0; ms3PaintCd(); return; }
+  const total = Math.max(1, Math.round((MS3_MS.aiDiscard + MS3_MS.discard) / 70));  // 一圈 ≈ 本回合节拍
+  MS3.cdMax = total;
+  MS3.cdLeft = total;
+  ms3PaintCd();
+  MS3.cdTimer = setInterval(function(){
+    if (MS3.cdToken !== myToken) return;         // 已被新一轮接管 → 本 interval 作废
+    MS3.cdLeft--;
+    const c = $('m3Count');
+    if (c) c.textContent = MS3.cdLeft > 0 ? MS3.cdLeft : '';
+    const t = $('m3Tick');
+    if (t && MS3.cdLeft > 0){
+      const ang = (1 - MS3.cdLeft / total) * 300;
+      t.style.transform = 'rotate(' + ang + 'deg)';
+      t.classList.add('on');
+    }
+    if (MS3.cdLeft <= 0){
+      clearInterval(MS3.cdTimer);
+      if (MS3.cdToken === myToken) MS3.cdTimer = null;
+      t && t.classList.remove('on');
+    }
+  }, 70);
+}
+/* 转盘中央：轮到自己显示「你」，AI 时显示剩余节拍（由 interval 负责，这里只补静态态） */
+function ms3PaintCd(){
+  const c = $('m3Count');
+  const t = $('m3Tick');
+  const M = MS3.M;
+  const mine = M && !M.over && ms3TurnSeat(M) === 0;
+  if (c && !mine) c.textContent = (M && M.over) ? '' : (MS3.cdLeft > 0 ? MS3.cdLeft : '');
+  if (t && (mine || (M && M.over))) t.classList.remove('on');
+  if (c && mine) c.textContent = '你';
+}
+
+/* ---------- 渲染投影 ---------- */
+/* seat 0=我(南/下) 1=右(西) 2=对(北) 3=左(东) —— 逆时针 0→1→2→3 */
+/* 四季字按「该座位当前是第几季」摆到转盘四角：s/e/n/w 对应下/右/上/左，
+   春位随机 ⇒ 四季整体跟着轮转，不是写死「春在下」 */
+const MS3_POS = ['s', 'e', 'n', 'w'];
+function ms3Render(M, seat){
+  const my = M.players[0];
+  /* 顶部信息 */
+  $('m3Left').textContent = '牌墙 ' + M.wall.length + ' 张 · 先成 ' + MS3_WIN + ' 组者胜';
+  for (let i = 0; i < MS3_SEATS; i++){
+    const el = $('m3Sea' + i);
+    const s = (M.first + i) % MS3_SEATS;      // 第 i 季 → 座位 s
+    el.className = 'm3Season ' + MS3_POS[s] + (!M.over && s === seat ? ' on' : '');
+    el.textContent = MS3_SEASON[i];
+  }
+  /* 四家：名字 + 组数进度 + 暗合（不显示图案）
+     座位固定：0=我(下/南) 1=右 2=对(上/北) 3=左；
+     「春/夏/秋/冬」是轮转出来的 —— 春位随机，所以四季字跟着座位走 */
+  for (let s = 0; s < MS3_SEATS; s++){
+    const p = M.players[s];
+    const el = $('m3Seat' + s);
+    el.textContent = ms3SeasonOf(M, s) + '·' + (s === 0 ? '你' : p.name) + ' ' + p.meldCount + '/' + MS3_WIN;
+    el.classList.toggle('act', !M.over && s === seat);
+    /* 暗合组只画牌背（图案不公开）；点炮组公开图案 */
+    let h = '';
+    if (s !== 0) for (const m of p.melds){    // 座位 0 的副露在底部单独渲染，这里跳过
+      h += m.hidden ? '<div class="m3Meld"></div>'
+                    : '<div class="m3Meld gold">' + ms3Face(m.k) + '</div>';
+    }
+    $('m3Melds' + s).innerHTML = h;
+  }
+  /* 三家手牌张数（只报数量，不暴露图案）：牌背缩略条 */
+  for (let s = 1; s < MS3_SEATS; s++){
+    const p = M.players[s];
+    let bh = '';
+    for (let i = 0; i < p.hand.length; i++) bh += '<div class="bk"></div>';
+    $('m3Hand' + s).innerHTML = bh;
+  }
+  /* 弃牌区（公开信息）：只保留最近 16 张，超出滚出，避免撑破桌面固定高度 */
+  const RIVER_MAX = 16;
+  let rh = '';
+  const from = Math.max(0, M.river.length - RIVER_MAX);
+  for (let i = from; i < M.river.length; i++){
+    const r = M.river[i];
+    rh += ms3Tile(r.kind, r.seat === 0 ? 'hot' : '');
+  }
+  if (!rh) rh = '<div class="m3RiverHint">尚无弃牌</div>';
+  $('m3River').innerHTML = rh;
+  /* 我的手牌：三张以上同图案的描绿框提示可暗合 */
+  const cnt = ms3Counts(my.hand);
+  let hh = '';
+  for (const k of my.hand){
+    hh += ms3Tile(k, (cnt[k] >= 3 ? 'canMeld' : ''));
+  }
+  const hand = $('m3Hand');
+  hand.innerHTML = hh;
+  hand.classList.toggle('wait', MS3.waiting === 'discard');
+  /* 我的副露：暗合只显示牌背（规则：暗合图案不公开），点炮公开图案 */
+  let mh = '';
+  for (const m of my.melds){
+    mh += m.hidden ? '<div class="m3Meld"></div>'
+                   : '<div class="m3Meld gold">' + ms3Face(m.k) + '</div>';
+  }
+  $('m3MineMelds').innerHTML = mh;
+}
+/* ---------- 结算 ---------- */
+function ms3Over(M){
+  if (MS3.cdTimer){ clearInterval(MS3.cdTimer); MS3.cdTimer = null; }
+  const win = M.winner;
+  let body = '';
+  if (win < 0){
+    body = '<div class="mlmResT lose">平局</div>' +
+      '<div class="mlmResD">砖块全部打完，没有玩家先成五组。</div>';
+  } else {
+    const w = M.players[win];
+    /* 规则 8「先成 5 组者胜」：同局可能有人也是 5 组，但先到者判胜 —— 说清楚 */
+    const also = M.players.filter(p => p.meldCount >= MS3_WIN).length;
+    body = '<div class="mlmResT">' + (win === 0 ? '🎉 你赢了！' : '🏆 ' + w.name + ' 获胜') + '</div>' +
+      '<div class="mlmResD">' + ms3SeasonOf(M, win) + '位率先合成 ' + MS3_WIN + ' 组' +
+      (also > 1 ? '（同时有 ' + also + ' 家达成，按先到者判胜）' : '') +
+      (win === 0 ? '' : '，下次一定赢！') + '</div>';
+  }
+  /* 各家组数一览 */
+  let rows = '';
+  for (let i = 0; i < MS3_SEATS; i++){
+    const p = M.players[i];
+    rows += '<div class="lgrow"><span class="lgi">' + ms3SeasonOf(M, i) + '</span><span>' +
+      (i === 0 ? '你' : p.name) + ' — <b>' + p.meldCount + '</b> 组' +
+      (i === win ? '（先成 · 胜）' : (p.meldCount >= MS3_WIN ? '（同达）' : '')) + '</span></div>';
+  }
+  let h = body + '<div class="lglist" style="max-height:120px;overflow:auto;margin:6px 0 10px;text-align:left">' +
+    rows + '</div>' +
+    '<div class="m3Acts"><button class="m3Btn pri" id="m3Again">再来一局</button>' +
+    '<button class="m3Btn" id="m3BackHome">返回首页</button></div>';
+  const box = $('m3Over');
+  box.innerHTML = '<div class="m3Panel">' + h + '</div>';
+  box.classList.remove('hide');
+  $('m3Again').onclick = ms3Start;
+  $('m3BackHome').onclick = ms3Exit;
+  /* 设置面板里也同步战绩 */
+  ms3ScoreInto(M);
+}
+function ms3ScoreInto(M){
+  const el = $('m3Score');
+  if (!el) return;
+  let s = '';
+  for (let i = 0; i < MS3_SEATS; i++){
+    const p = M.players[i];
+    s += ms3SeasonOf(M, i) + ' ' + (i === 0 ? '你' : p.name) + ' <b>' + p.meldCount + '</b> 组' +
+      (i === M.winner ? '（胜）' : '');
+    if (i < MS3_SEATS - 1) s += '<br>';
+  }
+  s += '<br>牌墙剩 ' + M.wall.length + ' 张 · 一炮多响 ' + (M.ponMeldN - M.ponTileN) + ' 次';
+  el.innerHTML = s;
+}
+
+/* ---------- 单机决策：ms3Ask 的默认实现（客户端 UI） ---------- */
+/* 提示条 + 行动按钮。返回一个 Promise，由玩家点击 resolve。 */
+function ms3Prompt(html, buttons){
+  const tip = $('m3Tip');
+  tip.className = 'm3Tip hot';
+  tip.innerHTML = html + buttons.map(function(b, i){
+    return '<button class="m3Act2' + (b.pass ? ' pass' : '') + '" data-m3b="' + i + '">' +
+      b.label + '</button>';
+  }).join('');
+  return new Promise(function(res){
+    const kids = Array.from(tip.querySelectorAll('.m3Act2'));
+    kids.forEach(function(el){
+      el.onclick = function(){ ms3ClearPrompt(); res(buttons[+el.dataset.m3b].value); };
+    });
+  });
+}
+function ms3ClearPrompt(){
+  const tip = $('m3Tip');
+  tip.innerHTML = '';
+  tip.className = 'm3Tip';
+}
+/* 决策出口：kind = 'melds' | 'discard' | 'pon' */
+function ms3AskLocal(kind, payload){
+  if (kind === 'melds'){
+    MS3.waiting = null;
+    /* 可暗合：列出图案，玩家选一个或选择「不打暗合」直接出牌。
+       摸到牌正好凑齐一组（自摸）也走这条路径 —— 规则 10 的「自摸」即此。 */
+    const kinds = payload.kinds;
+    if (kinds.length === 1){
+      const k = kinds[0];
+      return ms3Prompt('可暗合一组（图案不公开）：' + ms3Tile(k) + ' ' + MS3_NAMES[k] + '　',
+        [{ label: '暗合', value: k }, { label: '先出牌', value: null, pass: true }]);
+    }
+    return ms3Prompt('可暗合多组，任选一个（图案不公开）：',
+      kinds.map(function(k){ return { label: MS3_NAMES[k], value: k }; })
+      .concat([{ label: '先出牌', value: null, pass: true }]));
+  }
+  if (kind === 'discard'){
+    /* 选一张打出：手牌直接点牌即出 */
+    MS3.waiting = 'discard';
+    const tip = $('m3Tip');
+    tip.className = 'm3Tip hot';
+    tip.textContent = '轮到你出牌 —— 点一张手牌打出去';
+    const hand = $('m3Hand');
+    ms3Render(MS3.M, ms3TurnSeat(MS3.M));   // 让 wait 态与可点样式立刻生效
+    return new Promise(function(res){
+      function onClick(e){
+        const el = e.target.closest('.tile');
+        if (!el) return;
+        const i = Array.from(hand.children).indexOf(el);
+        if (i < 0) return;
+        hand.removeEventListener('click', onClick);
+        MS3.waiting = null;
+        ms3ClearPrompt();
+        res(payload.hand[i]);
+      }
+      hand.addEventListener('click', onClick);
+    });
+  }
+  if (kind === 'pon'){
+    /* 点炮：手里 2 张可合；可选择「合」或「过」（不影响别人） */
+    return ms3Prompt('可点炮 ' + ms3Tile(payload.kind) + ' ' + MS3_NAMES[payload.kind] + '　合一组？',
+      [{ label: '合牌', value: 'pon' }, { label: '过', value: 'pass', pass: true }]);
+  }
+  return Promise.resolve(null);
+}
+
+/* ---------- 绑定（脚本在 body 末尾，DOM 已就绪） ---------- */
+$('hBtnMs3').onclick = ms3Open;
+$('m3Gear').onclick = function(){
+  if (MS3.M) ms3ScoreInto(MS3.M);
+  $('m3Menu').classList.toggle('hide');
+};
+$('m3Resume').onclick = function(){ $('m3Menu').classList.add('hide'); };
+$('m3Restart').onclick = ms3Start;
+$('m3Home').onclick = ms3Exit;
+$('m3RuleBtn').onclick = function(){
+  $('m3Menu').classList.add('hide');
+  $('m3Rule').classList.remove('hide');
+};
+$('m3RuleOk').onclick = function(){ $('m3Rule').classList.add('hide'); };
 </script>
 </body>
 </html>
