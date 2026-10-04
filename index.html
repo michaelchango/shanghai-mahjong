@@ -679,7 +679,8 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
      ④ 牌面改用麻将真实牌面（MS3_FACES 映射到 STD_FACES 的 17 种牌） */
 #ms3{position:fixed;inset:0;z-index:71;display:flex;flex-direction:column;
   /* 我的手牌牌宽：7 张一排留边距，按屏宽收放（纯 CSS 跟随视口，无需 JS 重算） */
-  --m3tw:min(46px,calc((100vw - 58px) / 7));
+  /* 99 = 左右 padding 20 + 摸牌常驻槽位 ~46 + 槽间隙 9；保证手牌每行稳稳排 7 张 */
+  --m3tw:min(46px,calc((100vw - 99px) / 7));
   background:radial-gradient(130% 90% at 50% 12%,var(--felt5) 0%,var(--felt4) 72%)}
 .m3Top{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 14px 2px}
 .m3Title{font-size:20px;font-weight:900;color:var(--gold);letter-spacing:3px;
@@ -786,8 +787,8 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   flex-wrap:wrap-reverse;justify-content:flex-end;max-height:64%}
 .m3RiverSeg.c{left:50%;top:34%;transform:translate(-50%,-50%);flex-wrap:wrap;justify-content:center;
   align-content:center;max-width:min(46%,190px)}
-.m3RiverSeg.me{left:50%;top:68%;transform:translate(-50%,-50%);flex-wrap:wrap;justify-content:center;
-  align-content:center;max-width:min(46%,190px)}
+.m3RiverSeg.me{left:50%;top:91%;transform:translate(-50%,-50%);flex-wrap:wrap;justify-content:center;
+  align-content:center;max-width:min(60%,240px)}
 .m3River .tile{--tw:15px;--th:20px;border-radius:2.5px;flex:0 0 auto}
 .m3River .tile.hot{box-shadow:0 0 0 2px var(--gold),0 2px 6px rgba(0,0,0,.5)}
 /* 还没人出牌时的占位提示，避免空桌看起来像卡住 */
@@ -800,18 +801,33 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
 .m3Mine{flex:0 0 auto;display:flex;flex-direction:column;
   padding:2px 10px max(4px,env(safe-area-inset-bottom));overflow:hidden}
 /* 我的副露 */
-.m3MeldRow{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;flex:0 0 auto;min-height:0}
+.m3MeldRow{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;flex:0 0 auto;min-height:0;align-items:flex-end;padding-bottom:1px}
 .m3MeldRow:empty{display:none}
-.m3MeldRow .m3Meld{--tw:22px;--th:30px}
+/* 合成区：每组三张「下二上一」叠放，比手牌小一号 */
+.m3MeldGroup{position:relative;width:calc(var(--m3mw,20px)*2 + 3px);height:calc(var(--m3mw,20px)*1.5);flex:0 0 auto;margin:0 1px}
+.m3MeldGroup .mb{position:absolute;bottom:0;--tw:var(--m3mw,20px);--th:calc(var(--m3mw,20px)*1.36);border-radius:2px}
+.m3MeldGroup .mb.l{left:0}
+.m3MeldGroup .mb.r{right:0}
+.m3MeldGroup .mt{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2;
+  --tw:var(--m3mw,20px);--th:calc(var(--m3mw,20px)*1.36);border-radius:2px}
 /* 手牌：flex 居中换行，高度由内容决定（不会把牌顶出屏幕） */
 /* 手牌：flex 居中换行。flex:0 0 auto（高度由内容定）+ align-content:flex-end：
    ⚠️ 绝不能给手牌区 flex:1 + align-content:flex-start —— 剩下的竖向空间会把牌
    整体往下推、超出屏幕底（曾出现牌面被截）。这里内容贴底、空间留在上方。 */
-.m3Hand{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;align-content:flex-end;
+.m3HandWrap{flex:0 0 auto;display:flex;align-items:flex-end;justify-content:center;gap:9px;width:100%;min-width:0}
+/* 手牌占满「减去摸牌槽」后的宽度：位置固定、每行 7 张，摸牌出现不挤不顶 */
+.m3Hand{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;gap:4px;justify-content:center;align-content:flex-end;
   padding:2px 0 3px}
 .m3Hand .tile{--tw:calc(var(--m3tw,44px));--th:calc(var(--m3tw,44px) * 1.36);
   border-radius:5px;cursor:pointer}
 .m3Hand .tile.canMeld{box-shadow:0 0 0 2px var(--green),0 3px 8px rgba(0,0,0,.5)}
+/* 刚摸到的牌：台面独立一格，金边区分，不挤进手牌（手牌位置保持不动） */
+/* 摸牌槽常驻占位（宽度恒定）：空槽时只隐不见，手牌宽度永远不变 → 手牌位置不动 */
+.m3Drawn{flex:0 0 auto;width:var(--m3tw,44px);display:flex;align-items:flex-end;justify-content:center}
+.m3Drawn.hide{visibility:hidden}
+.m3Drawn .tile{--tw:calc(var(--m3tw,44px));--th:calc(var(--m3tw,44px) * 1.36);
+  border-radius:5px;cursor:pointer;box-shadow:0 0 0 2px var(--gold),0 3px 8px rgba(0,0,0,.5)}
+.m3Drawn .tile.canMeld{box-shadow:0 0 0 2px var(--green),0 3px 8px rgba(0,0,0,.5)}
 /* 提示条 */
 .m3Tip{text-align:center;font-size:12px;color:var(--dim);letter-spacing:.5px;
   min-height:16px;padding:1px 0 2px}
@@ -990,7 +1006,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
     <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
     <button class="hBtn tri" id="hBtnMs3">麻三<small>四家合牌竞速 · 先成五组者胜</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.5.1</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.5.2</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -1106,7 +1122,10 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
   </div>
   <div class="m3Mine">
     <div class="m3MeldRow" id="m3MineMelds"></div>
-    <div class="m3Hand" id="m3Hand"></div>
+    <div class="m3HandWrap" id="m3HandWrap">
+      <div class="m3Hand" id="m3Hand"></div>
+      <div class="m3Drawn hide" id="m3Drawn"></div>
+    </div>
     <div class="m3Tip" id="m3Tip"></div>
   </div>
   <div class="m3Mask hide" id="m3Rule">
@@ -1115,7 +1134,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
       <div class="m3RuleT">
         <p><b>基本规则</b></p>
         <ol>
-          <li>牌面数量：17 种牌面（万 1-3 + 条 1-7 + 筒 1-4 + 中/发/白），每种 7 块，共 119 块。</li>
+          <li>牌面数量：17 种牌面（万 1-3 + 条 1-7 + 筒 1-7），每种 7 块，共 119 块。</li>
           <li>玩家人数：4 人（你 + 3 家 AI）。</li>
           <li>首次出牌玩家：随机，由转盘上的「春」先出。</li>
           <li>出牌顺序按<b>春 → 夏 → 秋 → 冬</b>依次出牌（逆时针）。</li>
@@ -5182,7 +5201,7 @@ function openRule(){
      ms3Ask 默认走单机 UI；联机时服务端注入 ms3Ask 实现即可，
      规则代码一行不用改 —— 与 NET 模块的 server-authoritative 思路一致。
    ======================================================================== */
-const MS3_KIND = 17;              // 17 种牌面（万1-3 + 条1-7 + 筒1-4 + 中/发/白）
+const MS3_KIND = 17;              // 17 种牌面（万1-3 + 条1-7 + 筒1-7，去掉字牌中/发/白）
 const MS3_EACH = 7;               // 每种 7 块
 const MS3_TOTAL = MS3_KIND * MS3_EACH;   // 119 块
 const MS3_SEATS = 4;
@@ -5202,7 +5221,7 @@ const MS3_MS = {
 const MS3_SEASON = ['春', '夏', '秋', '冬'];
 /* 17 种牌面的中文名（提示条 / 结算用；与渲染层 MS3_TILES 一一对应） */
 const MS3_NAMES = ['一万','二万','三万','一条','二条','三条','四条','五条','六条','七条',
-                   '一筒','二筒','三筒','四筒','红中','发财','白板'];
+                   '一筒','二筒','三筒','四筒','五筒','六筒','七筒'];
 
 function ms3Shuffle(a){
   for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
@@ -5241,7 +5260,7 @@ function ms3New(){
   }
   return { players: players, wall: deck, river: [], turn: 0,
            first: Math.floor(Math.random() * MS3_SEATS),   // 随机首出 = 随机「春」位
-           over: false, winner: -1, reason: '', ponMeldN: 0, ponTileN: 0 };
+           over: false, winner: -1, reason: '', ponMeldN: 0, ponTileN: 0, lastDrawn: null };
 }
 /* 当前该谁出牌：春位 first 起，逆时针（座位 +1 方向）走 */
 function ms3TurnSeat(M){ return (M.first + M.turn) % MS3_SEATS; }
@@ -5266,6 +5285,7 @@ function ms3Draw(M, p){
   const k = M.wall.pop();
   p.hand.push(k);
   p.hand.sort(function(a, b){ return a - b; });
+  M.lastDrawn = { seat: p.seat, kind: k };   // 刚摸的牌单独记一笔（台面区展示用）
   return k;
 }
 /* 暗合：从手里拿走 3 张 k，合成一组（hidden=true → 图案不公开） */
@@ -5374,6 +5394,7 @@ async function ms3MainLoop(M){
       const kind = p.bot ? (ms3AiMelds(M, p)[0]) : (await ms3Ask('melds', { hand: p.hand.slice(), kinds: t }));
       if (kind == null) break;
       ms3DoMelds(p, kind, true);
+      M.lastDrawn = null;            // 合牌消耗了刚摸的牌，台面区不再单独显示
       if (typeof ms3Hook === 'function') ms3Hook('melds', M, seat);
       if (p.meldCount >= MS3_WIN){
         M.over = true; M.winner = seat; M.reason = 'win';
@@ -5394,6 +5415,7 @@ async function ms3MainLoop(M){
     }
     if (M.over) return M;
     ms3Discard(M, p, out);
+    M.lastDrawn = null;               // 摸到的牌已打出进牌河，台面区清空
     const riverIdx = M.river.length - 1;      // 本次弃牌在弃牌区的位置（点炮要按它移除）
     if (typeof ms3Hook === 'function') ms3Hook('discard', M, seat, out);
     await ms3Sleep(MS3_MS.discard);
@@ -6977,28 +6999,25 @@ window.addEventListener('resize', () => {
 /* 17 种牌面：万 1-7 + 筒 1-7 + 中/发/白。
    覆盖两种花色 + 三张字牌，纯数字牌不会看混；字牌暗合时一眼可辨。
    key 规则见 faceKey()：w1-w9=万，f1-f9=筒，t1-t9=条，另有 chun/hatsu/haku。 */
-/* 17 种牌面 = 万1-3 + 条1-7 + 筒1-4 + 中/发/白
-   选牌原则：① 每种花色都覆盖，纯数字牌不会看混；② 三张字牌做特殊张，暗合一眼可辨。
-   ⚠️ 万只能安全用 28/29/30（万1/2/3）：faceKey 里 `if (t===31) return 'chun'`
-      这类「清混碰把中发白当普通牌编码」的分支排在 `t>=27`（万）之前，
-      31/32/33 会渲染成中/发/白 —— 万4/5/6 用它们会串牌，故不取。
-   条1-9 走 faceKey 默认分支（'t'+t），筒 101-107 也无分支抢占，三者都安全。 */
+/* 17 种牌面 = 万1-3 + 条1-7 + 筒1-7（去掉字牌中/发/白，改用筒5-7 凑满 17）
+   选牌原则：① 三种花色都铺满（万只到 3，因 faceKey 把 31-33 抢成中发白，万4+ 会串牌）；
+      ② 纯数字牌不会看混，不再需要字牌做「特殊张」。
+   ⚠️ faceKey 陷阱：t===31/32/33 被抢成 中/发/白，故万只用 28-30；筒 101-107、条 1-9 安全。 */
 const MS3_TILES = [
   /* 0*/ 'w1', /* 1*/ 'w2', /* 2*/ 'w3',                    // 万 28-30
   /* 3*/ 't1', /* 4*/ 't2', /* 5*/ 't3', /* 6*/ 't4',       // 条 1-4
   /* 7*/ 't5', /* 8*/ 't6', /* 9*/ 't7',                    // 条 5-7
   /*10*/ 'f1', /*11*/ 'f2', /*12*/ 'f3', /*13*/ 'f4',       // 筒 101-104
-  /*14*/ 'chun', /*15*/ 'hatsu', /*16*/ 'haku'              // 中发白
+  /*14*/ 'f5', /*15*/ 'f6', /*16*/ 'f7'                     // 筒 105-107
 ];
 const MS3_TILE_NO = MS3_TILES.map(function(key){
-  if (key === 'chun') return 31;
-  if (key === 'hatsu') return 32;
-  if (key === 'haku') return 33;
   const c = key.charAt(0);
   const n = +key.slice(1);
-  if (c === 'w') return 27 + n;   // 万 28..36（见上方告警：31-33 会被中发白抢走）
-  if (c === 'f') return 100 + n;  // 筒 101..109
-  return n;                       // 条 1..9
+  /* STD_FACES 真实编号：faceKey 对 <27 一律 't'+t，即 t0-t8=万1-9 · t9-t17=筒1-9 · t18-t26=条1-9。
+     ⚠️ 旧映射 w→27+n 渲染成南/西/北风、t→n 错成万+1、f→100+n 错成条 —— v1.5.1 及之前的牌面全错位。 */
+  if (c === 'w') return n - 1;    // 万 1..3 → 0..2
+  if (c === 'f') return 8 + n;    // 筒 1..7 → 9..15
+  return 17 + n;                  // 条 1..7 → 18..24
 });
 function ms3Face(k){
   const no = MS3_TILE_NO[k];
@@ -7008,11 +7027,18 @@ function ms3Tile(k, extra){
   return '<div class="tile ' + (extra || '') + '">' + ms3Face(k) + '</div>';
 }
 
-function ms3Tile(k, extra){
-  return '<div class="tile ' + (extra || '') + '">' + ms3Face(k) + '</div>';
-}
-
 /* ---------- 运行时状态（客户端投影） ---------- */
+/* 副露组 HTML：三张「下二上一」叠放；暗合=全牌背（图案不公开） */
+function ms3MeldGroupHTML(m, mine){
+  const t = function(cls){
+    /* 暗合：下面两张背面朝上；自己视角（mine=true）最上面一张亮出图案，
+       别家的暗合则整组牌背（图案不公开） */
+    return m.hidden && !(mine && cls === 'mt')
+      ? '<div class="tile back ' + cls + '"></div>'
+      : '<div class="tile ' + cls + '">' + ms3Face(m.k) + '</div>';
+  };
+  return '<div class="m3MeldGroup">' + t('mb l') + t('mb r') + t('mt') + '</div>';
+}
 const MS3 = { M: null, run: 0, waiting: null };
 function ms3Open(){
   $('home').classList.add('hide');
@@ -7072,16 +7098,11 @@ function ms3Render(M, seat){
                    '<span>' + (s === 0 ? '你' : p.name) + '</span>' +
                    '<span class="m3sc">' + p.meldCount + '/' + MS3_WIN + '</span>';
     el.classList.toggle('act', !M.over && s === seat);
-    /* 暗合组只画牌背（图案不公开）；点炮组公开牌面。
+    /* 副露（合成区）：三张叠成一组（下二上一），暗合全牌背。
        座位 0（我）的副露在底部 .m3MeldRow 单独渲染，桌面里不重复画。 */
     const box = $('m3Melds' + s);
     if (!box) continue;
-    let h = '';
-    if (s !== 0) for (const m of p.melds){
-      h += m.hidden ? '<div class="m3Meld"></div>'
-                    : '<div class="m3Meld gold">' + ms3Face(m.k) + '</div>';
-    }
-    box.innerHTML = h;
+    box.innerHTML = (s !== 0) ? p.melds.map(function(m){ return ms3MeldGroupHTML(m); }).join('') : '';
   }
 
   /* ---------- 三家手牌：叠成一排（麻将 .hstack 观感） ----------
@@ -7123,22 +7144,29 @@ function ms3Render(M, seat){
   if (!M.river.length) rh += '<div class="m3RiverHint">尚无弃牌</div>';
   $('m3River').innerHTML = rh;
 
-  /* ---------- 我的手牌：三张以上同图案描绿框提示可暗合 ---------- */
+  /* ---------- 我的手牌：摸到的牌单独放「台面区」(#m3Drawn)，手牌本身位置不动 ----------
+     绿框(canMeld)只在「可暗合/可点炮」决策当下显示，避免与「出牌」提示对不上。 */
   const cnt = ms3Counts(my.hand);
+  const drawnK = (M.lastDrawn && M.lastDrawn.seat === 0) ? M.lastDrawn.kind : -1;
+  let drawnIdx = drawnK >= 0 ? my.hand.lastIndexOf(drawnK) : -1;
+  const showMeld = MS3.waiting === 'melds' || MS3.waiting === 'pon';
   let hh = '';
-  for (const k of my.hand){
-    hh += ms3Tile(k, (cnt[k] >= 3 ? 'canMeld' : ''));
+  for (let fi = 0; fi < my.hand.length; fi++){
+    if (fi === drawnIdx) continue;            // 摸到的牌挪到 #m3Drawn，不挤在手牌里
+    const k = my.hand[fi];
+    hh += '<div class="tile' + (showMeld && cnt[k] >= 3 ? ' canMeld' : '') + '" data-idx="' + fi + '">' + ms3Face(k) + '</div>';
   }
   const hand = $('m3Hand');
   hand.innerHTML = hh;
   hand.classList.toggle('wait', MS3.waiting === 'discard');
-  /* 我的副露：暗合只显示牌背（规则：暗合图案不公开），点炮公开图案 */
-  let mh = '';
-  for (const m of my.melds){
-    mh += m.hidden ? '<div class="m3Meld"></div>'
-                   : '<div class="m3Meld gold">' + ms3Face(m.k) + '</div>';
-  }
-  $('m3MineMelds').innerHTML = mh;
+  /* 摸到的牌：台面独立一格（金边区分），点击等同出这张 */
+  const drawnEl = $('m3Drawn');
+  if (drawnIdx >= 0){
+    drawnEl.innerHTML = '<div class="tile' + (showMeld && cnt[drawnK] >= 3 ? ' canMeld' : '') + '" data-idx="' + drawnIdx + '">' + ms3Face(drawnK) + '</div>';
+    drawnEl.classList.remove('hide');
+  } else { drawnEl.innerHTML = ''; drawnEl.classList.add('hide'); }
+  /* 我的副露（合成区）：三张叠一组（下二上一），暗合全牌背 */
+  $('m3MineMelds').innerHTML = my.melds.map(function(m){ return ms3MeldGroupHTML(m, true); }).join('');
 }
 /* ---------- 结算 ---------- */
 function ms3Over(M){
@@ -7202,7 +7230,7 @@ function ms3Prompt(html, buttons){
   return new Promise(function(res){
     const kids = Array.from(tip.querySelectorAll('.m3Act2'));
     kids.forEach(function(el){
-      el.onclick = function(){ ms3ClearPrompt(); res(buttons[+el.dataset.m3b].value); };
+      el.onclick = function(){ MS3.waiting = null; ms3ClearPrompt(); res(buttons[+el.dataset.m3b].value); };
     });
   });
 }
@@ -7213,8 +7241,8 @@ function ms3ClearPrompt(){
 }
 /* 决策出口：kind = 'melds' | 'discard' | 'pon' */
 function ms3AskLocal(kind, payload){
+  MS3.waiting = kind;                  // 决策态置位（绿框只在 'melds'/'pon' 时显示，避免与出牌提示对不上）
   if (kind === 'melds'){
-    MS3.waiting = null;
     /* 可暗合：列出图案，玩家选一个或选择「不打暗合」直接出牌。
        摸到牌正好凑齐一组（自摸）也走这条路径 —— 规则 10 的「自摸」即此。 */
     const kinds = payload.kinds;
@@ -7228,25 +7256,23 @@ function ms3AskLocal(kind, payload){
       .concat([{ label: '先出牌', value: null, pass: true }]));
   }
   if (kind === 'discard'){
-    /* 选一张打出：手牌直接点牌即出 */
-    MS3.waiting = 'discard';
+    /* 选一张打出：手牌或刚摸的牌点哪张出哪张（data-idx 指向整手牌数组下标） */
     const tip = $('m3Tip');
     tip.className = 'm3Tip hot';
     tip.textContent = '轮到你出牌 —— 点一张手牌打出去';
-    const hand = $('m3Hand');
+    const wrap = $('m3HandWrap');
     ms3Render(MS3.M, ms3TurnSeat(MS3.M));   // 让 wait 态与可点样式立刻生效
     return new Promise(function(res){
       function onClick(e){
         const el = e.target.closest('.tile');
-        if (!el) return;
-        const i = Array.from(hand.children).indexOf(el);
-        if (i < 0) return;
-        hand.removeEventListener('click', onClick);
+        if (!el || el.dataset.idx === undefined) return;
+        const idx = +el.dataset.idx;
+        wrap.removeEventListener('click', onClick);
         MS3.waiting = null;
         ms3ClearPrompt();
-        res(payload.hand[i]);
+        res(payload.hand[idx]);
       }
-      hand.addEventListener('click', onClick);
+      wrap.addEventListener('click', onClick);
     });
   }
   if (kind === 'pon'){
