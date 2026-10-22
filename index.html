@@ -1005,8 +1005,7 @@ html:not([data-felt]) body{visibility:hidden;animation:sjmThemed 0s 1.5s forward
     <button class="hBtn solo" id="hBtnSolo" data-page-node-id="FAFGv6w0rPuCMGDas3QQZV">单机游戏<small data-page-node-id="UWfeVjXQFTN6CxGTAsRfSS">与三家机器人对战 · 无需网络</small></button>
     <button class="hBtn multi" id="hBtnMulti" data-page-node-id="SzQTYxN0BNPAMZS98PoiE3">多人对战<small data-page-node-id="9TMUDZIbIN6h7x2obUAvD1">好友开房间 · 4 人联网 · 需要服务器</small></button>
     <button class="hBtn mini" id="hBtnMlm">麻了个麻<small>堆叠消除 · 休闲小游戏</small></button>
-    <button class="hBtn tri" id="hBtnMs3">麻三<small>四家合牌竞速 · 先成五组者胜</small></button>
-    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.5.2</div>
+    <div class="hVer" id="hVer" data-page-node-id="ZhseIPOR3SyeYXnALAQZ1u">v1.5.3</div>
   </div>
   <!-- 多人大厅（连接 + 建房/加入） -->
   <div class="homeBox hide" id="homeLobby" data-page-node-id="vaBSrPgt7QthCmJsSQYkkY">
@@ -7284,7 +7283,7 @@ function ms3AskLocal(kind, payload){
 }
 
 /* ---------- 绑定（脚本在 body 末尾，DOM 已就绪） ---------- */
-$('hBtnMs3').onclick = ms3Open;
+/* v1.5.3：麻三下线首页入口，暂不删除游戏代码与绑定（入口按钮已移除） */
 $('m3Gear').onclick = function(){
   if (MS3.M) ms3ScoreInto(MS3.M);
   $('m3Menu').classList.toggle('hide');
